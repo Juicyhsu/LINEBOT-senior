@@ -680,7 +680,8 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             char_ws = []
             for c in line_chars:
                 bb = txt_draw.textbbox((0,0), c, font=base_font)
-                cw = bb[2] - bb[0] + 5
+                # 寬度計算加上安全係數 (1.2x) 以避免因為隨機大小變化或旋轉導致右邊切字
+                cw = (bb[2] - bb[0]) * 1.2 + 8 
                 char_ws.append(cw)
                 w += cw
                 
