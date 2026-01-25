@@ -120,6 +120,18 @@ model = genai.GenerativeModel(
     system_instruction=llm_role_description,
 )
 
+# 建立一個「功能性」模型 (不帶激勵大師人設，專門處理邏輯/JSON)
+model_functional = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    generation_config={
+        "temperature": 0.2, # 低溫度，更精確
+        "top_p": 0.95,
+        "max_output_tokens": 8192,
+    },
+    # 不設定 system_instruction 或設定為純粹的助理
+    system_instruction="You are a helpful AI assistant focused on data processing and JSON generation. Do not include any conversational filler. Output strict structured data.",
+)
+
 UPLOAD_FOLDER = "static"
 
 app = Flask(__name__)
@@ -132,6 +144,37 @@ if channel_secret is None:
 if channel_access_token is None:
     print("Specify LINE_CHANNEL_ACCESS_TOKEN as environment variable.")
     sys.exit(1)
+
+# ======================
+# Google Cloud Credentials Bootstrapping
+# ======================
+# 檢查是否需要從環境變數重建憑證檔案 (for Zeabur/Heroku)
+credentials_json_content = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+credentials_file_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service-account-key.json")
+
+if credentials_json_content and not os.path.exists(credentials_file_path):
+    print(f"Creating credentials file at {credentials_file_path} from environment variable...")
+    try:
+        # 解碼 base64 (如果是 base64 編碼)
+        try:
+            decoded_content = base64.b64decode(credentials_json_content).decode('utf-8')
+            # 驗證是否為 JSON
+            import json
+            json.loads(decoded_content)
+            content_to_write = decoded_content
+        except:
+            # 假設已經是純文字 JSON
+            content_to_write = credentials_json_content
+            
+        with open(credentials_file_path, "w") as f:
+            f.write(content_to_write)
+        print("Credentials file created successfully.")
+    except Exception as e:
+        print(f"Failed to create credentials file: {e}")
+
+# 確保環境變數指向正確路徑
+if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_file_path
 
 handler = WebhookHandler(channel_secret)
 configuration = Configuration(access_token=channel_access_token)
@@ -1502,8 +1545,8 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 現在請為「{user_input}」生成英文 prompt："""
              
              try:
-                 # 使用 Gemini 翻譯
-                 translation_response = model.generate_content(translation_prompt)
+                 # 使用 Gemini 翻譯 (使用功能性模型，避免廢話)
+                 translation_response = model_functional.generate_content(translation_prompt)
                  bg_prompt = translation_response.text.strip()
                  
                  # 生成圖片
@@ -1587,7 +1630,8 @@ size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小
 範例1：bottom-right,#FFD700,heiti,5,75
 範例2：top-left,rainbow,kaiti,-8,60"""
 
-                response = model.generate_content([vision_prompt, bg_image])
+                # 使用功能性模型進行排版分析
+                response = model_functional.generate_content([vision_prompt, bg_image])
                 result = response.text.strip()
                 
                 print(f"[AI CREATIVE] Raw: {result[:100]}...")
@@ -1707,7 +1751,8 @@ def classify_user_intent(text):
         - "畫一隻貓" -> image_generation
         - "提醒我吃藥" -> set_reminder
         """
-        response = model.generate_content(classification_prompt)
+        # 使用功能性模型進行意圖分類
+        response = model_functional.generate_content(classification_prompt)
         intent = response.text.strip().lower()
         
         # 清理可能的多餘符號
@@ -1745,9 +1790,9 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
             # 用 AI 判斷是否有清除記憶的意圖（更智慧的判斷）
             intent_check_keywords = ["重新", "清除", "忘記", "重置", "清空", "reset", "記憶", "對話", "開始"]
             if not should_clear and any(keyword in user_input for keyword in intent_check_keywords):
-                # 用簡單的 AI 呼叫來判斷意圖
+                # 用簡單的 AI 呼叫來判斷意圖 (使用功能性模型)
                 intent_prompt = f"使用者說：「{user_input}」。請判斷使用者是否想要清除對話記憶、重新開始對話？只回答「是」或「否」。"
-                intent_response = model.generate_content(intent_prompt)
+                intent_response = model_functional.generate_content(intent_prompt)
                 should_clear = "是" in intent_response.text
         
         if should_clear:
@@ -1981,7 +2026,8 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      要求：回應請簡短、順暢，不要廢話。
                      時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}
                      """
-                     resp = model.generate_content(parse_prompt)
+                     # 使用功能性模型解析
+                     resp = model_functional.generate_content(parse_prompt)
                      import json, re
                      data = json.loads(re.search(r'\{[^}]+\}', resp.text).group())
                      t = datetime.fromisoformat(data['reminder_time'])
@@ -2054,7 +2100,8 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     
                     """
                     try:
-                        optimized = model.generate_content(optimize_prompt)
+                        # 使用功能性模型解析 Prompt
+                        optimized = model_functional.generate_content(optimize_prompt)
                         import json, re
                         image_prompt = optimized.text.strip()
                         text_overlay = None
@@ -2303,7 +2350,8 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  2. 絕對不要講笑話。
                  """
                  
-                 optimized = model.generate_content(optimize_prompt)
+                 # 使用功能性模型解析
+                 optimized = model_functional.generate_content(optimize_prompt)
                  import json
                  import re
                  image_prompt = optimized.text.strip()
