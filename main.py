@@ -2006,11 +2006,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  chat = chat_sessions[user_id]
                  
                  if has_image:
-                     formatted_input = [f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}", upload_image]
-                     response = chat.send_message(formatted_input)
+                     upload_image = PIL.Image.open(user_images[user_id])
+                     response = chat.send_message([user_input, upload_image])
                  else:
-                     formatted_input = f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}"
-                     response = chat.send_message(formatted_input)
+                     response = chat.send_message(user_input)
                  return response.text
 
 
