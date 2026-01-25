@@ -1627,7 +1627,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 4. **絕對不要選擇接近背景色的顏色！**
 5. **角度可以有創意** - 不一定要0度，可以稍微傾斜增加動感
 
-**只回傳一行，格式：position,color,font,angle,size**
+**只回傳一行，格式：position,color,font,angle**
 
 position必須從這些選：top-left, top-right, bottom-left, bottom-right, top, bottom（不要center！）
 color：
@@ -1635,10 +1635,9 @@ color：
 2. 或使用高對比hex碼 (例如 #FFD700金, #FF00FF亮紫)
 font：kaiti或heiti
 angle：-15到15的整數
-size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小，越大越好，但不要太擠）
 
-範例1：bottom-right,#FFD700,heiti,5,75
-範例2：top-left,rainbow,kaiti,-8,60"""
+範例1：bottom-right,#FFD700,heiti,5
+範例2：top-left,rainbow,kaiti,-8"""
 
                 # 使用功能性模型進行排版分析
                 response = model_functional.generate_content([vision_prompt, bg_image])
@@ -1649,8 +1648,8 @@ size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小
                 # 更寬鬆的解析 - 嘗試多種模式 (支援 #hex 或 rainbow)
                 import re
                 
-                # 嘗試標準格式 (新增 size)
-                match = re.search(r'([a-z\-]+)\s*,\s*(#[a-fA-F0-9]{6}|rainbow)\s*,\s*(kaiti|heiti)\s*,\s*(-?\d+)\s*,\s*(\d+)', result, re.IGNORECASE)
+                # 嘗試標準格式
+                match = re.search(r'([a-z\-]+)\s*,\s*(#[a-fA-F0-9]{6}|rainbow)\s*,\s*(kaiti|heiti)\s*,\s*(-?\d+)', result, re.IGNORECASE)
                 
                 if not match:
                     # 嘗試提取各個部分
@@ -1658,7 +1657,6 @@ size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小
                     color_match = re.search(r'(#[a-fA-F0-9]{6}|rainbow)', result, re.IGNORECASE)
                     font_match = re.search(r'(kaiti|heiti)', result, re.IGNORECASE)
                     angle_match = re.search(r'[,:\s](-?\d+)(?:[度°]|\s*$|,)', result)
-                    size_match = re.search(r'[,:\s](\d{2,3})(?:[號px]|\s*$)', result) # 抓取2-3位數作為大小
                     
                     if pos_match and color_match:
                         position = pos_match.group(1).lower()
@@ -1672,7 +1670,6 @@ size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小
                             
                         font = font_match.group(1).lower() if font_match else 'heiti'
                         angle = int(angle_match.group(1)) if angle_match else 0
-                        size = int(size_match.group(1)) if size_match else 60
                         match = True  # 標記成功
                 
                 if match:
@@ -1683,10 +1680,15 @@ size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小
                              color = color.upper() # hex轉大寫
                         font = match.group(3).strip().lower()
                         angle = int(match.group(4).strip())
-                        size = int(match.group(5).strip())
                     
-                    # 文字大小 - 直接使用 AI 判斷的結果，不再強制覆蓋
-                    # (移除舊的 hardcoded 判斷)
+                    # 文字大小
+                    text_length = len(text)
+                    if text_length <= 4:
+                        size = random.choice([70, 75, 80])
+                    elif text_length <= 8:
+                        size = random.choice([60, 65, 70])
+                    else:
+                        size = random.choice([50, 55, 60])
                     
                     print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}號, {angle}度")
                 else:
