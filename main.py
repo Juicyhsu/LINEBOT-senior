@@ -983,20 +983,15 @@ def message_text(event):
         help_image_url = os.environ.get("HELP_IMAGE_URL")
         
         reply_msgs = []
-        if help_image_url:
-            # 有圖片，優先顯示圖片
-            reply_msgs.append(
-                ImageMessage(
-                    original_content_url=help_image_url,
-                    preview_image_url=help_image_url
-                )
-            )
-        else:
-            # 沒圖片，回傳文字版說明
-            help_text = """🌟 功能總覽與使用教學 🌟
+        
+        # 1. 必備：文字版說明
+        help_text = """🌟 功能總覽與使用教學 🌟
 
 1️⃣ 🖼️ 製作圖片
 👉 請說：「幫我畫一隻貓」或「生成風景圖」
+
+2️⃣ 👴 製作長輩圖
+👉 請說：「我要做長輩圖」或「製作早安圖」
 
 2️⃣ 👴 製作長輩圖
 👉 請說：「我要做長輩圖」或「製作早安圖」
@@ -1014,7 +1009,16 @@ def message_text(event):
 
 6️⃣ 💬 聊天解悶
 👉 隨時都可以跟我聊天喔！"""
-            reply_msgs.append(TextMessage(text=help_text))
+        reply_msgs.append(TextMessage(text=help_text))
+        
+        # 2. 選備：功能說明圖 (若有設定 HELP_IMAGE_URL)
+        if help_image_url:
+             reply_msgs.append(
+                ImageMessage(
+                    original_content_url=help_image_url,
+                    preview_image_url=help_image_url
+                )
+            )
             
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
