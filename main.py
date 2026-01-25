@@ -527,13 +527,18 @@ def get_font_path(font_type):
     if not url: return None
     
     try:
-        r = requests.get(url, timeout=10)
-        with open(local_font_path, 'wb') as f:
-            f.write(r.content)
-        print(f"[FONT] Downloaded {local_font_path}")
-        return local_font_path
+        print(f"[FONT] Attempting to download from {url}...")
+        r = requests.get(url, timeout=30) # Increased timeout
+        if r.status_code == 200:
+            with open(local_font_path, 'wb') as f:
+                f.write(r.content)
+            print(f"[FONT] Successfully downloaded {local_font_path}, size: {len(r.content)} bytes")
+            return local_font_path
+        else:
+            print(f"[FONT] Download failed with status code: {r.status_code}")
+            return None
     except Exception as e:
-        print(f"[FONT] Download failed: {e}")
+        print(f"[FONT] Download exception: {e}")
         return None
 
 def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0):
