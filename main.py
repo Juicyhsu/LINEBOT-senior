@@ -537,7 +537,7 @@ def get_font_path(font_type):
         return None
 
 def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0):
-    """製作長輩圖（還原備份檔邏輯 + 雲端字體支援）"""
+    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化等效果）"""
     try:
         import random
         import math
@@ -597,100 +597,117 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         # 計算起始位置
         padding = 40
         
-        # 計算每個字的寬度（用於整體佈局）
-        char_widths = []
+        # -------------------------------------------------------
+        # 使用文字自動換行邏輯 (避免文字太小或切字)
+        # -------------------------------------------------------
+        max_width = img.width - (padding * 2)
+        lines = []
+        current_line = []
+        current_w = 0
+        
+        # 簡單估算每個字的寬度（這裡稍微保守一點）
         for char in text:
+            # 取得該字寬度
             bbox = txt_draw.textbbox((0, 0), char, font=base_font)
-            # textbbox return: (left, top, right, bottom)
-            # width = right - left
-            char_widths.append(bbox[2] - bbox[0])
-        total_width = sum(char_widths) + len(text) * 5  # 5px 間距
+            char_w = bbox[2] - bbox[0] + 5 # +5 間距
+            
+            if current_w + char_w > max_width and current_line:
+                lines.append(current_line)
+                current_line = [char]
+                current_w = char_w
+            else:
+                current_line.append(char)
+                current_w += char_w
+        if current_line:
+            lines.append(current_line)
+            
+        # 計算整個區塊的高度
+        line_height = int(font_size * 1.2)
+        total_block_height = len(lines) * line_height
         
-        # 計算位置 (Backup Logic)
+        # 根據 position 計算區塊起始 Y
         if position == 'bottom':
-            start_x = (img.width - total_width) / 2
-            start_y = img.height - font_size - padding
-        elif position == 'top':
-            start_x = (img.width - total_width) / 2
+            start_y = img.height - total_block_height - padding
+        elif position == 'top' or position == 'top-left' or position == 'top-right':
             start_y = padding
-        elif position == 'top-left':
-            start_x = padding
-            start_y = padding
-        elif position == 'top-right':
-            start_x = img.width - total_width - padding
-            start_y = padding
-        elif position == 'bottom-left':
-            start_x = padding
-            start_y = img.height - font_size - padding
-        elif position == 'bottom-right':
-            start_x = img.width - total_width - padding
-            start_y = img.height - font_size - padding
-        else:  # center 或其他
-            start_x = (img.width - total_width) / 2
-            start_y = (img.height - font_size) / 2
+        elif position == 'bottom-left' or position == 'bottom-right':
+            start_y = img.height - total_block_height - padding
+        else:  # center
+            start_y = (img.height - total_block_height) / 2
+            
+        # 開始繪製每一行
+        current_y = start_y
         
-        # 🎨 逐字繪製 - 每個字都可以有不同效果！
-        current_x = start_x
-        
-        for i, char in enumerate(text):
-            # 📏 大小變化 - 首尾字稍大
-            if i == 0 or i == len(text) - 1:
-                char_size = int(font_size * 1.15)  # 首尾放大15%
-            else:
-                char_size = font_size + random.randint(-3, 3)  # 微小變化
+        for line_chars in lines:
+            # 計算該行總寬 (用來決定 X 起始點)
+            line_str = "".join(line_chars)
+            # 重新精算寬度
+            w = 0
+            char_ws = []
+            for c in line_chars:
+                bb = txt_draw.textbbox((0,0), c, font=base_font)
+                cw = bb[2] - bb[0] + 5
+                char_ws.append(cw)
+                w += cw
+                
+            if position == 'top-left' or position == 'bottom-left':
+                current_x = padding
+            elif position == 'top-right' or position == 'bottom-right':
+                current_x = img.width - w - padding
+            else: # center, top, bottom 都是水平置中
+                current_x = (img.width - w) / 2
             
-            # 載入該字的字體
-            try:
-                char_font = ImageFont.truetype(font_path, char_size)
-            except:
-                char_font = base_font
+            # 逐字繪製該行
+            for i, char in enumerate(line_chars):
+                # 📏 大小變化 - 首尾字稍大 (僅第一行首和最後一行尾)
+                # 這裡简化效果，避免排版亂掉，只做隨機微調
+                char_size = font_size + random.randint(-2, 2)
+                
+                try:
+                    char_font = ImageFont.truetype(font_path, char_size)
+                except:
+                    char_font = base_font
+                
+                # 🌈 顏色
+                if is_rainbow:
+                    char_color = rainbow_colors[random.randint(0, len(rainbow_colors)-1)]
+                else:
+                    char_color = fill_color
+                
+                # 🌊 波浪 + 📐 微旋轉
+                wave_offset = math.sin(current_x * 0.05) * 5
+                char_angle = random.uniform(-5, 5)
+                
+                char_real_y = current_y + wave_offset
+                
+                # 創建單字圖層
+                char_bbox = txt_draw.textbbox((0, 0), char, font=char_font)
+                char_w = char_bbox[2] - char_bbox[0] + 20
+                char_h = char_bbox[3] - char_bbox[1] + 20
+                
+                char_layer = Image.new('RGBA', (char_w, char_h), (255, 255, 255, 0))
+                cd = ImageDraw.Draw(char_layer)
+                
+                # 陰影
+                cd.text((10+3, 10+3), char, font=char_font, fill='#00000088')
+                # 本體
+                cd.text((10, 10), char, font=char_font, fill=char_color)
+                
+                # 旋轉
+                if abs(char_angle) > 0.5:
+                    char_layer = char_layer.rotate(char_angle, expand=True, resample=Image.Resampling.BICUBIC)
+                
+                # 貼上
+                paste_x = int(current_x)
+                paste_y = int(char_real_y)
+                paste_x = max(0, min(paste_x, img.width - char_layer.width))
+                
+                txt_layer.paste(char_layer, (paste_x, paste_y), char_layer)
+                
+                current_x += char_ws[i]
             
-            # 🌈 顏色
-            if is_rainbow:
-                char_color = rainbow_colors[i % len(rainbow_colors)]
-            else:
-                char_color = fill_color
-            
-            # 🌊 波浪效果 - Y座標微調
-            wave_offset = math.sin(i * 0.8) * 8  # 上下波動 ±8px
-            
-            # 📐 微旋轉 - 每個字微微傾斜
-            char_angle = random.uniform(-8, 8)
-            
-            # 計算字的高度調整
-            char_y = start_y + wave_offset
-            
-            # 創建單字圖層（用於旋轉）
-            char_bbox = txt_draw.textbbox((0, 0), char, font=char_font)
-            char_w = char_bbox[2] - char_bbox[0] + 20
-            char_h = char_bbox[3] - char_bbox[1] + 20
-            
-            char_layer = Image.new('RGBA', (char_w, char_h), (255, 255, 255, 0))
-            char_draw = ImageDraw.Draw(char_layer)
-            
-            # ✨ 陰影效果
-            shadow_offset = 3
-            char_draw.text((10 + shadow_offset, 10 + shadow_offset), char, font=char_font, fill='#00000088')
-            
-            # 繪製字
-            char_draw.text((10, 10), char, font=char_font, fill=char_color)
-            
-            # 旋轉單字
-            if abs(char_angle) > 0.5:
-                char_layer = char_layer.rotate(char_angle, expand=True, resample=Image.Resampling.BICUBIC)
-            
-            # 貼到主圖層
-            paste_x = int(current_x)
-            paste_y = int(char_y)
-            
-            # 確保不超出邊界
-            paste_x = max(0, min(paste_x, img.width - char_layer.width))
-            paste_y = max(0, min(paste_y, img.height - char_layer.height))
-            
-            txt_layer.paste(char_layer, (paste_x, paste_y), char_layer)
-            
-            # 移動到下一個字的位置
-            current_x += char_widths[i] + 8
+            # 換行
+            current_y += line_height
         
         # 如果有整體旋轉角度
         if angle != 0:
@@ -1670,7 +1687,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 4. **絕對不要選擇接近背景色的顏色！**
 5. **角度可以有創意** - 不一定要0度，可以稍微傾斜增加動感
 
-**只回傳一行，格式：position,color,font,angle**
+**只回傳一行，格式：position,color,font,angle,size**
 
 position必須從這些選：top-left, top-right, bottom-left, bottom-right, top, bottom（不要center！）
 color：
@@ -1678,9 +1695,10 @@ color：
 2. 或使用高對比hex碼 (例如 #FFD700金, #FF00FF亮紫)
 font：kaiti或heiti
 angle：-15到15的整數
+size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小，越大越好，但不要太擠）
 
-範例1：bottom-right,#FFD700,heiti,5
-範例2：top-left,rainbow,kaiti,-8"""
+範例1：bottom-right,#FFD700,heiti,5,75
+範例2：top-left,rainbow,kaiti,-8,60"""
 
                 # 使用功能性模型進行排版分析
                 response = model_functional.generate_content([vision_prompt, bg_image])
@@ -1691,8 +1709,8 @@ angle：-15到15的整數
                 # 更寬鬆的解析 - 嘗試多種模式 (支援 #hex 或 rainbow)
                 import re
                 
-                # 嘗試標準格式
-                match = re.search(r'([a-z\-]+)\s*,\s*(#[a-fA-F0-9]{6}|rainbow)\s*,\s*(kaiti|heiti)\s*,\s*(-?\d+)', result, re.IGNORECASE)
+                # 嘗試標準格式 (新增 size)
+                match = re.search(r'([a-z\-]+)\s*,\s*(#[a-fA-F0-9]{6}|rainbow)\s*,\s*(kaiti|heiti)\s*,\s*(-?\d+)\s*,\s*(\d+)', result, re.IGNORECASE)
                 
                 if not match:
                     # 嘗試提取各個部分
@@ -1700,6 +1718,7 @@ angle：-15到15的整數
                     color_match = re.search(r'(#[a-fA-F0-9]{6}|rainbow)', result, re.IGNORECASE)
                     font_match = re.search(r'(kaiti|heiti)', result, re.IGNORECASE)
                     angle_match = re.search(r'[,:\s](-?\d+)(?:[度°]|\s*$|,)', result)
+                    size_match = re.search(r'[,:\s](\d{2,3})(?:[號px]|\s*$)', result) # 抓取2-3位數作為大小
                     
                     if pos_match and color_match:
                         position = pos_match.group(1).lower()
@@ -1713,6 +1732,7 @@ angle：-15到15的整數
                             
                         font = font_match.group(1).lower() if font_match else 'heiti'
                         angle = int(angle_match.group(1)) if angle_match else 0
+                        size = int(size_match.group(1)) if size_match else 60
                         match = True  # 標記成功
                 
                 if match:
@@ -1723,15 +1743,9 @@ angle：-15到15的整數
                              color = color.upper() # hex轉大寫
                         font = match.group(3).strip().lower()
                         angle = int(match.group(4).strip())
+                        size = int(match.group(5).strip())
                     
-                    # 文字大小
-                    text_length = len(text)
-                    if text_length <= 4:
-                        size = random.choice([70, 75, 80])
-                    elif text_length <= 8:
-                        size = random.choice([60, 65, 70])
-                    else:
-                        size = random.choice([50, 55, 60])
+                    # 文字大小 - 直接使用 AI 判斷的結果，不再強制覆蓋
                     
                     print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}號, {angle}度")
                 else:
