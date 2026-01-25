@@ -474,8 +474,70 @@ def generate_video_with_veo(prompt, user_id):
         # return "https://storage.googleapis.com/你的bucket/測試影片.mp4"
         return None
 
+def get_font_path(font_type):
+    """取得字體路徑，自動下載 Google Fonts (支援 Linux/Zeabur)"""
+    import os
+    import requests
+    
+    # 定義字體目錄
+    font_dir = os.path.join(os.getcwd(), "static", "fonts")
+    os.makedirs(font_dir, exist_ok=True)
+    
+    # 字體映射 (備份檔案邏輯 + 雲端支援)
+    # 優先檢查 Windows 本地字體 (開發環境)
+    win_paths = {
+        'msjh': "C:\\Windows\\Fonts\\msjh.ttc",
+        'heiti': "C:\\Windows\\Fonts\\msjh.ttc",
+        'kaiti': "C:\\Windows\\Fonts\\kaiu.ttf",
+        'ming': "C:\\Windows\\Fonts\\mingliu.ttc"
+    }
+    
+    # 如果是 Windows 且檔案存在，直接回傳
+    if os.name == 'nt':
+        win_path = win_paths.get(font_type)
+        if win_path and os.path.exists(win_path):
+            return win_path
+
+    # Linux/Cloud 環境：使用 Noto Sans TC
+    # 對映表
+    cloud_font_map = {
+        'kaiti': 'NotoSerifTC-Regular.otf',
+        'heiti': 'NotoSansTC-Bold.otf',
+        'ming': 'NotoSerifTC-Regular.otf',
+        'default': 'NotoSansTC-Regular.otf'
+    }
+    
+    target_font_file = cloud_font_map.get(font_type, cloud_font_map['default'])
+    local_font_path = os.path.join(font_dir, target_font_file)
+    
+    if os.path.exists(local_font_path):
+        return local_font_path
+        
+    print(f"[FONT] Downloading {target_font_file} for cloud environment...")
+    
+    # 下載連結 (使用 Google Fonts GitHub Raw)
+    base_url = "https://github.com/google/fonts/raw/main/ofl"
+    urls = {
+        'NotoSansTC-Bold.otf': f"{base_url}/notosanstc/NotoSansTC-Bold.otf",
+        'NotoSansTC-Regular.otf': f"{base_url}/notosanstc/NotoSansTC-Regular.otf",
+        'NotoSerifTC-Regular.otf': f"{base_url}/notoseriftc/NotoSerifTC-Regular.otf"
+    }
+    
+    url = urls.get(target_font_file)
+    if not url: return None
+    
+    try:
+        r = requests.get(url, timeout=10)
+        with open(local_font_path, 'wb') as f:
+            f.write(r.content)
+        print(f"[FONT] Downloaded {local_font_path}")
+        return local_font_path
+    except Exception as e:
+        print(f"[FONT] Download failed: {e}")
+        return None
+
 def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0):
-    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化等效果）"""
+    """製作長輩圖（還原備份檔邏輯 + 雲端字體支援）"""
     try:
         import random
         import math
@@ -490,19 +552,17 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         # 轉換為 RGBA 以支援透明圖層
         img = img.convert('RGBA')
         
-        # 字體路徑對照表 (Windows)
-        font_paths = {
-            'msjh': "C:\\Windows\\Fonts\\msjh.ttc",
-            'heiti': "C:\\Windows\\Fonts\\msjh.ttc",
-            'kaiti': "C:\\Windows\\Fonts\\kaiu.ttf",
-            'ming': "C:\\Windows\\Fonts\\mingliu.ttc"
-        }
-        
-        # 載入字體
+        # 載入字體 (使用 helper 解決跨平台問題)
         try:
-            font_path = font_paths.get(font_type, font_paths['kaiti'])
-            base_font = ImageFont.truetype(font_path, font_size)
-        except:
+            font_path = get_font_path(font_type)
+            if font_path:
+                base_font = ImageFont.truetype(font_path, font_size)
+            else:
+                # Fallback
+                base_font = ImageFont.load_default()
+                print("[FONT] Warning: Using default font (Chinese may be missing)")
+        except Exception as e:
+            print(f"[FONT] Error loading font: {e}")
             base_font = ImageFont.load_default()
         
         # 顏色處理
@@ -537,117 +597,100 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         # 計算起始位置
         padding = 40
         
-        # -------------------------------------------------------
-        # 使用文字自動換行邏輯 (避免文字太小或切字)
-        # -------------------------------------------------------
-        max_width = img.width - (padding * 2)
-        lines = []
-        current_line = []
-        current_w = 0
-        
-        # 簡單估算每個字的寬度（這裡稍微保守一點）
+        # 計算每個字的寬度（用於整體佈局）
+        char_widths = []
         for char in text:
-            # 取得該字寬度
             bbox = txt_draw.textbbox((0, 0), char, font=base_font)
-            char_w = bbox[2] - bbox[0] + 5 # +5 間距
-            
-            if current_w + char_w > max_width and current_line:
-                lines.append(current_line)
-                current_line = [char]
-                current_w = char_w
-            else:
-                current_line.append(char)
-                current_w += char_w
-        if current_line:
-            lines.append(current_line)
-            
-        # 計算整個區塊的高度
-        line_height = int(font_size * 1.2)
-        total_block_height = len(lines) * line_height
+            # textbbox return: (left, top, right, bottom)
+            # width = right - left
+            char_widths.append(bbox[2] - bbox[0])
+        total_width = sum(char_widths) + len(text) * 5  # 5px 間距
         
-        # 根據 position 計算區塊起始 Y
+        # 計算位置 (Backup Logic)
         if position == 'bottom':
-            start_y = img.height - total_block_height - padding
-        elif position == 'top' or position == 'top-left' or position == 'top-right':
+            start_x = (img.width - total_width) / 2
+            start_y = img.height - font_size - padding
+        elif position == 'top':
+            start_x = (img.width - total_width) / 2
             start_y = padding
-        elif position == 'bottom-left' or position == 'bottom-right':
-            start_y = img.height - total_block_height - padding
-        else:  # center
-            start_y = (img.height - total_block_height) / 2
-            
-        # 開始繪製每一行
-        current_y = start_y
+        elif position == 'top-left':
+            start_x = padding
+            start_y = padding
+        elif position == 'top-right':
+            start_x = img.width - total_width - padding
+            start_y = padding
+        elif position == 'bottom-left':
+            start_x = padding
+            start_y = img.height - font_size - padding
+        elif position == 'bottom-right':
+            start_x = img.width - total_width - padding
+            start_y = img.height - font_size - padding
+        else:  # center 或其他
+            start_x = (img.width - total_width) / 2
+            start_y = (img.height - font_size) / 2
         
-        for line_chars in lines:
-            # 計算該行總寬 (用來決定 X 起始點)
-            line_str = "".join(line_chars)
-            # 重新精算寬度
-            w = 0
-            char_ws = []
-            for c in line_chars:
-                bb = txt_draw.textbbox((0,0), c, font=base_font)
-                cw = bb[2] - bb[0] + 5
-                char_ws.append(cw)
-                w += cw
-                
-            if position == 'top-left' or position == 'bottom-left':
-                current_x = padding
-            elif position == 'top-right' or position == 'bottom-right':
-                current_x = img.width - w - padding
-            else: # center, top, bottom 都是水平置中
-                current_x = (img.width - w) / 2
+        # 🎨 逐字繪製 - 每個字都可以有不同效果！
+        current_x = start_x
+        
+        for i, char in enumerate(text):
+            # 📏 大小變化 - 首尾字稍大
+            if i == 0 or i == len(text) - 1:
+                char_size = int(font_size * 1.15)  # 首尾放大15%
+            else:
+                char_size = font_size + random.randint(-3, 3)  # 微小變化
             
-            # 逐字繪製該行
-            for i, char in enumerate(line_chars):
-                # 📏 大小變化 - 首尾字稍大 (僅第一行首和最後一行尾)
-                # 這裡简化效果，避免排版亂掉，只做隨機微調
-                char_size = font_size + random.randint(-2, 2)
-                
-                try:
-                    char_font = ImageFont.truetype(font_path, char_size)
-                except:
-                    char_font = base_font
-                
-                # 🌈 顏色
-                if is_rainbow:
-                    char_color = rainbow_colors[random.randint(0, len(rainbow_colors)-1)]
-                else:
-                    char_color = fill_color
-                
-                # 🌊 波浪 + 📐 微旋轉
-                wave_offset = math.sin(current_x * 0.05) * 5
-                char_angle = random.uniform(-5, 5)
-                
-                char_real_y = current_y + wave_offset
-                
-                # 創建單字圖層
-                char_bbox = txt_draw.textbbox((0, 0), char, font=char_font)
-                char_w = char_bbox[2] - char_bbox[0] + 20
-                char_h = char_bbox[3] - char_bbox[1] + 20
-                
-                char_layer = Image.new('RGBA', (char_w, char_h), (255, 255, 255, 0))
-                cd = ImageDraw.Draw(char_layer)
-                
-                # 陰影
-                cd.text((10+3, 10+3), char, font=char_font, fill='#00000088')
-                # 本體
-                cd.text((10, 10), char, font=char_font, fill=char_color)
-                
-                # 旋轉
-                if abs(char_angle) > 0.5:
-                    char_layer = char_layer.rotate(char_angle, expand=True, resample=Image.Resampling.BICUBIC)
-                
-                # 貼上
-                paste_x = int(current_x)
-                paste_y = int(char_real_y)
-                paste_x = max(0, min(paste_x, img.width - char_layer.width))
-                
-                txt_layer.paste(char_layer, (paste_x, paste_y), char_layer)
-                
-                current_x += char_ws[i]
+            # 載入該字的字體
+            try:
+                char_font = ImageFont.truetype(font_path, char_size)
+            except:
+                char_font = base_font
             
-            # 換行
-            current_y += line_height
+            # 🌈 顏色
+            if is_rainbow:
+                char_color = rainbow_colors[i % len(rainbow_colors)]
+            else:
+                char_color = fill_color
+            
+            # 🌊 波浪效果 - Y座標微調
+            wave_offset = math.sin(i * 0.8) * 8  # 上下波動 ±8px
+            
+            # 📐 微旋轉 - 每個字微微傾斜
+            char_angle = random.uniform(-8, 8)
+            
+            # 計算字的高度調整
+            char_y = start_y + wave_offset
+            
+            # 創建單字圖層（用於旋轉）
+            char_bbox = txt_draw.textbbox((0, 0), char, font=char_font)
+            char_w = char_bbox[2] - char_bbox[0] + 20
+            char_h = char_bbox[3] - char_bbox[1] + 20
+            
+            char_layer = Image.new('RGBA', (char_w, char_h), (255, 255, 255, 0))
+            char_draw = ImageDraw.Draw(char_layer)
+            
+            # ✨ 陰影效果
+            shadow_offset = 3
+            char_draw.text((10 + shadow_offset, 10 + shadow_offset), char, font=char_font, fill='#00000088')
+            
+            # 繪製字
+            char_draw.text((10, 10), char, font=char_font, fill=char_color)
+            
+            # 旋轉單字
+            if abs(char_angle) > 0.5:
+                char_layer = char_layer.rotate(char_angle, expand=True, resample=Image.Resampling.BICUBIC)
+            
+            # 貼到主圖層
+            paste_x = int(current_x)
+            paste_y = int(char_y)
+            
+            # 確保不超出邊界
+            paste_x = max(0, min(paste_x, img.width - char_layer.width))
+            paste_y = max(0, min(paste_y, img.height - char_layer.height))
+            
+            txt_layer.paste(char_layer, (paste_x, paste_y), char_layer)
+            
+            # 移動到下一個字的位置
+            current_x += char_widths[i] + 8
         
         # 如果有整體旋轉角度
         if angle != 0:
