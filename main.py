@@ -640,10 +640,19 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         current_line = []
         current_w = 0
         
+        # 建立一個「計算用」的字體，比較大一點，確保計算出來的寬度夠寬 (保守估計)
+        # 用來避免隨機大小變化導致的切字
+        try:
+             # 假設最大隨機增加 4px，我們加 8px 當作安全緩衝
+             calc_font_size = font_size + 8
+             calc_font = ImageFont.truetype(font_path, calc_font_size)
+        except:
+             calc_font = base_font
+
         # 簡單估算每個字的寬度（這裡稍微保守一點）
         for char in text:
-            # 取得該字寬度
-            bbox = txt_draw.textbbox((0, 0), char, font=base_font)
+            # 取得該字寬度 (用 calc_font)
+            bbox = txt_draw.textbbox((0, 0), char, font=calc_font)
             char_w = bbox[2] - bbox[0] + 5 # +5 間距
             
             if current_w + char_w > max_width and current_line:
@@ -680,9 +689,9 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             w = 0
             char_ws = []
             for c in line_chars:
-                bb = txt_draw.textbbox((0,0), c, font=base_font)
-                # 寬度計算加上安全係數 (1.3x) 以避免因為隨機大小變化或旋轉導致右邊切字
-                cw = (bb[2] - bb[0]) * 1.3 + 10 
+                # 使用加大版的 calc_font 來計算寬度，確保不會被切掉
+                bb = txt_draw.textbbox((0,0), c, font=calc_font)
+                cw = (bb[2] - bb[0]) + 5 # 額外+5px間距
                 char_ws.append(cw)
                 w += cw
                 
@@ -1346,9 +1355,21 @@ def message_audio(event):
             else:
                 # 一般閒聊模式 - 只有在閒聊時才允許 AI 發揮 (含 jokes)
                 confirmation = f"✅ 收到語音訊息\n\n您說的是：「{text}」"
-                response = gemini_llm_sdk(text, user_id)
-                reply_text = f"{confirmation}\n\n---\n\n{response}"
+                
+                # 呼叫 LLM 處理 (傳入 reply_token 以便內部可能需要的操作)
+                print(f"[AUDIO] Transcribed text: {text}")
+                response = gemini_llm_sdk(text, user_id, reply_token=event.reply_token)
+                
+                if response:
+                    reply_text = f"{confirmation}\n\n---\n\n{response}"
+                else:
+                    # 如果 response 為 None，表示已經由 gemini_llm_sdk 內部處理完畢 (例如觸發了生圖並用掉 token)
+                    # 這時候就不需要再回覆了，或者回覆一個簡單確認
+                    print("[AUDIO] Handled internally by SDK")
+                    return # 直接結束，不需再 reply_message
+                    
         else:
+            print("[AUDIO] Transcription failed or empty.")
             reply_text = "抱歉，我好像沒聽到聲音，或者是背景太吵雜了。\n請再試著清楚地說一次喔！"
         
     except Exception as e:
