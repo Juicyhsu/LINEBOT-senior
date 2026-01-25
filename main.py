@@ -629,7 +629,8 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         txt_draw = ImageDraw.Draw(txt_layer)
         
         # 計算起始位置
-        padding = 40
+        # 計算起始位置
+        padding = 60
         
         # -------------------------------------------------------
         # 使用文字自動換行邏輯 (避免文字太小或切字)
@@ -680,8 +681,8 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             char_ws = []
             for c in line_chars:
                 bb = txt_draw.textbbox((0,0), c, font=base_font)
-                # 寬度計算加上安全係數 (1.2x) 以避免因為隨機大小變化或旋轉導致右邊切字
-                cw = (bb[2] - bb[0]) * 1.2 + 8 
+                # 寬度計算加上安全係數 (1.3x) 以避免因為隨機大小變化或旋轉導致右邊切字
+                cw = (bb[2] - bb[0]) * 1.3 + 10 
                 char_ws.append(cw)
                 w += cw
                 
@@ -735,7 +736,8 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 # 貼上
                 paste_x = int(current_x)
                 paste_y = int(char_real_y)
-                paste_x = max(0, min(paste_x, img.width - char_layer.width))
+                # 只限制左邊界，右邊信任計算結果 (避免擠壓重疊)
+                paste_x = max(0, paste_x)
                 
                 txt_layer.paste(char_layer, (paste_x, paste_y), char_layer)
                 
@@ -1148,7 +1150,7 @@ def message_text(event):
 👉 請說：「提醒我明天8點吃藥」
    或「10分鐘後叫我關火」
    或「每週五晚上提醒我倒垃圾」
-   (補充: 輸入「刪除提醒」可清除所有待辦)
+👉補充: 輸入「刪除提醒」可清除所有待辦
 
 5️⃣ 🗺️ 行程規劃
 👉 請說：「規劃宜蘭一日遊」
