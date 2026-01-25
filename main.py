@@ -11,7 +11,47 @@ import random
 # Gemini API SDK
 import google.generativeai as genai
 
-# Google Cloud AI Services
+# ======================
+# Google Cloud Credentials Bootstrapping (CRITICAL: MUST RUN BEFORE GCP IMPORTS)
+# ======================
+try:
+    credentials_json_content = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+    credentials_file_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service-account-key.json")
+    
+    # 確保環境變數指向正確路徑
+    if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_file_path
+
+    print(f"Checking credentials at: {credentials_file_path}")
+    
+    if os.path.exists(credentials_file_path):
+        print("Credentials file found locally.")
+    elif credentials_json_content:
+        print(f"Creating credentials file from env var...")
+        try:
+            # 嘗試解碼 base64
+            try:
+                decoded_content = base64.b64decode(credentials_json_content, validate=True).decode('utf-8')
+                import json
+                json.loads(decoded_content)
+                content_to_write = decoded_content
+            except:
+                # 假設是純文字 JSON
+                content_to_write = credentials_json_content
+                
+            with open(credentials_file_path, "w") as f:
+                f.write(content_to_write)
+            print("Credentials file created successfully.")
+        except Exception as e:
+            print(f"CRITICAL ERROR: Failed to create credentials file: {e}")
+    else:
+        print("WARNING: No Google Cloud credentials found! (File missing and GOOGLE_CREDENTIALS_JSON not set)")
+        print("Image generation and GCS features WILL FAIL.")
+        
+except Exception as e:
+     print(f"Bootstrapping error: {e}")
+
+
 from google.cloud import aiplatform
 from google.cloud import speech
 from google.cloud import texttospeech
@@ -146,41 +186,8 @@ if channel_access_token is None:
     sys.exit(1)
 
 # ======================
-# Google Cloud Credentials Bootstrapping
-# ======================
-# 檢查是否需要從環境變數重建憑證檔案 (for Zeabur/Heroku)
-credentials_json_content = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-credentials_file_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service-account-key.json")
-
-if credentials_json_content and not os.path.exists(credentials_file_path):
-    print(f"Creating credentials file at {credentials_file_path} from environment variable...")
-    try:
-        # 解碼 base64 (如果是 base64 編碼)
-        try:
-            decoded_content = base64.b64decode(credentials_json_content).decode('utf-8')
-            # 驗證是否為 JSON
-            import json
-            json.loads(decoded_content)
-            content_to_write = decoded_content
-        except:
-            # 假設已經是純文字 JSON
-            content_to_write = credentials_json_content
-            
-        with open(credentials_file_path, "w") as f:
-            f.write(content_to_write)
-        print("Credentials file created successfully.")
-    except Exception as e:
-        print(f"Failed to create credentials file: {e}")
-
-# 確保環境變數指向正確路徑
-if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_file_path
-
-handler = WebhookHandler(channel_secret)
-configuration = Configuration(access_token=channel_access_token)
-
-# ======================
 # User State Management
+# ======================
 # ======================
 # 儲存每個用戶的對話歷史（用 user_id 當 key）
 chat_sessions = {}
