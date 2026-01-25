@@ -8,8 +8,17 @@ import base64
 import asyncio
 import random
 
-# Gemini API SDK
 import google.generativeai as genai
+import time
+
+# Set Timezone to Asia/Taipei
+try:
+    os.environ['TZ'] = 'Asia/Taipei'
+    if hasattr(time, 'tzset'):
+        time.tzset()
+    print(f"Timezone set to: {os.environ.get('TZ')}, Current time: {datetime.now()}")
+except Exception as e:
+    print(f"Failed to set timezone: {e}")
 
 # ======================
 # Google Cloud Credentials Bootstrapping (CRITICAL: MUST RUN BEFORE GCP IMPORTS)
@@ -498,44 +507,64 @@ def get_font_path(font_type):
         if win_path and os.path.exists(win_path):
             return win_path
 
-    # Linux/Cloud 環境：使用 Noto Sans TC
-    # 對映表
+    # Linux/Cloud 環境：使用 Free Google Fonts (TTF)
+    # 使用 NotoSerifTC (楷體/明體替代品) 和 NotoSansTC (黑體替代品)
     cloud_font_map = {
-        'kaiti': 'NotoSerifTC-Regular.otf',
+        'kaiti': 'NotoSerifTC-Regular.otf', # PIL 對 OTF 支援有時有問題，嘗試如果 OTF 失敗下載 TTF
         'heiti': 'NotoSansTC-Bold.otf',
         'ming': 'NotoSerifTC-Regular.otf',
         'default': 'NotoSansTC-Regular.otf'
     }
     
-    target_font_file = cloud_font_map.get(font_type, cloud_font_map['default'])
-    local_font_path = os.path.join(font_dir, target_font_file)
+    # 這裡改用 Google Fonts 公開的其他穩定源，或者使用 Noto CJK 的 TTF 版本
+    # 為了避免 complex OTF 問題，我們改下載 .ttf (雖然 Noto TC 很多是 OTF, 但我們試試看能否找到 TTF 或 Variable Font)
+    # 更新：直接使用 Google Fonts 的 raw github 連結通常是 OTF (對於 CJK)。
+    # 錯誤 "unknown file format" 通常是因為下載下來的不是字體檔 (例如 404 HTML)。
+    # 我們改用一個更確定的 URL。
+    
+    target_filename = cloud_font_map.get(font_type, cloud_font_map['default'])
+    local_font_path = os.path.join(font_dir, target_filename)
     
     if os.path.exists(local_font_path):
         return local_font_path
         
-    print(f"[FONT] Downloading {target_font_file} for cloud environment...")
+    print(f"[FONT] Downloading {target_filename} for cloud environment...")
     
-    # 下載連結 (使用 Google Fonts GitHub Raw)
+    # 修正下載連結：確認這些連結是有效的 raw file
+    # Noto Sans TC (OFL)
     base_url = "https://github.com/google/fonts/raw/main/ofl"
+    
+    # 對應表
+    # 注意：Google Fonts repo 結構可能會變
+    # 暫時改用更穩定的 CDN 或確保 URL 正確
+    # 這裡嘗試使用 Noto Sans TC 的 Variable Font (ttf) 如果可能，或是直接用 OTF
+    # 經過檢查 GitHub google/fonts，NotoSansTC 目錄下通常是 .otf
+    
     urls = {
-        'NotoSansTC-Bold.otf': f"{base_url}/notosanstc/NotoSansTC-Bold.otf",
-        'NotoSansTC-Regular.otf': f"{base_url}/notosanstc/NotoSansTC-Regular.otf",
-        'NotoSerifTC-Regular.otf': f"{base_url}/notoseriftc/NotoSerifTC-Regular.otf"
+        'NotoSansTC-Bold.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf", # 改用 Variable TTF
+        'NotoSansTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
+        'NotoSerifTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notoseriftc/NotoSerifTC%5Bwght%5D.ttf" # 改用 Variable TTF
     }
     
-    url = urls.get(target_font_file)
+    # 因為我們改用 TTF，所以要把 local_font_path 的副檔名也改掉，避免混淆
+    local_font_path = local_font_path.replace(".otf", ".ttf")
+    
+    url = urls.get(target_filename)
     if not url: return None
     
     try:
         print(f"[FONT] Attempting to download from {url}...")
-        r = requests.get(url, timeout=30) # Increased timeout
-        if r.status_code == 200:
+        # 模擬瀏覽器 User-Agent 避免被阻擋
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, headers=headers, timeout=30) 
+        
+        if r.status_code == 200 and len(r.content) > 1000: # 確保不是空的或錯誤頁面
             with open(local_font_path, 'wb') as f:
                 f.write(r.content)
             print(f"[FONT] Successfully downloaded {local_font_path}, size: {len(r.content)} bytes")
             return local_font_path
         else:
-            print(f"[FONT] Download failed with status code: {r.status_code}")
+            print(f"[FONT] Download failed. Code: {r.status_code}, Content-Type: {r.headers.get('Content-Type')}")
             return None
     except Exception as e:
         print(f"[FONT] Download exception: {e}")
