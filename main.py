@@ -185,6 +185,9 @@ if channel_access_token is None:
     print("Specify LINE_CHANNEL_ACCESS_TOKEN as environment variable.")
     sys.exit(1)
 
+handler = WebhookHandler(channel_secret)
+configuration = Configuration(access_token=channel_access_token)
+
 # ======================
 # User State Management
 # ======================
