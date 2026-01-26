@@ -855,8 +855,12 @@ def beautify_image(image_path, user_id):
         print(f"Image beautification error: {e}")
         return None
 
-def transcribe_audio_with_gemini(audio_path):
+def transcribe_audio_with_gemini(audio_path, model_to_use=None):
     """使用 Gemini 進行語音轉文字 (支援 LINE m4a 格式)"""
+    # 如果沒有指定模型，預設使用全域 functional model (避免廢話)
+    # 如果全域變數不可用，才退回 user_model (但 user_model 會講笑話，所以盡量避免)
+    target_model = model_to_use if model_to_use else model_functional
+
     try:
         # Check file size
         filesize = os.path.getsize(audio_path)
@@ -871,14 +875,19 @@ def transcribe_audio_with_gemini(audio_path):
         print(f"[AUDIO] Upload successful: {audio_file.name}")
         
         # 請 AI 轉錄，增加針對無聲或噪音的指示
-        prompt = """請逐字轉錄這段語音。
-        1. 只輸出轉錄後的文字，不要加任何標點符號或前言後語。
-        2. 如果是無意義的噪音及靜音，請回傳空字串。
-        3. 請使用繁體中文。"""
+        prompt = """[SYSTEM: STRICT TRANSCRIPTION ONLY]
+        Please transcribe this audio verbatim.
         
-        # 使用 Flash 模型通常比較快且便宜，確認全域 model 變數是否支援
-        # 假設全域 'model' 是 gemini-1.5-flash
-        response = model.generate_content([prompt, audio_file])
+        CRITICAL RULES:
+        1. Output ONLY the transcribed text.
+        2. DO NOT add ANY intro, outro, descriptions, or conversational filler.
+        3. DO NOT reply to the content. If the audio asks a question, DO NOT ANSWER IT. Just transcribe the question.
+        4. If the audio is silence or meaningless noise, return an empty string.
+        5. Use Traditional Chinese (繁體中文).
+        
+        Input Audio -> Transcribed Text (Nothing else)"""
+        
+        response = target_model.generate_content([prompt, audio_file])
         
         text = response.text.strip()
         print(f"[AUDIO] Transcription result: '{text}'")
@@ -1403,8 +1412,8 @@ def message_audio(event):
         with open(audio_path, 'wb') as f:
             f.write(audio_content)
         
-        # 語音轉文字 (使用 Gemini)
-        text = transcribe_audio_with_gemini(audio_path)
+        # 語音轉文字 (使用 Gemini - 使用功能性模型避免加料)
+        text = transcribe_audio_with_gemini(audio_path, model_functional)
         
         if text:
             # ------------------------------------------------------------
@@ -1420,6 +1429,13 @@ def message_audio(event):
             elif user_id in user_meme_state and user_meme_state[user_id]['stage'] != 'idle':
                 needs_confirmation = True
             
+            # 3. 檢查行程規劃狀態 (新增)
+            elif user_id in user_trip_plans and user_trip_plans[user_id]['stage'] != 'idle':
+                # 行程規劃也建議確認，避免識別錯誤導致流程混亂
+                needs_confirmation = False # 保持 False 讓對話流暢，因為行程規劃有自己的確認機制 (Can discuss)
+                # 但如果是輸入地點階段，誤識別會很麻煩。這里權衡後決定還是直接處理，但在 Prompt 層面加強提取
+                pass
+
             if needs_confirmation:
                 # 暫存語音文字，等待確認
                 user_audio_confirmation_pending[user_id] = {'text': text}
@@ -1428,6 +1444,8 @@ def message_audio(event):
                 reply_text = f"收到語音訊息\n\n您說的是：「{text}」\n\n請問是否正確？\n(請回答「是」或「ok」確認，或是重新錄音)\n\n⚠️ 確認後將開始製作，需等待約15秒，期間請勿操作！"
             else:
                 # 一般閒聊模式 - 只有在閒聊時才允許 AI 發揮 (含 jokes)
+                # 但如果進入了 functional flow (如 trip agent via gemini_llm_sdk)，那邊會使用 functional model
+                
                 confirmation = f"✅ 收到語音訊息\n\n您說的是：「{text}」"
                 
                 # 呼叫 LLM 處理 (傳入 reply_token 以便內部可能需要的操作)
@@ -1438,7 +1456,6 @@ def message_audio(event):
                     reply_text = f"{confirmation}\n\n---\n\n{response}"
                 else:
                     # 如果 response 為 None，表示已經由 gemini_llm_sdk 內部處理完畢 (例如觸發了生圖並用掉 token)
-                    # 這時候就不需要再回覆了，或者回覆一個簡單確認
                     print("[AUDIO] Handled internally by SDK")
                     return # 直接結束，不需再 reply_message
                     
@@ -1586,18 +1603,32 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                     state['info']['destination'] = state['info']['large_region']
                     return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
             
-            # 使用 AI 動態判斷地區是否需要細化
-            result = check_region_need_clarification(user_input, model)
+            # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
+            # 例如用戶說 "我要去綠島" -> 提取 "綠島"
+            
+            extract_prompt = f"""用戶說：「{user_input}」。請提取其中的「目的地」名稱。
+            如果用戶說「我要去綠島」，回傳「綠島」。
+            如果用戶只說「綠島」，回傳「綠島」。
+            如果找不到地點，回傳原本的輸入。
+            只回傳名稱，不要標點符號。"""
+            
+            try:
+                extracted_dest = model_functional.generate_content(extract_prompt).text.strip()
+            except:
+                extracted_dest = user_input
+
+            # 使用功能性模型進行地區判斷，避免廢話
+            result = check_region_need_clarification(extracted_dest, model_functional)
             
             if result['need_clarification']:
                 # 需要進一步細化
-                state['info']['large_region'] = user_input
+                state['info']['large_region'] = extracted_dest
                 options = '、'.join(result['suggested_options'])
-                return f"好的，去{user_input}！\n\n請問您想去{user_input}的哪個地區呢？\n(例如：{options})\n\n💡 如果都可以，請直接輸入「都可以」\n不想規劃了可以說「取消」。"
+                return f"好的，去{extracted_dest}！\n\n請問您想去{extracted_dest}的哪個地區呢？\n(例如：{options})\n\n💡 如果都可以，請直接輸入「都可以」\n不想規劃了可以說「取消」。"
             else:
                 # 直接記錄目的地
-                state['info']['destination'] = user_input
-                return f"好的，去{user_input}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+                state['info']['destination'] = extracted_dest
+                return f"好的，去{extracted_dest}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
 
             
         # Check if we have specific area (for large regions)
@@ -1689,10 +1720,11 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
             
             try:
-                response = model.generate_content(planner_prompt)
+                # 使用功能性模型生成行程 (避免 Motivational Speaker 人設干擾)
+                response = model_functional.generate_content(planner_prompt)
                 draft_plan = response.text
                 
-                # 執行邏輯檢查 (Validation Layer)
+                # 執行邏輯檢查 (Validation Layer) - 仍使用 model_functional
                 validated_plan = validate_and_fix_trip_plan(draft_plan, model_functional)
                 
                 # 保存行程內容，設為可討論狀態
@@ -1721,7 +1753,7 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
         purp = state['info']['purpose']
         
         try:
-            # 使用輔助函數修改行程
+            # 使用輔助函數修改行程 - 傳入 model_functional
             draft_updated_plan = modify_trip_plan(
                 user_id=user_id,
                 user_input=user_input,
@@ -1729,7 +1761,7 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
                 dur=dur,
                 purp=purp,
                 current_plan=state.get('plan', ''),
-                model=model,
+                model=model_functional, # 改用功能性模型
                 line_bot_api_config=configuration
             )
             
@@ -2046,6 +2078,8 @@ def classify_user_intent(text):
         
         注意：
         - "我要去宜蘭" -> trip_planning
+        - "我想去綠島" -> trip_planning
+        - "帶我去玩" -> trip_planning
         - "把貓改成狗" -> image_modification
         - "畫一隻貓" -> image_generation
         - "提醒我吃藥" -> set_reminder

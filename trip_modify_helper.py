@@ -93,7 +93,12 @@ AND MOST IMPORTANTLY: PRESERVE all unchanged parts from the current plan!"""
         response = model.generate_content(modify_prompt)
         print(f"[DEBUG] Gemini 成功回應，長度: {len(response.text)}")
         
-        return response.text
+        draft_plan = response.text.strip()
+        
+        # 驗證並修正 (Validation) - Ensure we pass the clean model
+        validated_plan = validate_and_fix_trip_plan(draft_plan, model)
+        
+        return validated_plan
         
     except Exception as e:
         print(f"[ERROR] 修改行程失敗: {e}")
