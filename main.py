@@ -2375,9 +2375,27 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
 
              # 3. 圖片生成 - 引導式對話
              elif current_intent == 'image_generation':
-                 # 設定狀態為等待描述
-                 user_image_generation_state[user_id] = 'waiting_for_prompt'
-                 return """好的，我們來生成圖片。
+                 # 如果用戶已經在輸入中包含了描述 (例如 "給我一張可愛的貓咪圖")
+                 # 就不應該問 "請描述您想要的圖片"，而是直接確認
+                 
+                 # 簡單過濾觸發詞
+                 clean_prompt = user_input
+                 for kw in ["給我一張", "畫一張", "我要一張", "生成一張", "產生一張", "畫一隻", "製作一張", "create a", "generate a", "image of", "picture of"]:
+                     clean_prompt = clean_prompt.replace(kw, "")
+                 clean_prompt = clean_prompt.replace("圖片", "").strip()
+                 
+                 if len(clean_prompt) > 2: # 假設描述長度大於2就是有效描述
+                     user_image_generation_state[user_id] = 'waiting_for_confirmation'
+                     # 保存 Prompt
+                     if user_id not in user_last_image_prompt or isinstance(user_last_image_prompt[user_id], str):
+                        user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
+                     user_last_image_prompt[user_id]['pending_description'] = clean_prompt
+                     
+                     return f"沒問題！您想要生成的圖片是：\n\n「{clean_prompt}」\n\n請確認是否開始生成？\n(請回答「確定」或「ok」開始，也可說「取消」)"
+                 else:
+                     # 描述太短或沒有描述，才進入詢問模式
+                     user_image_generation_state[user_id] = 'waiting_for_prompt'
+                     return """好的，我們來生成圖片。
 
 請描述您想要的圖片內容：
 🌄 風景類：山、海、森林、城市等
