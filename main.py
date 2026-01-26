@@ -1632,7 +1632,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 if any(keyword in user_input for keyword in ['都可以', '都行', '隨便', '不挑', '任意', '推薦']):
                     # 直接使用大地區作為目的地
                     state['info']['destination'] = state['info']['large_region']
-                    return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+                    return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n⚠️ 回答後等待期間請勿發送訊息！\n不想規劃了可以說「取消」。"
             
             # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
             # 例如用戶說 "我要去綠島" -> 提取 "綠島"
@@ -1669,7 +1669,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
             else:
                 # 直接記錄目的地
                 state['info']['destination'] = extracted_dest
-                return f"好的，去{extracted_dest}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+                return f"好的，去{extracted_dest}！請問預計去幾天？(例如：3天2夜)\n\n⚠️ 回答後等待期間請勿發送訊息！\n不想規劃了可以說「取消」。"
 
             
         # Check if we have specific area (for large regions)
@@ -1686,7 +1686,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
             
             state['info']['destination'] = user_input
-            return f"好的，{state['info']['large_region']}的{user_input}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+            return f"好的，{state['info']['large_region']}的{user_input}！請問預計去幾天？(例如：3天2夜)\n\n⚠️ 回答後等待期間請勿發送訊息！\n不想規劃了可以說「取消」。"
             
         # Check if we have duration
         if 'duration' not in state['info']:
@@ -1757,6 +1757,9 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 - 交通方式：...
 - 預算建議：...
 - 注意事項：...
+
+Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS.
+CRITICAL: Do NOT output as JSON. Do NOT output as a code block. Output pure Markdown text.
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
             
