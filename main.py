@@ -66,6 +66,7 @@ from google.cloud import speech
 from google.cloud import texttospeech
 from region_helper import check_region_need_clarification
 from trip_modify_helper import modify_trip_plan, validate_and_fix_trip_plan
+from create_menu_image import create_menu_image
 
 # Image processing
 import PIL
@@ -1501,7 +1502,15 @@ def handle_follow(event):
     # 功能總覽圖路徑
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
-    # 如果圖片不存在 (例如剛部署還沒生成)，則先用文字
+    # 如果圖片不存在 (例如剛部署還沒生成)，嘗試自動生成
+    if not os.path.exists(menu_image_path):
+        print("[WELCOME] Menu image not found, generating now...")
+        try:
+            create_menu_image()
+        except Exception as e:
+            print(f"[ERROR] Failed to generate menu image: {e}")
+
+    # 二次檢查
     if not os.path.exists(menu_image_path):
         welcome_text = """哈囉！你好呀！👋
 我是你的專屬與激勵夥伴！很高興認識你！✨
