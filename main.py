@@ -1637,14 +1637,24 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
             # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
             # 例如用戶說 "我要去綠島" -> 提取 "綠島"
             
-            extract_prompt = f"""用戶說：「{user_input}」。請提取其中的「目的地」名稱。
-            如果用戶說「我要去綠島」，回傳「綠島」。
-            如果用戶只說「綠島」，回傳「綠島」。
-            如果找不到地點，回傳原本的輸入。
-            只回傳名稱，不要標點符號。"""
+            extract_prompt = f"""Target: Extract the destination name from the user's input.
+            Input: "{user_input}"
+            
+            Rules:
+            1. Output ONLY the destination name.
+            2. Do NOT format as JSON, Markdown, or Code Block.
+            3. Do NOT add labels like "Destination:".
+            4. If the user says "I want to go to Green Island", output "Green Island".
+            5. If no location found, output the original input."""
             
             try:
                 extracted_dest = model_functional.generate_content(extract_prompt).text.strip()
+                # Post-processing cleanup (just in case model disobeys)
+                import re
+                # Ensure we strip code blocks if present
+                extracted_dest = re.sub(r'```json\s*', '', extracted_dest)
+                extracted_dest = re.sub(r'```\s*', '', extracted_dest)
+                extracted_dest = extracted_dest.replace('"', '').replace("'", "").strip()
             except:
                 extracted_dest = user_input
 
