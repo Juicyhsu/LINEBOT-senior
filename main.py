@@ -65,7 +65,7 @@ from google.cloud import aiplatform
 from google.cloud import speech
 from google.cloud import texttospeech
 from region_helper import check_region_need_clarification
-from trip_modify_helper import modify_trip_plan
+from trip_modify_helper import modify_trip_plan, validate_and_fix_trip_plan
 
 # Image processing
 import PIL
@@ -1641,14 +1641,18 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
             
             try:
                 response = model.generate_content(planner_prompt)
+                draft_plan = response.text
+                
+                # 執行邏輯檢查 (Validation Layer)
+                validated_plan = validate_and_fix_trip_plan(draft_plan, model_functional)
                 
                 # 保存行程內容，設為可討論狀態
                 user_trip_plans[user_id] = {
                     'stage': 'can_discuss',
                     'info': state['info'],
-                    'plan': response.text
+                    'plan': validated_plan
                 }
-                return response.text + "\n\n如需調整行程，請直接說明您的需求。\n(例如：第一天想加入購物、想換掉某個景點等)\n\n如不需調整，請說「完成」或「ok」。"
+                return validated_plan + "\n\n如需調整行程，請直接說明您的需求。\n(例如：第一天想加入購物、想換掉某個景點等)\n\n如不需調整，請說「完成」或「ok」。"
                 
             except Exception as e:
                 print(f"Planning error: {e}")
@@ -1669,7 +1673,7 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
         
         try:
             # 使用輔助函數修改行程
-            updated_plan = modify_trip_plan(
+            draft_updated_plan = modify_trip_plan(
                 user_id=user_id,
                 user_input=user_input,
                 dest=dest,
@@ -1679,6 +1683,10 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
                 model=model,
                 line_bot_api_config=configuration
             )
+            
+            # 執行邏輯檢查 (Validation Layer)
+            # 確保用戶修改後的行程仍然符合邏輯 (例如：下午不會跑到早上)
+            updated_plan = validate_and_fix_trip_plan(draft_updated_plan, model_functional)
             
             # 更新保存的行程
             user_trip_plans[user_id]['plan'] = updated_plan

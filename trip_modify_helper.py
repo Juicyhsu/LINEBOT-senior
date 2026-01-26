@@ -100,3 +100,50 @@ AND MOST IMPORTANTLY: PRESERVE all unchanged parts from the current plan!"""
         import traceback
         traceback.print_exc()
         raise
+
+def validate_and_fix_trip_plan(plan, model):
+    """
+    檢查行程邏輯並自動修正
+    
+    Args:
+        plan: 原始行程文字
+        model: Gemini 模型
+        
+    Returns:
+        str: 修正後的行程 (若無錯誤則回傳原行程)
+    """
+    validation_prompt = f"""
+[SYSTEM: LOGIC CHECKER]
+You are a Quality Control Expert for travel itineraries.
+Review the following trip plan for LOGICAL ERRORS.
+
+**Checklist:**
+1. **Time Continuity**: Do activities overlap? (e.g., Lunch at 12:00, but next activity starts at 11:30)
+2. **Geographical Logic**: Are locations too far apart for the allotted travel time? (e.g., Taipei to Kaohsiung in 1 hour by car)
+3. **Opening Hours**: Are spots likely closed at the proposed time? (e.g., Night market in the morning)
+4. **Day/Night Cycle**: Is breakfast at 8 PM?
+
+**Input Plan:**
+{plan}
+
+**Instruction:**
+- If the plan is logically sound, reply EXACTLY: "PASS"
+- If there are errors, REWRITE the problematic parts to fix them. Keep the rest of the plan unchanged.
+- Output ONLY the fixed plan (in Traditional Chinese markdown), do not output explanation.
+"""
+    try:
+        print("[DEBUG] Running Trip Validation...")
+        response = model.generate_content(validation_prompt)
+        text = response.text.strip()
+        
+        if text == "PASS":
+            print("[DEBUG] Validation Passed.")
+            return plan
+        else:
+            print("[DEBUG] Validation Errors Found. Auto-fixing...")
+            return text
+            
+    except Exception as e:
+        print(f"[ERROR] Validation failed: {e}")
+        return plan # If validation fails, return original
+
