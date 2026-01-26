@@ -1025,12 +1025,15 @@ def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
             line_bot_api = MessagingApi(api_client)
             
             messages = []
+            
+            # Change Order: Text FIRST, Image SECOND
+            if message_text:
+                messages.append(TextMessage(text=message_text))
+                
             messages.append(ImageMessage(
                 original_content_url=image_url,
                 preview_image_url=image_url
             ))
-            if message_text:
-                messages.append(TextMessage(text=message_text))
             
             # 優先使用 reply_message（不計額度），沒有 token 時才用 push_message
             if reply_token:
@@ -1549,14 +1552,25 @@ def handle_follow(event):
     user_id = event.source.user_id
     print(f"New follower: {user_id}")
     
-    # 優先使用外部連結 (如果你有設定)
-    # User requested: https://storage.googleapis.com/help_poster/help_poster.png
+    # Help Image URL
     help_image_url = os.environ.get("HELP_IMAGE_URL", "https://storage.googleapis.com/help_poster/help_poster.png")
     
     # 本地備用路徑
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
-    # 策略：優先嘗試發送 URL 圖片 (因為 Zeabur 部署時 static 檔案可能會有路徑問題或未部署)
+    # 歡迎文字
+    welcome_text = """歡迎加入【長輩版機器人】！🎉
+    
+您可以跟我：
+1. 📸 製作長輩圖 (傳照片或說「做長輩圖」)
+2. 🗺️ 規劃旅遊行程 (說「帶我去玩」)
+3. 🎨 生成可愛圖片 (說「幫我畫...」)
+4. 📹 生成短影片 (說「做影片」)
+5. ⏰ 設定生活提醒 (說「提醒我...」)
+
+請點擊下方選單或直接跟我說話喔！"""
+
+    # 策略：優先嘗試發送 URL 圖片
     sent_success = False
     
     # 1. 嘗試發送 URL 圖片
@@ -1569,6 +1583,7 @@ def handle_follow(event):
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
                         messages=[
+                            TextMessage(text=welcome_text),
                             ImageMessage(
                                 original_content_url=help_image_url,
                                 preview_image_url=help_image_url
@@ -1582,13 +1597,12 @@ def handle_follow(event):
         except Exception as e:
             print(f"[WELCOME] Failed to send via URL: {e}")
 
-    # 2. 如果 URL 失敗，嘗試發送本地靜態圖片 (需透過 Imgur/GCS 上傳)
-    # 不過 send_image_to_line 內部邏輯是上傳本地檔案
+    # 2. 如果 URL 失敗，嘗試發送本地靜態圖片
     if not sent_success:
         if os.path.exists(menu_image_path):
             print(f"[WELCOME] Sending local image: {menu_image_path}")
-            # 使用 reply_token 免費發送
-            success = send_image_to_line(user_id, menu_image_path, None, event.reply_token)
+            # 使用 reply_token 免費發送 (注意：send_image_to_line 也需要修正順序)
+            success = send_image_to_line(user_id, menu_image_path, welcome_text, event.reply_token)
             if success:
                 print("[WELCOME] Sent successfully via local upload")
                 return
