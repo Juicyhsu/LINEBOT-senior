@@ -1805,6 +1805,9 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 5. **拒絕千篇一律**：
    - 請根據圖片的色調，**大膽嘗試**不同的顏色組合 (如霓虹色、粉彩、撞色)。
    - 不要總是選金色 (#FFD700) 或白色。
+6. **字體偏好**：
+   - **預設請使用粗體 (bold/heiti)**：長輩圖通常需要字體夠粗才看得清楚。
+   - 除非圖片非常唯美、氣質，才使用楷體 (kaiti)。
 
 **請回傳一行 JSON 格式：**
 {{
@@ -1820,7 +1823,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 **參數說明：**
 - position: top-left, top-right, bottom-left, bottom-right, top, bottom
 - color: 文字顏色 (Hex 或 rainbow)
-- font: kaiti (溫馨/傳統), heiti (現代/有力), bold (強調)
+- font: heiti (推薦/粗體), bold (特粗), kaiti (僅用於優雅風格)
 - font_size: 30 (小) 到 90 (大)，預設 60
 - angle: -10 到 10 (微旋轉增加動感)
 - stroke_width: 0 (無) 到 5 (極粗)
