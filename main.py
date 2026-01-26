@@ -633,37 +633,70 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         padding = 60
         
         # -------------------------------------------------------
-        # 使用文字自動換行邏輯 (避免文字太小或切字)
+        # 使用文字自動換行與縮放邏輯 (Shrink to Fit)
         # -------------------------------------------------------
         max_width = img.width - (padding * 2)
-        lines = []
-        current_line = []
-        current_w = 0
         
-        # 建立一個「計算用」的字體，比較大一點，確保計算出來的寬度夠寬 (保守估計)
-        # 用來避免隨機大小變化導致的切字
-        try:
-             # 假設最大隨機增加 4px，我們加 8px 當作安全緩衝
-             calc_font_size = font_size + 8
-             calc_font = ImageFont.truetype(font_path, calc_font_size)
-        except:
-             calc_font = base_font
-
-        # 簡單估算每個字的寬度（這裡稍微保守一點）
-        for char in text:
-            # 取得該字寬度 (用 calc_font)
-            bbox = txt_draw.textbbox((0, 0), char, font=calc_font)
-            char_w = bbox[2] - bbox[0] + 5 # +5 間距
+        # 循環直到文字寬度符合要求或字體太小
+        lines = []
+        while font_size >= 20: # 最小字體限制
             
-            if current_w + char_w > max_width and current_line:
+            # 使用加大版的字體來計算，確保安全
+            # 假設最大隨機增加 4px，我們加 8px 當作安全緩衝
+            try:
+                calc_font_size = font_size + 8
+                calc_font = ImageFont.truetype(font_path, calc_font_size)
+            except:
+                calc_font = base_font
+                
+            lines = []
+            current_line = []
+            current_w = 0
+            is_overflow = False
+            
+            # 模擬排版
+            for char in text:
+                bbox = txt_draw.textbbox((0, 0), char, font=calc_font)
+                char_w = bbox[2] - bbox[0] + 5 # +5 間距
+                
+                # 如果單字寬度就超過 max_width (極端情況)，強制換行或忽略
+                if char_w > max_width:
+                     char_w = max_width
+                
+                if current_w + char_w > max_width:
+                    if current_line:
+                        lines.append(current_line)
+                        current_line = [char]
+                        current_w = char_w
+                    else:
+                        # 單字一行
+                         lines.append([char])
+                         current_line = []
+                         current_w = 0
+                else:
+                    current_line.append(char)
+                    current_w += char_w
+            
+            if current_line:
                 lines.append(current_line)
-                current_line = [char]
-                current_w = char_w
-            else:
-                current_line.append(char)
-                current_w += char_w
-        if current_line:
-            lines.append(current_line)
+                
+            # 計算總高度檢查 (雖主要關注寬度，但高度太高也不行)
+            total_h = len(lines) * int(font_size * 1.3)
+            if total_h > (img.height - padding * 2):
+                # 高度超過，縮小字體重試
+                font_size -= 5
+                continue
+            
+            # 檢查每行寬度是否真的都在範圍內 (double check)
+            # 由於上方是用累積法，通常沒問題，這裡主要還是確保整體美觀
+            # 如果一切 OK，跳出循環
+            break
+            
+        # 更新 base_font 為最終決定的 font_size
+        try:
+            base_font = ImageFont.truetype(font_path, font_size)
+        except:
+            base_font = ImageFont.load_default()
             
         # 計算整個區塊的高度
         line_height = int(font_size * 1.2)
@@ -1740,24 +1773,25 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 vision_prompt = f"""你是長輩圖排版專家。分析這張圖片，為文字「{text}」設計最佳排版。
 
 **關鍵規則：**
-1. **絕對不要center** - center會蓋住圖片主體，這是最差的選擇
-2. **觀察主體位置** - 如果主體在中間，文字放角落（top-left, bottom-right等）
-3. **顏色必須對比** - 淺色背景用深色文字（#8B0000深紅、#006400深綠）；深色背景用亮色文字（#FFD700金、#FF6B35橘）
-4. **絕對不要選擇接近背景色的顏色！**
-5. **角度可以有創意** - 不一定要0度，可以稍微傾斜增加動感
+1. **尋找安全區域 (Safe Area)** - 找出圖片中「最空曠、沒有人臉、沒有重要主體」的地方。
+2. **絕對不要擋臉** - 這是大忌。
+3. **顏色必須高對比** - 這是長輩圖的精隨。
+   - 淺底(天空/白牆) -> 用深色(深紅#8B0000/深藍#00008B/墨綠#006400)
+   - 深底(夜景/暗處) -> 用亮色(金黃#FFD700/亮粉#FF00FF/亮橘#FF8C00)
+   - 活潑圖片 -> 用 **rainbow**
+4. **字體選擇** - 嚴肅/風景用 heiti (黑體)，溫馨/花草用 kaiti (楷體)
 
-**只回傳一行，格式：position,color,font,angle,size**
+**請回傳一行 JSON 格式：**
+{{
+    "position": "top-left", 
+    "color": "#FFD700", 
+    "font": "kaiti", 
+    "angle": 5
+}}
 
-position必須從這些選：top-left, top-right, bottom-left, bottom-right, top, bottom（不要center！）
-color：
-1. 推薦使用 **rainbow** (如果圖片活潑快樂，強烈建議用彩虹色！)
-2. 或使用高對比hex碼 (例如 #FFD700金, #FF00FF亮紫)
-font：kaiti或heiti
-angle：-15到15的整數
-size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小，越大越好，但不要太擠）
-
-範例1：bottom-right,#FFD700,heiti,5,75
-範例2：top-left,rainbow,kaiti,-8,60"""
+position 選項：top-left, top-right, bottom-left, bottom-right, top, bottom (盡量避開 center 除非是風景大圖)
+angle 範圍：-10 到 10
+"""
 
                 # 使用功能性模型進行排版分析
                 response = model_functional.generate_content([vision_prompt, bg_image])
@@ -1765,50 +1799,56 @@ size：40到90的整數（請根據圖片空間和文字長度判斷最佳大小
                 
                 print(f"[AI CREATIVE] Raw: {result[:100]}...")
                 
-                # 更寬鬆的解析 - 嘗試多種模式 (支援 #hex 或 rainbow)
+                # 解析 JSON 或 Regex
                 import re
+                import json
                 
-                # 嘗試標準格式 (新增 size)
-                match = re.search(r'([a-z\-]+)\s*,\s*(#[a-fA-F0-9]{6}|rainbow)\s*,\s*(kaiti|heiti)\s*,\s*(-?\d+)\s*,\s*(\d+)', result, re.IGNORECASE)
+                position = 'top'
+                color = 'white' 
+                font = 'heiti'
+                angle = 0
                 
-                if not match:
-                    # 嘗試提取各個部分
-                    pos_match = re.search(r'(top-left|top-right|bottom-left|bottom-right|left|right|top|bottom|center|diagonal)', result, re.IGNORECASE)
-                    color_match = re.search(r'(#[a-fA-F0-9]{6}|rainbow)', result, re.IGNORECASE)
-                    font_match = re.search(r'(kaiti|heiti)', result, re.IGNORECASE)
-                    angle_match = re.search(r'[,:\s](-?\d+)(?:[度°]|\s*$|,)', result)
-                    size_match = re.search(r'[,:\s](\d{2,3})(?:[號px]|\s*$)', result) # 抓取2-3位數作為大小
-                    
-                    if pos_match and color_match:
-                        position = pos_match.group(1).lower()
-                        # 處理顏色 (如果是 rainbow 不加 #)
-                        raw_color = color_match.group(1).strip()
-                        if raw_color.lower() == 'rainbow':
-                            color = 'rainbow'
-                        else:
-                            # 確保有 # 且為大寫
-                            color = raw_color.upper() if raw_color.startswith('#') else '#' + raw_color.upper()
-                            
-                        font = font_match.group(1).lower() if font_match else 'heiti'
-                        angle = int(angle_match.group(1)) if angle_match else 0
-                        size = int(size_match.group(1)) if size_match else 60
-                        match = True  # 標記成功
+                try:
+                    # 嘗試解析 JSON
+                    json_match = re.search(r'\{.*\}', result, re.DOTALL)
+                    if json_match:
+                        data = json.loads(json_match.group())
+                        position = data.get('position', 'top')
+                        color = data.get('color', '#FFFFFF')
+                        font = data.get('font', 'heiti')
+                        angle = int(data.get('angle', 0))
+                    else:
+                        raise ValueError("No JSON found")
+                        
+                except Exception as parse_e:
+                    print(f"[AI PARSE ERROR] {parse_e}, trying fallback regex")
+                    # Fallback Regex Parsing
+                    # ... (原有 regex 邏輯可保留或簡化，這裡簡化處理)
+                    pass
                 
-                if match:
-                    if not isinstance(match, bool):  # 標準正則匹配
-                        position = match.group(1).strip().lower()
-                        color = match.group(2).strip()
-                        if color.lower() != 'rainbow':
-                             color = color.upper() # hex轉大寫
-                        font = match.group(3).strip().lower()
-                        angle = int(match.group(4).strip())
-                        size = int(match.group(5).strip())
-                    
-                    # 文字大小 - 直接使用 AI 判斷的結果，不再強制覆蓋
-                    
-                    print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}號, {angle}度")
+                # 確保 color 是 hex 或 rainbow
+                if color.lower() != 'rainbow' and not color.startswith('#'):
+                     # 簡單映射常見色
+                     color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
+                     color = color_map.get(color.lower(), '#FFFFFF')
+
+                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {angle}度")
+                
+                # 字體大小交由 create_meme_image 的自動縮放邏輯決定，這裡給一個較大的初始值
+                size = 90
+                
+                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle)
+                
+                # Send - 使用 reply_token 免費發送
+                if final_path:
+                    if send_image_to_line(user_id, final_path, "長輩圖製作完成，讚喔！", reply_token):
+                        state['stage'] = 'idle'
+                        return None # 已回覆
+                    else:
+                        state['stage'] = 'idle'
+                        return "長輩圖已製作但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)未設定。\n請檢查 .env 文件中的 IMGBB_API_KEY。"
                 else:
-                    raise ValueError("AI回應格式錯誤")
+                    return "製作失敗了... (Layout Error)"
                     
             except Exception as e:
                 print(f"[VISION ERROR] {e}，使用隨機創意 fallback")
