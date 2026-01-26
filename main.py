@@ -634,17 +634,27 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         # 計算起始位置
         padding = 60
         
+
         # -------------------------------------------------------
-        # 使用文字自動換行與縮放邏輯 (Shrink to Fit)
+        # 使用文字自動換行與縮放邏輯 (Shrink to Fit) - 智慧分詞版
         # -------------------------------------------------------
         max_width = img.width - (padding * 2)
+        
+        # 嘗試載入 jieba，若失敗則退回字元級切割
+        try:
+            import jieba
+            has_jieba = True
+        except ImportError:
+            has_jieba = False
+            print("[TEXT] Jieba not found, using character-level wrapping.")
+
+        # 預處理：先依據手動換行符號切割段落
+        paragraphs = text.split('\n')
         
         # 循環直到文字寬度符合要求或字體太小
         lines = []
         while font_size >= 20: # 最小字體限制
             
-            # 使用加大版的字體來計算，確保安全
-            # 假設最大隨機增加 4px，我們加 8px 當作安全緩衝
             try:
                 calc_font_size = font_size + 8
                 calc_font = ImageFont.truetype(font_path, calc_font_size)
@@ -652,45 +662,66 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 calc_font = base_font
                 
             lines = []
-            current_line = []
-            current_w = 0
-            is_overflow = False
             
-            # 模擬排版
-            for char in text:
-                bbox = txt_draw.textbbox((0, 0), char, font=calc_font)
-                char_w = bbox[2] - bbox[0] + 5 # +5 間距
+            for para in paragraphs:
+                if not para: # 空行
+                    lines.append("")
+                    continue
                 
-                # 如果單字寬度就超過 max_width (極端情況)，強制換行或忽略
-                if char_w > max_width:
-                     char_w = max_width
-                
-                if current_w + char_w > max_width:
-                    if current_line:
-                        lines.append(current_line)
-                        current_line = [char]
-                        current_w = char_w
-                    else:
-                        # 單字一行
-                         lines.append([char])
-                         current_line = []
-                         current_w = 0
+                # 使用 jieba 分詞 (如果有的話)
+                if has_jieba:
+                    words = list(jieba.cut(para))
                 else:
-                    current_line.append(char)
-                    current_w += char_w
-            
-            if current_line:
-                lines.append(current_line)
+                    words = list(para) # Fallback to chars
                 
-            # 計算總高度檢查 (雖主要關注寬度，但高度太高也不行)
+                current_line_text = ""
+                current_w = 0
+                
+                for word in words:
+                    # 計算單詞寬度
+                    bbox = txt_draw.textbbox((0, 0), word, font=calc_font)
+                    word_w = bbox[2] - bbox[0]
+                    
+                    # 處理單詞本身就超長的情況 (強制切斷)
+                    if word_w > max_width:
+                        # 如果當前行已經有內容，先換行
+                        if current_line_text:
+                            lines.append(current_line_text)
+                            current_line_text = ""
+                            current_w = 0
+                        
+                        # 將超長單詞依字元切割
+                        for char in word:
+                            char_bbox = txt_draw.textbbox((0, 0), char, font=calc_font)
+                            char_w = char_bbox[2] - char_bbox[0]
+                            if current_w + char_w > max_width:
+                                lines.append(current_line_text)
+                                current_line_text = char
+                                current_w = char_w
+                            else:
+                                current_line_text += char
+                                current_w += char_w
+                        continue
+
+                    # 一般單詞處理
+                    if current_w + word_w > max_width:
+                        lines.append(current_line_text)
+                        current_line_text = word
+                        current_w = word_w
+                    else:
+                        current_line_text += word
+                        current_w += word_w
+                
+                if current_line_text:
+                    lines.append(current_line_text)
+                
+            # 計算總高度檢查
             total_h = len(lines) * int(font_size * 1.3)
-            # 寬鬆一點的高度限制，允許稍微多一點
             if total_h > (img.height - padding * 1.5):
-                # 高度超過，縮小字體重試
                 font_size -= 5
                 continue
             
-            # 檢查每行寬度是否真的都在範圍內 (double check)
+            # 成功排版
             break
             
         # 更新 base_font 為最終決定的 font_size

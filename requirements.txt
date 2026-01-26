@@ -23,3 +23,6 @@ APScheduler>=3.10.4
 
 # Google Maps API（選用）
 googlemaps>=4.10.0  # 官方 SDK（替代方案）
+
+# 中文分詞
+jieba>=0.42.1
