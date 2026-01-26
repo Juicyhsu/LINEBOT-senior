@@ -857,19 +857,36 @@ def beautify_image(image_path, user_id):
 def transcribe_audio_with_gemini(audio_path):
     """使用 Gemini 進行語音轉文字 (支援 LINE m4a 格式)"""
     try:
+        # Check file size
+        filesize = os.path.getsize(audio_path)
+        print(f"[AUDIO] Transcribing file: {audio_path} (Size: {filesize} bytes)")
+        if filesize < 100:
+            print("[AUDIO] File too small, skipping.")
+            return None
+
         # 上傳檔案到 Gemini
+        # LINE 的 m4a 其實是 MPEG-4 Audio，標準 MIME 是 audio/mp4
         audio_file = genai.upload_file(audio_path, mime_type="audio/mp4")
+        print(f"[AUDIO] Upload successful: {audio_file.name}")
         
         # 請 AI 轉錄，增加針對無聲或噪音的指示
         prompt = """請逐字轉錄這段語音。
         1. 只輸出轉錄後的文字。
         2. 不要加任何前言後語或描述（如"轉錄內容："）。
-        3. 如果聽起來像是背景噪音、雜音或無人說話，請直接回傳空字串，不要自行編造內容。"""
+        3. 如果聽起來像是背景噪音、雜音或無人說話，請直接回傳空字串。
+        4. 請使用繁體中文。"""
+        
+        # 使用 Flash 模型通常比較快且便宜，確認全域 model 變數是否支援
+        # 假設全域 'model' 是 gemini-1.5-flash
         response = model.generate_content([prompt, audio_file])
         
-        return response.text.strip()
+        text = response.text.strip()
+        print(f"[AUDIO] Transcription result: '{text}'")
+        return text
+            
     except Exception as e:
         print(f"Gemini audio transcription error: {e}")
+        # 嘗試回傳 None 讓上層處理
         return None
 
 def text_to_speech(text, user_id):
