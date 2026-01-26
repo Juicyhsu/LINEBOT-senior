@@ -565,13 +565,13 @@ def get_font_path(font_type):
             return local_font_path
         else:
             print(f"[FONT] Download failed. Code: {r.status_code}, Content-Type: {r.headers.get('Content-Type')}")
-            return None
+        return None
     except Exception as e:
         print(f"[FONT] Download exception: {e}")
         return None
 
-def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0):
-    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化等效果）"""
+def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=0, stroke_color=None):
+    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果）"""
     try:
         import random
         import math
@@ -588,6 +588,7 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         
         # 載入字體 (使用 helper 解決跨平台問題)
         try:
+            # 支援粗體選擇 (如果 font_type='bold')
             font_path = get_font_path(font_type)
             if font_path:
                 base_font = ImageFont.truetype(font_path, font_size)
@@ -628,7 +629,6 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         txt_layer = Image.new('RGBA', img.size, (255, 255, 255, 0))
         txt_draw = ImageDraw.Draw(txt_layer)
         
-        # 計算起始位置
         # 計算起始位置
         padding = 60
         
@@ -682,14 +682,13 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 
             # 計算總高度檢查 (雖主要關注寬度，但高度太高也不行)
             total_h = len(lines) * int(font_size * 1.3)
-            if total_h > (img.height - padding * 2):
+            # 寬鬆一點的高度限制，允許稍微多一點
+            if total_h > (img.height - padding * 1.5):
                 # 高度超過，縮小字體重試
                 font_size -= 5
                 continue
             
             # 檢查每行寬度是否真的都在範圍內 (double check)
-            # 由於上方是用累積法，通常沒問題，這裡主要還是確保整體美觀
-            # 如果一切 OK，跳出循環
             break
             
         # 更新 base_font 為最終決定的 font_size
@@ -758,28 +757,49 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 
                 char_real_y = current_y + wave_offset
                 
-                # 創建單字圖層
+                # 創建單字圖層 - 關鍵修復：加大畫布以防文字裁切 (Glyph Truncation)
                 char_bbox = txt_draw.textbbox((0, 0), char, font=char_font)
-                char_w = char_bbox[2] - char_bbox[0] + 20
-                char_h = char_bbox[3] - char_bbox[1] + 20
+                raw_w = char_bbox[2] - char_bbox[0]
+                raw_h = char_bbox[3] - char_bbox[1]
                 
-                char_layer = Image.new('RGBA', (char_w, char_h), (255, 255, 255, 0))
+                # 畫布大小：字寬的 3 倍，加上超大緩衝，確保旋轉也不會切到
+                canvas_w = int(raw_w * 3 + 100)
+                canvas_h = int(raw_h * 3 + 100)
+                
+                char_layer = Image.new('RGBA', (canvas_w, canvas_h), (255, 255, 255, 0))
                 cd = ImageDraw.Draw(char_layer)
                 
-                # 陰影
-                cd.text((10+3, 10+3), char, font=char_font, fill='#00000088')
-                # 本體
-                cd.text((10, 10), char, font=char_font, fill=char_color)
+                # 計算中心點
+                center_x, center_y = canvas_w // 2, canvas_h // 2
+                # 由於 draw.text 的座標是左上角，我們需要 offset
+                # 簡單置中：減去字寬字高的一半
+                text_x = center_x - (raw_w / 2)
+                text_y = center_y - (raw_h / 2)
+                
+                # 描邊處理 (AI 決定)
+                if stroke_width > 0:
+                    effective_stroke_color = stroke_color if stroke_color else '#000000'
+                    cd.text((text_x, text_y), char, font=char_font, fill=char_color, 
+                           stroke_width=stroke_width, stroke_fill=effective_stroke_color)
+                else:
+                    # 預設陰影 (如果沒描邊)
+                    cd.text((text_x + 3, text_y + 3), char, font=char_font, fill='#00000088')
+                    cd.text((text_x, text_y), char, font=char_font, fill=char_color)
                 
                 # 旋轉
                 if abs(char_angle) > 0.5:
-                    char_layer = char_layer.rotate(char_angle, expand=True, resample=Image.Resampling.BICUBIC)
+                    char_layer = char_layer.rotate(char_angle, expand=False, resample=Image.Resampling.BICUBIC)
                 
-                # 貼上
-                paste_x = int(current_x)
-                paste_y = int(char_real_y)
-                # 只限制左邊界，右邊信任計算結果 (避免擠壓重疊)
-                paste_x = max(0, paste_x)
+                # 貼上 - 需要計算從 center 回推到 top-left 的位置
+                # 我們原本的 current_x 是希望文字出現的位置 (大約左側)
+                # 貼上的位置應該是 current_x - (canvas_w - raw_w)/2 這樣... 比較複雜
+                # 簡化：我們知道 char_layer 的中心就是文字中心
+                # 目標中心點： current_x + raw_w/2, char_real_y + raw_h/2
+                target_center_x = current_x + (raw_w / 2)
+                target_center_y = char_real_y + (raw_h / 2)
+                
+                paste_x = int(target_center_x - (canvas_w / 2))
+                paste_y = int(target_center_y - (canvas_h / 2))
                 
                 txt_layer.paste(char_layer, (paste_x, paste_y), char_layer)
                 
@@ -1770,27 +1790,33 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 bg_image = Image.open(bg_path)
                 
                 # AI 視覺分析 - 強調避開主體、選擇對比色
-                vision_prompt = f"""你是長輩圖排版專家。分析這張圖片，為文字「{text}」設計最佳排版。
+                # AI 視覺分析 - 強調避開主體、選擇對比色
+                vision_prompt = f"""你是長輩圖排版設計總監。請分析這張圖片，為文字「{text}」設計最佳的視覺效果。
 
-**關鍵規則：**
-1. **尋找安全區域 (Safe Area)** - 找出圖片中「最空曠、沒有人臉、沒有重要主體」的地方。
-2. **絕對不要擋臉** - 這是大忌。
-3. **顏色必須高對比** - 這是長輩圖的精隨。
-   - 淺底(天空/白牆) -> 用深色(深紅#8B0000/深藍#00008B/墨綠#006400)
-   - 深底(夜景/暗處) -> 用亮色(金黃#FFD700/亮粉#FF00FF/亮橘#FF8C00)
-   - 活潑圖片 -> 用 **rainbow**
-4. **字體選擇** - 嚴肅/風景用 heiti (黑體)，溫馨/花草用 kaiti (楷體)
+**設計目標：**
+1. **安全區域 (Safe Area)**：絕對避開人臉與重要主體。
+2. **高對比度**：確保文字在背景上清晰可見。
+3. **設計感**：根據圖片氛圍決定是否需要描邊 (Stroke)。
+   - 活潑/複雜背景 -> 建議加粗描邊 (stroke_width: 3-5)
+   - 唯美/乾淨背景 -> 可無描邊或細描邊 (stroke_width: 0-2)
 
 **請回傳一行 JSON 格式：**
 {{
     "position": "top-left", 
     "color": "#FFD700", 
     "font": "kaiti", 
-    "angle": 5
+    "angle": 5,
+    "stroke_width": 3,
+    "stroke_color": "#000000"
 }}
 
-position 選項：top-left, top-right, bottom-left, bottom-right, top, bottom (盡量避開 center 除非是風景大圖)
-angle 範圍：-10 到 10
+**參數說明：**
+- position: top-left, top-right, bottom-left, bottom-right, top, bottom
+- color: 文字顏色 (Hex 或 rainbow)
+- font: kaiti (溫馨/傳統), heiti (現代/有力), bold (強調)
+- angle: -10 到 10 (微旋轉增加動感)
+- stroke_width: 0 (無) 到 5 (極粗)
+- stroke_color: 描邊顏色 (通常用 #000000 或 #FFFFFF 來對比文字顏色)
 """
 
                 # 使用功能性模型進行排版分析
@@ -1807,6 +1833,8 @@ angle 範圍：-10 到 10
                 color = 'white' 
                 font = 'heiti'
                 angle = 0
+                stroke_width = 0
+                stroke_color = None
                 
                 try:
                     # 嘗試解析 JSON
@@ -1817,13 +1845,13 @@ angle 範圍：-10 到 10
                         color = data.get('color', '#FFFFFF')
                         font = data.get('font', 'heiti')
                         angle = int(data.get('angle', 0))
+                        stroke_width = int(data.get('stroke_width', 0))
+                        stroke_color = data.get('stroke_color', '#000000')
                     else:
                         raise ValueError("No JSON found")
                         
                 except Exception as parse_e:
                     print(f"[AI PARSE ERROR] {parse_e}, trying fallback regex")
-                    # Fallback Regex Parsing
-                    # ... (原有 regex 邏輯可保留或簡化，這裡簡化處理)
                     pass
                 
                 # 確保 color 是 hex 或 rainbow
@@ -1832,12 +1860,12 @@ angle 範圍：-10 到 10
                      color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
                      color = color_map.get(color.lower(), '#FFFFFF')
 
-                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {angle}度")
+                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {angle}度, stroke={stroke_width}")
                 
                 # 字體大小交由 create_meme_image 的自動縮放邏輯決定，這裡給一個較大的初始值
                 size = 90
                 
-                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle)
+                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color)
                 
                 # Send - 使用 reply_token 免費發送
                 if final_path:
