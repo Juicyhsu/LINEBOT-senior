@@ -83,7 +83,7 @@ For example:
 - 注意事項：...
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE.
-AND MOST IMPORTANTLY: PRESERVE all unchanged parts from the current plan!"""
+AND MOST IMPORTANTLY: OUTPUT THE ENTIRE COMPLETE PLAN. Do NOT just output the diff. The user must see the FULL itinerary with your changes applied."""
 
     try:
         print(f"[DEBUG] 修改行程 - 用戶: {user_id}, 輸入: {user_input}")
@@ -143,6 +143,7 @@ Review the following trip plan for FLAGRANT LOGICAL ERRORS.
 - If the plan is logically sound, reply EXACTLY: "PASS"
 - If there are errors (especially HSR to places without HSR), **REWRITE the problematic parts to fix them**.
 - **Keep the rest of the plan unchanged.**
+- Output the **FULL, COMPLETE, FIXED PLAN**. Do NOT output only the corrected parts. The user needs the entire itinerary.
 - Output ONLY the fixed plan (in Traditional Chinese markdown).
 """
     try:
