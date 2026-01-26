@@ -861,7 +861,7 @@ def transcribe_audio_with_gemini(audio_path):
         # Check file size
         filesize = os.path.getsize(audio_path)
         print(f"[AUDIO] Transcribing file: {audio_path} (Size: {filesize} bytes)")
-        if filesize < 100:
+        if filesize < 10:  # Relaxed check: 10 bytes (some m4a headers are small)
             print("[AUDIO] File too small, skipping.")
             return None
 
@@ -872,10 +872,9 @@ def transcribe_audio_with_gemini(audio_path):
         
         # 請 AI 轉錄，增加針對無聲或噪音的指示
         prompt = """請逐字轉錄這段語音。
-        1. 只輸出轉錄後的文字。
-        2. 不要加任何前言後語或描述（如"轉錄內容："）。
-        3. 如果聽起來像是背景噪音、雜音或無人說話，請直接回傳空字串。
-        4. 請使用繁體中文。"""
+        1. 只輸出轉錄後的文字，不要加任何標點符號或前言後語。
+        2. 如果是無意義的噪音及靜音，請回傳空字串。
+        3. 請使用繁體中文。"""
         
         # 使用 Flash 模型通常比較快且便宜，確認全域 model 變數是否支援
         # 假設全域 'model' 是 gemini-1.5-flash
@@ -1502,15 +1501,11 @@ def handle_follow(event):
     # 功能總覽圖路徑
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
-    # 如果圖片不存在 (例如剛部署還沒生成)，嘗試自動生成
+    # 如果圖片不存在，則只回傳文字並記錄錯誤 (絕對不自動生成，以免字體跑版)
     if not os.path.exists(menu_image_path):
-        print("[WELCOME] Menu image not found, generating now...")
-        try:
-            create_menu_image()
-        except Exception as e:
-            print(f"[ERROR] Failed to generate menu image: {e}")
-
-    # 二次檢查
+        print(f"[ERROR] Welcome menu image not found at {menu_image_path}")
+        
+    # 二次檢查 - 若真的沒有圖，只好發文字
     if not os.path.exists(menu_image_path):
         welcome_text = """哈囉！你好呀！👋
 我是你的專屬與激勵夥伴！很高興認識你！✨

@@ -120,7 +120,12 @@ Review the following trip plan for FLAGRANT LOGICAL ERRORS.
 **CRITICAL CHECKLIST:**
 1. **Transport Feasibility (MOST IMPORTANT)**:
    - **NO HSR (High Speed Rail) to East Coast (Hualien, Taitung) or Islands (Green Island, Penghu, Orchid Island).** HSR only runs on West Coast (Taipei-Kaohsiung).
-   - If user says "HSR to Green Island", **CORRECT IT** to "Train to Taitung then Boat/Plane".
+   - **Transportation Rules (STRICT):**
+     * **Green Island (綠島) / Orchid Island (蘭嶼)**: MUST take Boat from Taitung Fugang Harbor (富岡漁港) OR Plane from Taitung Airport. **NO TRAIN/HSR directly to the island.**
+     * **Penghu (澎湖)**: MUST take Plane (from Taipei/Taichung/Kaohsiung) OR Boat (from Chiayi/Kaohsiung).
+     * **Xiao Liuqiu (小琉球)**: MUST take Boat from Donggang (東港).
+     * **Hualien/Taitung (花蓮/台東)**: MUST take TRA Train (台鐵/普悠瑪/太魯閣) or Drive. **NO HSR**.
+   - If user says "HSR to Green Island", **CORRECT IT** to "Train to Taitung then Boat".
    - If user says "Drive to Green Island", **CORRECT IT** to "Drive to Taitung then Boat".
 2. **Time Continuity**: Do activities overlap? (e.g., Lunch at 12:00, but next activity starts at 11:30)
 3. **Geographical Logic**: Are locations too far apart? (e.g., Taipei to Kaohsiung in 1 hour by car is impossible)
