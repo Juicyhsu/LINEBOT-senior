@@ -1825,9 +1825,27 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
 
 def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_session=False, reply_token=None):
     """處理長輩圖製作，reply_token 用於發送狀態通知"""
-    global user_meme_state
+    global user_meme_state, user_images
     
     if is_new_session or user_id not in user_meme_state:
+        # Check if there is a recently uploaded image
+        if user_id in user_images:
+            user_meme_state[user_id] = {
+                'stage': 'waiting_text', 
+                'bg_image': user_images[user_id], 
+                'text': None
+            }
+            # Remove from pending user_images to avoid reuse confusion later? 
+            # (Optional, but keeping it allows reuse. Let's keep it.)
+            
+            return """已使用您剛剛上傳的圖片！📸
+
+請輸入要在圖片上顯示的文字內容：
+(例如：早安、平安喜樂、認同請分享)
+
+⚠️ 製作期間約15秒，請勿發送其他訊息！"""
+        
+        # No image found, ask for one
         user_meme_state[user_id] = {'stage': 'waiting_bg', 'bg_image': None, 'text': None}
         return """好的！我們來製作長輩圖。
 
@@ -2103,6 +2121,10 @@ def classify_user_intent(text):
             return "set_reminder"
         if any(kw in text for kw in ["我的提醒", "查看提醒", "待辦", "提醒列表", "my reminders"]):
             return "show_reminders"
+            
+        # 2. 優先判斷長輩圖/梗圖製作 (包含「加文字」指令)
+        if any(kw in text for kw in ["長輩圖", "梗圖", "加文字", "加上文字", "迷因", "meme"]):
+            return "meme_creation"
             
         classification_prompt = f"""
         請分析用戶輸入：「{text}」
