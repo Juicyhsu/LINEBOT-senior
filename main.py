@@ -1794,21 +1794,24 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 vision_prompt = f"""你是長輩圖排版設計總監。請分析這張圖片，為文字「{text}」設計最佳的視覺效果。
 
 **設計目標：**
-1. **安全區域 (Safe Area)**：絕對避開人臉與重要主體。
-2. **高對比度**：確保文字在背景上清晰可見。
-3. **設計感**：根據圖片氛圍決定是否需要描邊 (Stroke)。
+1. **安全區域 (Safe Area)**：絕對避開人臉與重要主體。文字必須放在背景空曠處。
+2. **字體大小 (Font Size)**：
+   - 圖片主體很大、空間很小 -> 請用小字體 (30-50) 塞在邊角，**絕對不要蓋到主體**。
+   - 圖片留白很多 (如大天空) -> 請用大字體 (60-90) 填滿空間。
+3. **高對比度**：確保文字在背景上清晰可見。
+4. **設計感**：根據圖片氛圍決定是否需要描邊 (Stroke)。
    - 活潑/複雜背景 -> 建議加粗描邊 (stroke_width: 3-5)
    - 唯美/乾淨背景 -> 可無描邊或細描邊 (stroke_width: 0-2)
-4. **拒絕千篇一律**：這非常重要！
+5. **拒絕千篇一律**：
    - 請根據圖片的色調，**大膽嘗試**不同的顏色組合 (如霓虹色、粉彩、撞色)。
-   - 不要總是選金色 (#FFD700) 或白色。如果背景允許，試試看亮青色、洋紅色、橘紅色等。
-   - 不要總是 top-left，如果 bottom 或 right 有空位，請優先嘗試。
+   - 不要總是選金色 (#FFD700) 或白色。
 
 **請回傳一行 JSON 格式：**
 {{
     "position": "top-left", 
     "color": "#FFD700", 
     "font": "kaiti", 
+    "font_size": 60,
     "angle": 5,
     "stroke_width": 3,
     "stroke_color": "#000000"
@@ -1816,11 +1819,12 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 
 **參數說明：**
 - position: top-left, top-right, bottom-left, bottom-right, top, bottom
-- color: 文字顏色 (請發揮創意！支援 Hex 或 rainbow)
+- color: 文字顏色 (Hex 或 rainbow)
 - font: kaiti (溫馨/傳統), heiti (現代/有力), bold (強調)
+- font_size: 30 (小) 到 90 (大)，預設 60
 - angle: -10 到 10 (微旋轉增加動感)
 - stroke_width: 0 (無) 到 5 (極粗)
-- stroke_color: 描邊顏色 (通常用 #000000 或 #FFFFFF 來對比文字顏色)
+- stroke_color: 描邊顏色
 """
 
                 # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
@@ -1846,6 +1850,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 angle = 0
                 stroke_width = 0
                 stroke_color = None
+                size = 60 # Default size
                 
                 try:
                     # 嘗試解析 JSON
@@ -1858,6 +1863,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                         angle = int(data.get('angle', 0))
                         stroke_width = int(data.get('stroke_width', 0))
                         stroke_color = data.get('stroke_color', '#000000')
+                        size = int(data.get('font_size', 60))
                     else:
                         raise ValueError("No JSON found")
                         
@@ -1871,10 +1877,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                      color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
                      color = color_map.get(color.lower(), '#FFFFFF')
 
-                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {angle}度, stroke={stroke_width}")
-                
-                # 字體大小交由 create_meme_image 的自動縮放邏輯決定，這裡給一個較大的初始值
-                size = 90
+                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, {angle}度, stroke={stroke_width}")
                 
                 final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color)
                 
