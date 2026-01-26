@@ -2125,6 +2125,13 @@ def classify_user_intent(text):
         # 2. 優先判斷長輩圖/梗圖製作 (包含「加文字」指令)
         if any(kw in text for kw in ["長輩圖", "梗圖", "加文字", "加上文字", "迷因", "meme"]):
             return "meme_creation"
+
+        # 3. 判斷一般圖片生成 (避免 AI 誤判為 chat)
+        # 用戶說 "畫一隻...", "生成一張...", "給我一張...圖片"
+        if any(kw in text for kw in ["畫一", "生成一", "產生一", "製作一", "create a image", "generate a image"]):
+            return "image_generation"
+        if "圖片" in text and any(kw in text for kw in ["給我", "想要", "來一張", "一張", "生"]):
+            return "image_generation"
             
         classification_prompt = f"""
         請分析用戶輸入：「{text}」
