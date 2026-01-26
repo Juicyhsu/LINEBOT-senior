@@ -387,7 +387,12 @@ def generate_image_with_imagen(prompt, user_id):
                 if not images:
                     raise ValueError("API returned no images (possibly due to safety filters)")
                 
-                break  # 成功則跳出迴圈
+                # 儲存圖片
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                image_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_generated.png")
+                images[0].save(location=image_path)
+                return (True, image_path)
+
             except Exception as e:
                 error_str = str(e)
                 # 只有在遇到暫時性錯誤時才重試 (429 Resource Exhausted, 503 Service Unavailable, 500 Internal Error)
@@ -400,12 +405,7 @@ def generate_image_with_imagen(prompt, user_id):
                 else:
                     raise e  # 超過重試次數或非暫時性錯誤，拋出異常
         
-        # 儲存圖片
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        image_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_generated.png")
-        images[0].save(location=image_path)
-        
-        return (True, image_path)
+        raise ValueError("Unknown error: loop finished without success")
         
     except Exception as e:
         error_str = str(e)
