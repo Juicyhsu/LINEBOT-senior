@@ -1393,6 +1393,9 @@ def message_audio(event):
                 message_id=event.message.id
             )
         
+        # 確保資料夾存在
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        
         # 儲存音訊檔案 (.m4a)
         audio_filename = f"{user_id}_audio.m4a"
         audio_path = os.path.join(UPLOAD_FOLDER, audio_filename)
@@ -1498,36 +1501,56 @@ def handle_follow(event):
     user_id = event.source.user_id
     print(f"New follower: {user_id}")
     
-    # 功能總覽圖路徑
+    # 優先使用外部連結 (如果你有設定)
+    # User requested: https://storage.googleapis.com/help_poster/help_poster.png
+    help_image_url = os.environ.get("HELP_IMAGE_URL", "https://storage.googleapis.com/help_poster/help_poster.png")
+    
+    # 本地備用路徑
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
-    # 如果圖片不存在，則只回傳文字並記錄錯誤 (絕對不自動生成，以免字體跑版)
-    if not os.path.exists(menu_image_path):
-        print(f"[ERROR] Welcome menu image not found at {menu_image_path}")
-        
-    # 二次檢查 - 若真的沒有圖，只好發文字
-    if not os.path.exists(menu_image_path):
-        welcome_text = """哈囉！你好呀！👋
-我是你的專屬與激勵夥伴！很高興認識你！✨
-
-請輸入「功能」來查看我可以做什麼喔！
-加油！Cheer up！讚喔！💖"""
-        with ApiClient(configuration) as api_client:
-            line_bot_api = MessagingApi(api_client)
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=welcome_text)],
-                )
-            )
-        return
-
-    # 發送圖片 (自動上傳並使用 reply_token)
-    # 這裡我們不傳送額外的文字，只傳送圖片
-    success = send_image_to_line(user_id, menu_image_path, "這是您的功能總覽！(如果不支援圖片顯示)", event.reply_token)
+    # 策略：優先嘗試發送 URL 圖片 (因為 Zeabur 部署時 static 檔案可能會有路徑問題或未部署)
+    sent_success = False
     
-    if not success:
-        print("[ERROR] Failed to send welcome menu image")
+    # 1. 嘗試發送 URL 圖片
+    if help_image_url and help_image_url.startswith("http"):
+        try:
+            print(f"[WELCOME] Sending welcome image from URL: {help_image_url}")
+            with ApiClient(configuration) as api_client:
+                line_bot_api = MessagingApi(api_client)
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[
+                            ImageMessage(
+                                original_content_url=help_image_url,
+                                preview_image_url=help_image_url
+                            )
+                        ]
+                    )
+                )
+            sent_success = True
+            print("[WELCOME] Sent successfully via URL")
+            return
+        except Exception as e:
+            print(f"[WELCOME] Failed to send via URL: {e}")
+
+    # 2. 如果 URL 失敗，嘗試發送本地靜態圖片 (需透過 Imgur/GCS 上傳)
+    # 不過 send_image_to_line 內部邏輯是上傳本地檔案
+    if not sent_success:
+        if os.path.exists(menu_image_path):
+            print(f"[WELCOME] Sending local image: {menu_image_path}")
+            # 使用 reply_token 免費發送
+            success = send_image_to_line(user_id, menu_image_path, None, event.reply_token)
+            if success:
+                print("[WELCOME] Sent successfully via local upload")
+                return
+            else:
+                print("[ERROR] Failed to upload/send local welcome image")
+        else:
+            print(f"[ERROR] Local welcome image not found at {menu_image_path}")
+
+    # 3. 如果連圖片都發送失敗，就真的沒辦法了 (用戶要求刪除文字 fallback，所以這裡保持沉默或只記錄 log)
+    print("[ERROR] Could not send ANY welcome image (URL or Local).")
 
 # ======================
 # Agent Handlers

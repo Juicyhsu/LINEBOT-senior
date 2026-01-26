@@ -47,7 +47,10 @@ env/
 Thumbs.db
 
 # Static files
-static/
+# Static files (allow static folder, ignore content except specific files)
+static/*
+!static/welcome_menu.jpg
+
 *.jpg
 *.jpeg
 *.png
