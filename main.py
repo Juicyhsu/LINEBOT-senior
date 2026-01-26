@@ -1477,31 +1477,36 @@ def message_sticker(event):
 
 @handler.add(FollowEvent)
 def handle_follow(event):
-    """處理加入好友/解除封鎖事件 (歡迎詞)"""
+    """處理加入好友/解除封鎖事件 (歡迎詞 - 發送功能總覽圖)"""
     user_id = event.source.user_id
     print(f"New follower: {user_id}")
     
-    welcome_text = """哈囉！你好呀！👋
+    # 功能總覽圖路徑
+    menu_image_path = os.path.join("static", "welcome_menu.jpg")
+    
+    # 如果圖片不存在 (例如剛部署還沒生成)，則先用文字
+    if not os.path.exists(menu_image_path):
+        welcome_text = """哈囉！你好呀！👋
 我是你的專屬與激勵夥伴！很高興認識你！✨
 
-我可以陪你做很多有趣的事情喔：
-1. **🌸 製作長輩圖**：傳一張照片給我，或是說「做長輩圖」，我就幫你排版設計！
-2. **🚗 規劃旅遊**：跟我說「我想去宜蘭三天兩夜」，我就幫你安排好行程！
-3. **🎨 畫圖給你看**：說「畫一隻貓」或「生成圖片」，我就畫給你！
-4. **📅 貼心提醒**：跟我說「明天早上8點提醒我吃藥」，我就會準時叫你！
-5. **💬 聊天解悶**：無聊時隨時找我聊聊，我會給你滿滿的正能量！💪
-
-有什麼想做的，直接跟我說就可以囉！
+請輸入「功能」來查看我可以做什麼喔！
 加油！Cheer up！讚喔！💖"""
-
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=welcome_text)],
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=welcome_text)],
+                )
             )
-        )
+        return
+
+    # 發送圖片 (自動上傳並使用 reply_token)
+    # 這裡我們不傳送額外的文字，只傳送圖片
+    success = send_image_to_line(user_id, menu_image_path, "這是您的功能總覽！(如果不支援圖片顯示)", event.reply_token)
+    
+    if not success:
+        print("[ERROR] Failed to send welcome menu image")
 
 # ======================
 # Agent Handlers
