@@ -1799,6 +1799,10 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 3. **設計感**：根據圖片氛圍決定是否需要描邊 (Stroke)。
    - 活潑/複雜背景 -> 建議加粗描邊 (stroke_width: 3-5)
    - 唯美/乾淨背景 -> 可無描邊或細描邊 (stroke_width: 0-2)
+4. **拒絕千篇一律**：這非常重要！
+   - 請根據圖片的色調，**大膽嘗試**不同的顏色組合 (如霓虹色、粉彩、撞色)。
+   - 不要總是選金色 (#FFD700) 或白色。如果背景允許，試試看亮青色、洋紅色、橘紅色等。
+   - 不要總是 top-left，如果 bottom 或 right 有空位，請優先嘗試。
 
 **請回傳一行 JSON 格式：**
 {{
@@ -1812,15 +1816,22 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 
 **參數說明：**
 - position: top-left, top-right, bottom-left, bottom-right, top, bottom
-- color: 文字顏色 (Hex 或 rainbow)
+- color: 文字顏色 (請發揮創意！支援 Hex 或 rainbow)
 - font: kaiti (溫馨/傳統), heiti (現代/有力), bold (強調)
 - angle: -10 到 10 (微旋轉增加動感)
 - stroke_width: 0 (無) 到 5 (極粗)
 - stroke_color: 描邊顏色 (通常用 #000000 或 #FFFFFF 來對比文字顏色)
 """
 
-                # 使用功能性模型進行排版分析
-                response = model_functional.generate_content([vision_prompt, bg_image])
+                # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
+                response = model_functional.generate_content(
+                    [vision_prompt, bg_image],
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=1.1, # 調高溫度，增加隨機性
+                        top_p=0.95,
+                        top_k=40
+                    )
+                )
                 result = response.text.strip()
                 
                 print(f"[AI CREATIVE] Raw: {result[:100]}...")
