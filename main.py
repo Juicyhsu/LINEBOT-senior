@@ -1632,7 +1632,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 if any(keyword in user_input for keyword in ['都可以', '都行', '隨便', '不挑', '任意', '推薦']):
                     # 直接使用大地區作為目的地
                     state['info']['destination'] = state['info']['large_region']
-                    return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n⚠️ 回答後等待期間請勿發送訊息！\n不想規劃了可以說「取消」。"
+                    return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
             
             # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
             # 例如用戶說 "我要去綠島" -> 提取 "綠島"
@@ -1669,7 +1669,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
             else:
                 # 直接記錄目的地
                 state['info']['destination'] = extracted_dest
-                return f"好的，去{extracted_dest}！請問預計去幾天？(例如：3天2夜)\n\n⚠️ 回答後等待期間請勿發送訊息！\n不想規劃了可以說「取消」。"
+                return f"好的，去{extracted_dest}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
 
             
         # Check if we have specific area (for large regions)
@@ -1686,7 +1686,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
             
             state['info']['destination'] = user_input
-            return f"好的，{state['info']['large_region']}的{user_input}！請問預計去幾天？(例如：3天2夜)\n\n⚠️ 回答後等待期間請勿發送訊息！\n不想規劃了可以說「取消」。"
+            return f"好的，{state['info']['large_region']}的{user_input}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
             
         # Check if we have duration
         if 'duration' not in state['info']:
@@ -2291,15 +2291,15 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              current_intent = None
              
              # 關鍵字強制映射 (還原使用者的制式操作體驗)
-             if any(k in user_input for k in ["規劃行程", "行程規劃"]):
+             if any(k in user_input for k in ["規劃行程", "行程規劃", "去玩", "帶我去", "旅遊", "旅行", "景點推薦"]):
                  current_intent = 'trip_planning'
-             elif any(k in user_input for k in ["長輩圖", "做長輩圖", "製作長輩圖"]):
+             elif any(k in user_input for k in ["長輩圖", "做長輩圖", "製作長輩圖", "梗圖", "迷因", "加文字", "上文字", "做一張圖"]):
                  current_intent = 'meme_creation'
-             elif any(k in user_input for k in ["生成圖片", "產生圖片", "畫一張", "做圖"]):
+             elif any(k in user_input for k in ["生成圖片", "產生圖片", "畫一張", "做圖", "畫圖", "繪圖"]):
                  current_intent = 'image_generation'
-             elif any(k in user_input for k in ["生成影片", "製作影片"]):
+             elif any(k in user_input for k in ["生成影片", "製作影片", "做影片"]):
                  current_intent = 'video_generation'
-             elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒"]):
+             elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項"]):
                  current_intent = 'show_reminders'
              
              # 如果關鍵字沒抓到，才用 AI (處理自然語言，如 "我想去宜蘭")
