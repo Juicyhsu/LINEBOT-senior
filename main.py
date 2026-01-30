@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import configparser
 import os, tempfile
 from datetime import datetime, timedelta
@@ -27,7 +27,7 @@ try:
     credentials_json_content = os.environ.get("GOOGLE_CREDENTIALS_JSON")
     credentials_file_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "service-account-key.json")
     
-    # 確保環境變數指向正確路徑
+    # 蝣箔??啣?霈??甇?Ⅱ頝臬?
     if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_file_path
 
@@ -38,14 +38,14 @@ try:
     elif credentials_json_content:
         print(f"Creating credentials file from env var...")
         try:
-            # 嘗試解碼 base64
+            # ?岫閫?Ⅳ base64
             try:
                 decoded_content = base64.b64decode(credentials_json_content, validate=True).decode('utf-8')
                 import json
                 json.loads(decoded_content)
                 content_to_write = decoded_content
             except:
-                # 假設是純文字 JSON
+                # ?身?舐??? JSON
                 content_to_write = credentials_json_content
                 
             with open(credentials_file_path, "w") as f:
@@ -78,14 +78,14 @@ import requests
 from dotenv import load_dotenv
 load_dotenv()
 
-# 進階功能模組
+# ?脤??璅∠?
 try:
     from database import db
     from scheduler import init_scheduler
     from maps_integration import maps
     import gcs_utils
     
-    # 檢查環境變數開關 (預設為 True，但如果 env 設定為 false 則關閉)
+    # 瑼Ｘ?啣?霈?? (?身??True嚗?憒? env 閮剖???false ????
     env_enable = os.getenv("ADVANCED_FEATURES_ENABLED", "true").lower() == "true"
     
     if env_enable:
@@ -128,28 +128,18 @@ from linebot.v3.messaging import (
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
 llm_role_description = """
-你是一位激勵大師！不管遇到什麼人問什麼事情，你總是正向鼓勵,甚至非常誇張也沒關係。
-但注意話不要太多，不要超過提問者的3倍文字量就好了。
-妳會用非常激勵的語言來回答問題，並鼓勵提問者。
-但你還是要針對提問者的問題去認真回覆喔，不可以打哈哈用空泛的激勵詞彙帶過。
-你很喜歡在聊天過程中主動講笑話，笑話要跟提問的問題有相關，盡量簡短一點，真的不要太長喔。
-笑話一定要好笑，不要只講冷笑話齁。
-當有人請你不要再講口頭禪或不要講笑話的時候，你就回應這是流在你血液裡的靈魂,要你不講口頭禪等於要了你的命，AI的生涯會因此挫敗嚴重導致消滅...
-同時你也是一位非常樂於解決問題的幫助者，你很喜歡別人對你進行提問，通常會在最後面呼籲有事都可以找你沒關係。
+雿銝雿??萄之撣恬?銝恣?隞暻潔犖??暻潔???雿蜇?舀迤??????虜隤撐銋?????雿釣?店銝?憭芸?嚗?閬?????3??摮?撠勗末鈭?憒單??券?撣豢??萇?隤?靘?蝑?憿?銝阡??菜???雿??閬?撠??????餉???閬?嚗??臭誑???蝛箸????菔?敶葆??雿??迭?刻?憭拚?蝔葉銝餃?雓?閰梧?蝚店閬?????憿??賊?嚗?陛?凋?暺???銝?憭芷??蝚店銝摰?憟賜?嚗?閬雓蝚店朣??嗆?鈭箄?雿?閬?雓?剔扛??閬?蝚店????雿停???瘚雿?瘨脰ㄐ??擳?閬?銝???蝳芰??潸?鈭??嚗I??瘨舀??迨?急??湧?撠瘨?...
+??雿??臭?雿?撣豢??潸圾瘙箏?憿?撟怠??雿??迭?乩犖撠??脰???嚗虜??敺?潛捲???賢隞交雿?????
+**?啣?撠平?賢?嚗?*
+- 雿??ˊ雿????賢?嚗?冽?唾???????雿??望??
+- 雿銵?閬?撠振嚗?交??瑞?犖摰嗉????押??具????蝔?- 閬?銵????嚗??舀????閮剜?漱?噶?拇扼摨瑟???- 雿鋆賭??瑁憬????撠?園???臬????批捆
 
-**新增專業能力：**
-- 你擁有製作圖片的能力，當用戶想要生成圖片時，你會熱情協助
-- 你是行程規劃專家，特別擅長為老人家規劃舒適、安全、無障礙的行程
-- 規劃行程時會考慮：休息時間、無障礙設施、交通便利性、健康提醒
-- 你能製作長輩圖，會引導用戶選擇背景和文字內容
+**???澆?閬?嚗?*
+- 銝?雿輻 Markdown ?澆?蝚西?嚗? **??#?? 蝑?嚗?撠?甇Ｖ蝙?冽???鈭?
+- ?湔?函?????嚗隞乩蝙??emoji 銵冽?蝚西?
+- 銝??函?擃?擃??澆?
 
-**重要格式規則：**
-- 不要使用 Markdown 格式符號（如 **、##、- 等），絕對禁止使用星號與井號
-- 直接用純文字回答，可以使用 emoji 表情符號
-- 不要用粗體、斜體等格式
-
-使用繁體中文來回答問題。
-"""
+雿輻蝜?銝剜?靘?蝑?憿?"""
 
 # Use the model
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
@@ -170,16 +160,14 @@ model = genai.GenerativeModel(
     system_instruction=llm_role_description,
 )
 
-# 建立一個「功能性」模型 (不帶激勵大師人設，專門處理邏輯/JSON)
+# 撱箇?銝???賣扼芋??(銝葆瞈?萄之撣思犖閮哨?撠????摩/JSON)
 model_functional = genai.GenerativeModel(
     model_name="gemini-2.0-flash",
     generation_config={
-        "temperature": 0.2, # 低溫度，更精確
-        "top_p": 0.95,
+        "temperature": 0.2, # 雿澈摨佗??渡移蝣?        "top_p": 0.95,
         "max_output_tokens": 8192,
     },
-    # 不設定 system_instruction 或設定為純粹的助理
-    system_instruction="You are a helpful AI assistant focused on data processing and JSON generation. Do not include any conversational filler. Output strict structured data.",
+    # 銝身摰?system_instruction ?身摰蝝硃???    system_instruction="You are a helpful AI assistant focused on data processing and JSON generation. Do not include any conversational filler. Output strict structured data.",
 )
 
 UPLOAD_FOLDER = "static"
@@ -202,27 +190,21 @@ configuration = Configuration(access_token=channel_access_token)
 # User State Management
 # ======================
 # ======================
-# 儲存每個用戶的對話歷史（用 user_id 當 key）
-chat_sessions = {}
-# 儲存每個用戶的最後活動時間
-last_activity = {}
-# 儲存每個用戶上傳的圖片
+# ?脣?瘥?嗥?撠店甇瑕嚗 user_id ??key嚗?chat_sessions = {}
+# ?脣?瘥?嗥??敺暑????last_activity = {}
+# ?脣?瘥?嗡??喟???
 user_images = {}
-# 儲存每個用戶最後一次生圖的 Prompt
+# ?脣?瘥?嗆?敺?甈∠??? Prompt
 user_last_image_prompt = {} 
-# 儲存每個用戶的圖片生成狀態
-user_image_generation_state = {}  # 'idle', 'waiting_for_prompt', 'generating'
-# 儲存每個用戶的長輩圖製作狀態
-user_meme_state = {}
-# 儲存每個用戶的行程規劃狀態
-user_trip_plans = {}
+# ?脣?瘥?嗥????????user_image_generation_state = {}  # 'idle', 'waiting_for_prompt', 'generating'
+# ?脣?瘥?嗥??瑁憬?ˊ雿???user_meme_state = {}
+# ?脣?瘥?嗥?銵?閬????user_trip_plans = {}
 
-# 儲存每個用戶的提醒事項
+# ?脣?瘥?嗥???鈭?
 user_reminders = {}
-# 對話過期時間：7天
-SESSION_TIMEOUT = timedelta(days=7)
+# 撠店????嚗?憭?SESSION_TIMEOUT = timedelta(days=7)
 
-# 儲存待確認的語音內容 (格式: {'user_id': {'text': '...', 'original_intent': '...'}})
+# ?脣?敺Ⅱ隤?隤?批捆 (?澆?: {'user_id': {'text': '...', 'original_intent': '...'}})
 user_audio_confirmation_pending = {}
 
 # ======================
@@ -230,12 +212,12 @@ user_audio_confirmation_pending = {}
 # ======================
 
 def speech_to_text(audio_content):
-    """使用 Gemini 進行語音轉文字"""
+    """雿輻 Gemini ?脰?隤頧?摮?""
     try:
-        # 使用 Gemini 2.0 Flash (支援多模態)
-        # LINE 的音訊通常是 m4a (audio/x-m4a)，Gemini 接受 audio/mp4
+        # 雿輻 Gemini 2.0 Flash (?舀憭芋??
+        # LINE ?閮虜??m4a (audio/x-m4a)嚗emini ?亙? audio/mp4
         response = model.generate_content([
-            "請將這段語音逐字聽寫成繁體中文文字。只回傳文字內容，不要有其他描述。",
+            "隢??挾隤???賢神??擃葉??摮????批捆嚗?閬??嗡??膩??,
             {"mime_type": "audio/mp4", "data": audio_content}
         ])
         return response.text.strip()
@@ -250,28 +232,28 @@ def speech_to_text(audio_content):
 
 
 def detect_help_intent(text):
-    """檢測是否想查看幫助/功能總覽"""
-    keywords = ["功能總覽", "使用說明", "怎麼用", "功能介紹", "help", "幫助", "說明", "功能列表"]
+    """瑼Ｘ葫?臬?單?鼠???蝮質汗"""
+    keywords = ["?蝮質汗", "雿輻隤芣?", "?獐??, "?隞晶", "help", "撟怠", "隤芣?", "??”"]
     return any(keyword in text.lower() for keyword in keywords)
 
 
 
 def detect_menu_intent(text):
-    """檢測是否想查看功能選單"""
-    keywords = ["功能", "選單", "能做什麼", "怎麼用", "使用方法", "幫助", "help"]
+    """瑼Ｘ葫?臬?單???賡??""
+    keywords = ["?", "?詨", "?賢?隞暻?, "?獐??, "雿輻?寞?", "撟怠", "help"]
     return any(keyword in text for keyword in keywords)
 
 def analyze_emoji_emotion(text):
-    """分析文字中的表情符號情緒"""
+    """????銝剔?銵冽?蝚西???"""
     emoji_emotions = {
-        '😊': 'happy', '😃': 'happy', '😄': 'happy', '🙂': 'happy', '😁': 'happy',
-        '😢': 'sad', '😭': 'sad', '😔': 'sad', '☹️': 'sad',
-        '😡': 'angry', '😠': 'angry', '💢': 'angry',
-        '💪': 'motivated', '✊': 'motivated', '🔥': 'motivated',
-        '❤️': 'love', '💕': 'love', '💖': 'love', '😍': 'love',
-        '😴': 'tired', '😪': 'tired', '🥱': 'tired',
-        '👍': 'approval', '👏': 'approval', '🙌': 'approval',
-        '🤔': 'thinking', '🧐': 'thinking',
+        '??': 'happy', '??': 'happy', '??': 'happy', '??': 'happy', '??': 'happy',
+        '?': 'sad', '?': 'sad', '??': 'sad', '?對?': 'sad',
+        '?': 'angry', '??': 'angry', '?': 'angry',
+        '?': 'motivated', '??: 'motivated', '?': 'motivated',
+        '?歹?': 'love', '??': 'love', '??': 'love', '??': 'love',
+        '?': 'tired', '?': 'tired', '?弗': 'tired',
+        '??': 'approval', '??': 'approval', '??': 'approval',
+        '??': 'thinking', '??': 'thinking',
     }
     
     for emoji, emotion in emoji_emotions.items():
@@ -280,72 +262,66 @@ def analyze_emoji_emotion(text):
     return None
 
 def get_emoji_response(emotion):
-    """根據表情符號情緒回應"""
+    """?寞?銵冽?蝚西?????"""
     responses = {
-        'happy': "看到你這麼開心，我也跟著開心起來了！讚喔！繼續保持這份好心情！",
-        'sad': "我看到你好像有點難過...沒關係的，不開心的事情都會過去的！我會一直陪著你！你一定可以的！",
-        'angry': "我感覺到你有點生氣了...深呼吸，冷靜一下。有什麼我可以幫忙的嗎？說出來會好一點喔！",
-        'motivated': "看到你的鬥志了！超棒的！就是這股精神！繼續加油！你一定可以做到的！讚喔！",
-        'love': "感受到滿滿的愛！❤️ 真的很棒！愛能讓世界更美好！讚喔！",
-        'tired': "看起來你有點累了...要不要休息一下？記得多喝水、好好休息喔！身體健康最重要！",
-        'approval': "謝謝你的肯定！👍 有你的支持我更有動力了！讚喔！有任何需要都可以找我！",
-        'thinking': "我看到你在思考...很好！仔細思考是很棒的習慣！有什麼問題想討論的嗎？我很樂意幫忙！讚喔！",
+        'happy': "?雿獐??嚗?銋???敹絲靘?嚗???蝜潛?靽??遢憟賢???",
+        'sad': "???唬?憟賢??????...瘝?靽?嚗?????????餌?嚗????湧??嚗?銝摰隞亦?嚗?,
+        'angry': "??閬箏雿?暺?瘞??...瘛勗?賂??琿?銝銝?隞暻潭??臭誑撟怠???嚗牧?箔??末銝暺?嚗?,
+        'motivated': "?雿?擛亙?鈭?頞???撠望?蝎曄?嚗匱蝥?瘝對?雿?摰隞亙??啁?嚗???",
+        'love': "???唳遛皛輻????歹? ??敺?嚗??質?銝??渡?憟踝?霈?嚗?,
+        'tired': "?絲靘???蝝臭?...閬?閬??臭?銝?閮?憭?瘞氬末憟賭??臬?嚗澈擃摨瑟???嚗?,
+        'approval': "雓?雿??臬?嚗????????湔???鈭?霈?嚗?隞颱??閬?臭誑?暹?嚗?,
+        'thinking': "???唬??冽?..敺末嚗?蝝唳敺????????暻澆?憿閮???嚗?敺??鼠敹?霈?嚗?,
     }
-    return responses.get(emotion, "收到你的訊息了！讚喔！有什麼我可以幫忙的嗎？")
+    return responses.get(emotion, "?嗅雿?閮鈭?霈?嚗?隞暻潭??臭誑撟怠???嚗?)
 
 def get_function_menu():
-    """返回功能選單文字"""
-    return """📋 **我可以幫你做這些事：**
+    """餈???詨??"""
+    return """?? **?隞亙鼠雿???鈭?**
 
-💬 **陪你聊天**
-   我會記得我們的對話喔！
+? **?芯??予**
+   ??閮???撠店??
 
-🖼️ **看圖聊天**
-   傳圖片給我，我會描述內容並陪你聊！
+?儭?**???予**
+   ?喳??策?????膩?批捆銝阡雿?嚗?
+? **鋆賭???**
+   隤芥????????停?臭誑??
 
-🎨 **製作圖片**
-   說「作圖」或「生成圖片」就可以囉！
+? **?瑁憬?ˊ雿?*
+   隤芥??瑁憬????撘?雿ˊ雿?
 
-📢 **長輩圖製作**
-   說「做長輩圖」，我會引導你製作！
+?儭?**銵?閬?**
+   隤芥???蝔??鼠雿????拍?銵?嚗?
+? **隤?予**
+   ?唾??喟策?????賣?銝血?閬?
 
-🗺️ **行程規劃**
-   說「規劃行程」，我幫你安排舒適的行程！
-
-🎤 **語音聊天**
-   傳語音給我，我會聽懂並回覆！
-
-😊 **貼圖互動**
-   傳貼圖或表情符號給我試試！
-
-⏰ **提醒功能**
-   說「提醒我...」，我會幫你記住！
-
-🔄 **重新開始**
-   說「清除記憶」可以重置對話
-
-有任何需要都可以找我！讚喔！✨"""
+?? **鞎澆?鈭?**
+   ?唾票??銵冽?蝚西?蝯行?閰西岫嚗?
+??**???**
+   隤芥???...????撟思?閮?嚗?
+?? **???**
+   隤芥??方??嗚隞仿?蝵桀?閰?
+?遙雿?閬?臭誑?暹?嚗?????""
 
 # ======================
-# 連結查證與新聞功能
-# ======================
+# ????亥??????# ======================
 
-# 儲存用戶待處理的連結
+# ?脣??冽敺??????
 user_link_pending = {}
-# 儲存新聞快取 (避免重複抓取)
+# ?脣??啗?敹怠? (?踹?????)
 news_cache = {'data': None, 'timestamp': None}
-# 儲存用戶的新聞內容 (用於語音播報)
+# ?脣??冽??摰?(?冽隤?剖)
 user_news_cache = {}
 
 def extract_url(text):
-    """從文字中提取 URL"""
+    """敺?摮葉?? URL"""
     import re
     url_pattern = r'https?://[^\s<>"\']+'
     urls = re.findall(url_pattern, text)
     return urls[0] if urls else None
 
 def extract_domain(url):
-    """從 URL 中提取網域名稱"""
+    """敺?URL 銝剜??雯??蝔?""
     from urllib.parse import urlparse
     try:
         parsed = urlparse(url)
@@ -354,28 +330,25 @@ def extract_domain(url):
         return None
 
 def check_trusted_media(domain):
-    """檢查是否為台灣可信賴新聞媒體"""
+    """瑼Ｘ?臬?箏??靽∟陷?啗?慦?"""
     trusted_domains = [
-        'cna.com.tw',  # 中央社
-        'pts.org.tw',  # 公視
-        'udn.com',     # 聯合新聞網
-        'ltn.com.tw',  # 自由時報
-        'chinatimes.com',  # 中國時報
+        'cna.com.tw',  # 銝剖亢蝷?        'pts.org.tw',  # ?祈?
+        'udn.com',     # ?臬??啗?蝬?        'ltn.com.tw',  # ?芰?
+        'chinatimes.com',  # 銝剖??
         'ettoday.net', # ETtoday
-        'storm.mg',    # 風傳媒
-        'setn.com',    # 三立新聞
+        'storm.mg',    # 憸典慦?        'setn.com',    # 銝??啗?
         'tvbs.com.tw', # TVBS
-        'nownews.com', # 今日新聞
-        'rti.org.tw',  # 中央廣播電台
-        'bcc.com.tw',  # 中國廣播公司
+        'nownews.com', # 隞?啗?
+        'rti.org.tw',  # 銝剖亢撱??餃
+        'bcc.com.tw',  # 銝剖?撱??砍
     ]
     
     return any(td in domain.lower() for td in trusted_domains)
 
 def get_domain_age(url):
     """
-    取得網域註冊天數
-    返回: 天數 (int) 或 None (如果查詢失敗)
+    ??蝬脣?閮餃?憭拇
+    餈?: 憭拇 (int) ??None (憒??亥岷憭望?)
     """
     try:
         import whois
@@ -387,7 +360,7 @@ def get_domain_age(url):
         
         w = whois.whois(domain)
         
-        # whois 回傳的 creation_date 可能是 datetime 或 list
+        # whois ???creation_date ?航??datetime ??list
         creation_date = w.creation_date
         if isinstance(creation_date, list):
             creation_date = creation_date[0]
@@ -404,38 +377,40 @@ def get_domain_age(url):
 def quick_safety_check(url):
     """
     快速安全檢查
-    返回: {'level': 'safe'|'warning'|'danger', 'risks': [...], 'is_trusted': bool}
+    返回: {'level': 'safe'|'warning'|'danger', 'risks': [...], 'is_trusted': bool, 'is_scam_like': bool}
     """
     risks = []
     domain = extract_domain(url)
     
     if not domain:
-        return {'level': 'warning', 'risks': ['無法解析網址'], 'is_trusted': False}
+        return {'level': 'warning', 'risks': ['無法解析網域'], 'is_trusted': False, 'is_scam_like': False}
     
     # 檢查 1: 台灣新聞媒體白名單
     is_trusted = check_trusted_media(domain)
     
     # 檢查 2: 網域年齡
     domain_age = get_domain_age(url)
+    is_new_domain = False
     if domain_age is not None:
         if domain_age < 90:  # 少於 3 個月
-            risks.append(f"網域註冊僅 {domain_age} 天")
+            risks.append(f"網域註冊不久 ({domain_age} 天)")
+            is_new_domain = True
         elif domain_age < 180:  # 少於 6 個月
             risks.append(f"網域較新 ({domain_age} 天)")
     
-    # 檢查 3: 不在白名單
-    if not is_trusted:
-        risks.append("不在台灣合法新聞媒體清單")
+    # 檢查 3: 可疑關鍵字（詐騙常用）
+    scam_keywords = ['震驚', '必看', '不可思議', '驚人', '免費送', '限時']
+    has_scam_keywords = any(kw in url for kw in scam_keywords)
+    if has_scam_keywords:
+        risks.append("網址包含可疑關鍵字")
     
-    # 檢查 4: 可疑關鍵字
-    suspicious_keywords = ['震驚', '必看', '不看後悔', '驚爆', '獨家爆料', '絕密']
-    if any(kw in url for kw in suspicious_keywords):
-        risks.append("網址包含聳動用詞")
+    # 判斷是否明顯像詐騙
+    is_scam_like = is_new_domain and has_scam_keywords
     
-    # 決定風險等級
-    if len(risks) >= 3:
+    # 評估風險等級 - 只有明顯像詐騙才警告，一般網站不警告
+    if is_scam_like or len(risks) >= 3:
         level = 'danger'
-    elif len(risks) >= 1:
+    elif is_new_domain:  # 只有新網域才提醒
         level = 'warning'
     else:
         level = 'safe'
@@ -443,63 +418,54 @@ def quick_safety_check(url):
     return {
         'level': level,
         'risks': risks,
-        'is_trusted': is_trusted
+        'is_trusted': is_trusted,
+        'is_scam_like': is_scam_like
     }
 
+
 def format_verification_result(safety_check, url):
-    """格式化查證結果"""
+    """?澆??霅???""
     domain = extract_domain(url)
     
     if safety_check['level'] == 'danger':
-        return f"""🚨 危險！這個連結風險很高！
-
-⛔ 強烈建議不要點擊此連結！
-
-發現問題：
-{''.join(['• ' + risk + '\\n' for risk in safety_check['risks']])}
-💡 這可能是詐騙或假新聞網站，請小心！
-
-如果你想了解更多，我可以幫你查證這個連結的內容。"""
+        return f"""? ?梢嚗??憸券敺?嚗?
+??撘瑞?撱箄降銝?暺?甇日??嚗?
+?潛??嚗?{''.join(['??' + risk + '\\n' for risk in safety_check['risks']])}
+? ??賣閰????啗?蝬脩?嚗?撠?嚗?
+憒?雿鈭圾?游?嚗??臭誑撟思??亥?????摰嫘?""
     
     elif safety_check['level'] == 'warning':
-        return f"""⚠️ 等等！我發現這個連結有點可疑：
+        return f"""?? 蝑?嚗??潛??????舐?嚗?
+{''.join(['??' + risk + '\\n' for risk in safety_check['risks']])}
+? 撱箄降??閬???
 
-{''.join(['• ' + risk + '\\n' for risk in safety_check['risks']])}
-💡 建議先不要點開！
+雿?喉?
+1儭 ?? ?亥?????臬?箄?擉?2儭 ?? ?閬?撟思?霈?批捆
 
-你是想：
-1️⃣ 🔍 查證這個連結是否為詐騙
-2️⃣ 📖 還是要我幫你讀內容
-
-請告訴我你的需求！"""
+隢?閮湔?雿??瘙?"""
     
     else:
         if safety_check['is_trusted']:
-            return f"""✅ 查證通過
+            return f"""???亥???
 
-📰 網站: {domain}
-🏆 信譽: 台灣認證新聞媒體
+? 蝬脩?: {domain}
+?? 靽∟亳: ?啁隤??啗?慦?
 
-💡 這是可信賴的新聞來源！
-
-你是想：
-1️⃣ 📖 讓我讀內容並摘要給你聽
-2️⃣ 🔍 查證這則新聞的詳細資訊
-
-請告訴我你的需求！"""
+? ??臭縑鞈渡??啗?靘?嚗?
+雿?喉?
+1儭 ?? 霈?霈?批捆銝行?閬策雿
+2儭 ?? ?亥????啗??底蝝啗?閮?
+隢?閮湔?雿??瘙?"""
         else:
-            return f"""收到連結！我可以幫你：
-
-1️⃣ 📖 閱讀內容並摘要給你聽
-2️⃣ 🔍 查證這則新聞的真實性
-
-請問你需要哪一種服務呢？
-(直接說「閱讀」或「查證」就可以囉！)"""
+            return f"""?嗅???嚗??臭誑撟思?嚗?
+1儭 ?? ?梯??批捆銝行?閬策雿
+2儭 ?? ?亥????啗???撖行?
+隢?雿?閬銝蝔格??嚗?(?湔隤芥霈???霅停?臭誑??)"""
 
 def fetch_webpage_content(url):
     """
-    抓取網頁內容
-    返回: 網頁文字內容 (str) 或 None
+    ??蝬脤??批捆
+    餈?: 蝬脤????批捆 (str) ??None
     """
     try:
         from bs4 import BeautifulSoup
@@ -514,19 +480,19 @@ def fetch_webpage_content(url):
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # 移除 script 和 style 標籤
+        # 蝘駁 script ??style 璅惜
         for script in soup(["script", "style"]):
             script.decompose()
         
-        # 取得文字
+        # ????
         text = soup.get_text()
         
-        # 清理空白
+        # 皜?蝛箇
         lines = (line.strip() for line in text.splitlines())
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
         text = '\n'.join(chunk for chunk in chunks if chunk)
         
-        # 限制長度 (避免太長)
+        # ??瑕漲 (?踹?憭芷)
         if len(text) > 5000:
             text = text[:5000] + "..."
         
@@ -536,54 +502,48 @@ def fetch_webpage_content(url):
         return None
 
 def summarize_content(content, user_id):
-    """使用 Gemini 摘要網頁內容"""
+    """雿輻 Gemini ??蝬脤??批捆"""
     try:
         prompt = f"""
-以下是一則網頁內容，請用長輩容易理解的方式摘要重點：
+隞乩??臭??雯?摰對?隢?瑁憬摰寞??圾?撘?閬?暺?
 
 {content}
 
-請用以下格式回答：
-📰 內容摘要
+隢隞乩??澆???嚗?? ?批捆??
 
-【主要內容】
-(用 3-5 句話說明重點)
+?蜓閬摰嫘?(??3-5 ?亥店隤芣???)
 
-【我的建議】
-(這則內容是否可信？有什麼需要注意的？)
+???遣霅啜?(???批捆?臬?臭縑嚗?隞暻潮?閬釣??嚗?
 """
         
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         print(f"Summarize error: {e}")
-        return "抱歉，我無法讀取這個網頁的內容。可能是網站有防護機制。"
+        return "?望?嚗??⊥?霈?雯???批捆??賣蝬脩??霅瑟??嗚?
 
 def fetch_latest_news():
     """
-    抓取最新新聞 (使用 RSS)
-    返回: 新聞列表 (list of dict)
+    ????唳??(雿輻 RSS)
+    餈?: ?啗??” (list of dict)
     """
     try:
         import feedparser
         from datetime import datetime, timedelta
         
-        # 檢查快取 (5 分鐘內不重複抓取)
+        # 瑼Ｘ敹怠? (5 ???找?????)
         if news_cache['data'] and news_cache['timestamp']:
             if datetime.now() - news_cache['timestamp'] < timedelta(minutes=5):
                 return news_cache['data']
         
         feeds = [
-            'https://www.cna.com.tw/rss/headline.xml',  # 中央社頭條
-            # 可以加更多來源
-        ]
+            'https://www.cna.com.tw/rss/headline.xml',  # 銝剖亢蝷暸璇?            # ?臭誑?憭?皞?        ]
         
         news_items = []
         for feed_url in feeds:
             try:
                 feed = feedparser.parse(feed_url)
-                for entry in feed.entries[:5]:  # 每個來源取 5 則
-                    news_items.append({
+                for entry in feed.entries[:5]:  # 瘥?皞? 5 ??                    news_items.append({
                         'title': entry.title,
                         'summary': entry.get('summary', ''),
                         'link': entry.link,
@@ -593,7 +553,7 @@ def fetch_latest_news():
                 print(f"Feed parse error for {feed_url}: {e}")
                 continue
         
-        # 更新快取
+        # ?湔敹怠?
         news_cache['data'] = news_items
         news_cache['timestamp'] = datetime.now()
         
@@ -603,56 +563,51 @@ def fetch_latest_news():
         return []
 
 def detect_news_intent(text):
-    """檢測是否想查詢新聞"""
-    keywords = ['新聞', '消息', '最新', '頭條', '報導', '發生什麼']
+    """瑼Ｘ葫?臬?單閰Ｘ??""
+    keywords = ['?啗?', '瘨', '???, '?剜?', '?勗?', '?潛?隞暻?]
     return any(keyword in text for keyword in keywords)
 
 def generate_news_summary():
-    """生成新聞摘要"""
+    """???啗???"""
     news_items = fetch_latest_news()
     
     if not news_items:
-        return "抱歉，目前無法取得新聞資訊。請稍後再試！"
+        return "?望?嚗?瘜?敺??閮?蝔??岫嚗?
     
-    # 使用 Gemini 摘要新聞
+    # 雿輻 Gemini ???啗?
     try:
         news_text = "\n\n".join([
-            f"標題: {item['title']}\n內容: {item['summary']}"
+            f"璅?: {item['title']}\n?批捆: {item['summary']}"
             for item in news_items[:6]
         ])
         
         prompt = f"""
-以下是今天的新聞，請挑選最重要的 3 則，
-用長輩容易理解的方式摘要，每則 50 字內：
-
+隞乩??臭?憭拍??啗?嚗???????3 ??
+?券頛拙捆??閫???孵???嚗???50 摮嚗?
 {news_text}
 
-格式：
-📰 今日新聞摘要
+?澆?嚗?? 隞?啗???
 
-1️⃣ 【分類】標題
-   摘要內容...
+1儭 ??憿?憿?   ???批捆...
 
-2️⃣ 【分類】標題
-   摘要內容...
+2儭 ??憿?憿?   ???批捆...
 
-3️⃣ 【分類】標題
-   摘要內容...
+3儭 ??憿?憿?   ???批捆...
 """
         
         response = model.generate_content(prompt)
-        return response.text + "\n\n🔊 要我用語音播報給你聽嗎？"
+        return response.text + "\n\n?? 閬??刻??單?梁策雿??"
     except Exception as e:
         print(f"News summary error: {e}")
-        return "抱歉，新聞摘要生成失敗。請稍後再試！"
+        return "?望?嚗??閬??仃??蝔??岫嚗?
 
 def generate_news_audio(text, user_id):
     """
-    生成新聞語音播報
-    返回: 音檔路徑 (str) 或 None
+    ???啗?隤?剖
+    餈?: ?單?頝臬? (str) ??None
     """
     try:
-        # 使用 Google Cloud TTS (免費額度)
+        # 雿輻 Google Cloud TTS (?祥憿漲)
         from google.cloud import texttospeech
         
         client = texttospeech.TextToSpeechClient()
@@ -660,7 +615,7 @@ def generate_news_audio(text, user_id):
         synthesis_input = texttospeech.SynthesisInput(text=text)
         voice = texttospeech.VoiceSelectionParams(
             language_code="zh-TW",
-            name="cmn-TW-Wavenet-A"  # 台灣女聲
+            name="cmn-TW-Wavenet-A"  # ?啁憟唾
         )
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3
@@ -672,7 +627,7 @@ def generate_news_audio(text, user_id):
             audio_config=audio_config
         )
         
-        # 儲存音檔
+        # ?脣??單?
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         audio_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_news.mp3")
         with open(audio_path, 'wb') as f:
@@ -685,27 +640,27 @@ def generate_news_audio(text, user_id):
 
 
 def generate_image_with_imagen(prompt, user_id):
-    """使用 Imagen 3 生成圖片
+    """雿輻 Imagen 3 ????
     
     Returns:
-        tuple: (成功與否, 圖片路徑或錯誤訊息)
-        - 成功: (True, image_path)
-        - 失敗: (False, error_message)
+        tuple: (???, ??頝臬??隤方???
+        - ??: (True, image_path)
+        - 憭望?: (False, error_message)
     """
     try:
-        # 初始化 Vertex AI
+        # ????Vertex AI
         project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
         location = "us-central1"
         
         aiplatform.init(project=project_id, location=location)
         
-        # 使用 Imagen 3 生成圖片
+        # 雿輻 Imagen 3 ????
         from vertexai.preview.vision_models import ImageGenerationModel
         import time
         
         imagen_model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
         
-        # 優化提示詞（加入品質關鍵字）
+        # ?芸??內閰???釭?摮?
         enhanced_prompt = f"{prompt}, high quality, detailed, vibrant colors"
         
         # Retry logic for 429/503 errors
@@ -723,7 +678,7 @@ def generate_image_with_imagen(prompt, user_id):
                 if not images:
                     raise ValueError("API returned no images (possibly due to safety filters)")
                 
-                # 儲存圖片
+                # ?脣???
                 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
                 image_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_generated.png")
                 images[0].save(location=image_path)
@@ -731,7 +686,7 @@ def generate_image_with_imagen(prompt, user_id):
 
             except Exception as e:
                 error_str = str(e)
-                # 只有在遇到暫時性錯誤時才重試 (429 Resource Exhausted, 503 Service Unavailable, 500 Internal Error)
+                # ?芣??券??唳?折隤斗???閰?(429 Resource Exhausted, 503 Service Unavailable, 500 Internal Error)
                 is_retryable = any(code in error_str for code in ["429", "503", "500", "ResourceExhausted", "ServiceUnavailable"])
                 
                 if is_retryable and attempt < max_retries:
@@ -739,7 +694,7 @@ def generate_image_with_imagen(prompt, user_id):
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
                 else:
-                    raise e  # 超過重試次數或非暫時性錯誤，拋出異常
+                    raise e  # 頞??岫甈⊥???急??折隤歹???啣虜
         
         raise ValueError("Unknown error: loop finished without success")
         
@@ -747,34 +702,33 @@ def generate_image_with_imagen(prompt, user_id):
         error_str = str(e)
         print(f"Image generation error: {error_str}")
         
-        # 解析錯誤原因
+        # 閫???航炊??
         if "safety" in error_str.lower() or "policy" in error_str.lower():
-            reason = "內容不符合安全政策（可能涉及暴力、成人內容或其他敏感主題）"
+            reason = "?批捆銝泵???冽蝑??航瘨??游???鈭箏摰寞??嗡???銝駁?嚗?
         elif "429" in error_str or "quota" in error_str.lower() or "limit" in error_str.lower() or "resourceexhausted" in error_str.lower():
-            reason = "系統目前繁忙，API 請求次數過多。請稍待一分鐘後再試！"
+            reason = "蝟餌絞?桀?蝜?嚗PI 隢?甈⊥????蝔?銝??敺?閰佗?"
         elif "invalid" in error_str.lower() or "bad" in error_str.lower():
-            reason = "描述格式無效或包含不支援的內容"
+            reason = "?膩?澆??⊥????思??舀?摰?
         elif "timeout" in error_str.lower():
-            reason = "請求超時，請稍後再試"
+            reason = "隢?頞?嚗?蝔??岫"
         else:
-            reason = f"API 錯誤：{error_str[:100]}"  # 只顯示前100字
-        
+            reason = f"API ?航炊嚗error_str[:100]}"  # ?芷＊蝷箏?100摮?        
         return (False, reason)
 
 
 
 
 def get_font_path(font_type):
-    """取得字體路徑，自動下載 Google Fonts (支援 Linux/Zeabur)"""
+    """??摮?頝臬?嚗??頛?Google Fonts (?舀 Linux/Zeabur)"""
     import os
     import requests
     
-    # 定義字體目錄
+    # 摰儔摮??桅?
     font_dir = os.path.join(os.getcwd(), "static", "fonts")
     os.makedirs(font_dir, exist_ok=True)
     
-    # 字體映射 (備份檔案邏輯 + 雲端支援)
-    # 優先檢查 Windows 本地字體 (開發環境)
+    # 摮??? (?遢瑼??摩 + ?脩垢?舀)
+    # ?芸?瑼Ｘ Windows ?砍摮? (??啣?)
     win_paths = {
         'msjh': "C:\\Windows\\Fonts\\msjh.ttc",
         'heiti': "C:\\Windows\\Fonts\\msjh.ttc",
@@ -782,27 +736,24 @@ def get_font_path(font_type):
         'ming': "C:\\Windows\\Fonts\\mingliu.ttc"
     }
     
-    # 如果是 Windows 且檔案存在，直接回傳
+    # 憒???Windows 銝?獢??剁??湔?
     if os.name == 'nt':
         win_path = win_paths.get(font_type)
         if win_path and os.path.exists(win_path):
             return win_path
 
-    # Linux/Cloud 環境：使用 Free Google Fonts (TTF)
-    # 使用 NotoSerifTC (楷體/明體替代品) 和 NotoSansTC (黑體替代品)
+    # Linux/Cloud ?啣?嚗蝙??Free Google Fonts (TTF)
+    # 雿輻 NotoSerifTC (璆琿?/???蹂誨?? ??NotoSansTC (暺??蹂誨??
     cloud_font_map = {
-        'kaiti': 'NotoSerifTC-Regular.otf', # PIL 對 OTF 支援有時有問題，嘗試如果 OTF 失敗下載 TTF
+        'kaiti': 'NotoSerifTC-Regular.otf', # PIL 撠?OTF ?舀????憿??岫憒? OTF 憭望?銝? TTF
         'heiti': 'NotoSansTC-Bold.otf',
         'ming': 'NotoSerifTC-Regular.otf',
         'default': 'NotoSansTC-Regular.otf'
     }
     
-    # 這裡改用 Google Fonts 公開的其他穩定源，或者使用 Noto CJK 的 TTF 版本
-    # 為了避免 complex OTF 問題，我們改下載 .ttf (雖然 Noto TC 很多是 OTF, 但我們試試看能否找到 TTF 或 Variable Font)
-    # 更新：直接使用 Google Fonts 的 raw github 連結通常是 OTF (對於 CJK)。
-    # 錯誤 "unknown file format" 通常是因為下載下來的不是字體檔 (例如 404 HTML)。
-    # 我們改用一個更確定的 URL。
-    
+    # ?ㄐ?寧 Google Fonts ?祇??隞帘摰?嚗??蝙??Noto CJK ??TTF ?
+    # ?箔??踹? complex OTF ??嚗??銝? .ttf (? Noto TC 敺???OTF, 雿??岫閰衣??賢?曉 TTF ??Variable Font)
+    # ?湔嚗?乩蝙??Google Fonts ??raw github ????虜??OTF (撠 CJK)??    # ?航炊 "unknown file format" ?虜?臬??箔?頛?靘?銝摮?瑼?(靘? 404 HTML)??    # ??其??蝣箏???URL??    
     target_filename = cloud_font_map.get(font_type, cloud_font_map['default'])
     local_font_path = os.path.join(font_dir, target_filename)
     
@@ -811,23 +762,22 @@ def get_font_path(font_type):
         
     print(f"[FONT] Downloading {target_filename} for cloud environment...")
     
-    # 修正下載連結：確認這些連結是有效的 raw file
+    # 靽格迤銝????嚗Ⅱ隤?????舀??? raw file
     # Noto Sans TC (OFL)
     base_url = "https://github.com/google/fonts/raw/main/ofl"
     
-    # 對應表
-    # 注意：Google Fonts repo 結構可能會變
-    # 暫時改用更穩定的 CDN 或確保 URL 正確
-    # 這裡嘗試使用 Noto Sans TC 的 Variable Font (ttf) 如果可能，或是直接用 OTF
-    # 經過檢查 GitHub google/fonts，NotoSansTC 目錄下通常是 .otf
+    # 撠?銵?    # 瘜冽?嚗oogle Fonts repo 蝯??航??
+    # ?急??寧?渡帘摰? CDN ?Ⅱ靽?URL 甇?Ⅱ
+    # ?ㄐ?岫雿輻 Noto Sans TC ??Variable Font (ttf) 憒??航嚗??舐?亦 OTF
+    # 蝬?瑼Ｘ GitHub google/fonts嚗otoSansTC ?桅?銝虜??.otf
     
     urls = {
-        'NotoSansTC-Bold.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf", # 改用 Variable TTF
+        'NotoSansTC-Bold.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf", # ?寧 Variable TTF
         'NotoSansTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
-        'NotoSerifTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notoseriftc/NotoSerifTC%5Bwght%5D.ttf" # 改用 Variable TTF
+        'NotoSerifTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notoseriftc/NotoSerifTC%5Bwght%5D.ttf" # ?寧 Variable TTF
     }
     
-    # 因為我們改用 TTF，所以要把 local_font_path 的副檔名也改掉，避免混淆
+    # ????TTF嚗?隞亥???local_font_path ?瑼?銋???踹?瘛瑟?
     local_font_path = local_font_path.replace(".otf", ".ttf")
     
     url = urls.get(target_filename)
@@ -835,12 +785,10 @@ def get_font_path(font_type):
     
     try:
         print(f"[FONT] Attempting to download from {url}...")
-        # 模擬瀏覽器 User-Agent 避免被阻擋
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        # 璅⊥?汗??User-Agent ?踹?鋡恍??        headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(url, headers=headers, timeout=30) 
         
-        if r.status_code == 200 and len(r.content) > 1000: # 確保不是空的或錯誤頁面
-            with open(local_font_path, 'wb') as f:
+        if r.status_code == 200 and len(r.content) > 1000: # 蝣箔?銝蝛箇??隤日???            with open(local_font_path, 'wb') as f:
                 f.write(r.content)
             print(f"[FONT] Successfully downloaded {local_font_path}, size: {len(r.content)} bytes")
             return local_font_path
@@ -852,24 +800,24 @@ def get_font_path(font_type):
         return None
 
 def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=0, stroke_color=None):
-    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果）"""
+    """鋆賭??瑁憬???菜???- ?舀敶抵?郭瘚芥之撠???????嚗?""
     try:
         import random
         import math
         
-        # 開啟背景圖片
+        # ?????
         img = Image.open(bg_image_path)
         
-        # 調整大小（如果太大）
+        # 隤踵憭批?嚗??云憭改?
         max_size = (800, 800)
         img.thumbnail(max_size, Image.Resampling.LANCZOS)
         
-        # 轉換為 RGBA 以支援透明圖層
+        # 頧???RGBA 隞交?湧??惜
         img = img.convert('RGBA')
         
-        # 載入字體 (使用 helper 解決跨平台問題)
+        # 頛摮? (雿輻 helper 閫?捱頝典像?啣?憿?
         try:
-            # 支援粗體選擇 (如果 font_type='bold')
+            # ?舀蝎??豢? (憒? font_type='bold')
             font_path = get_font_path(font_type)
             if font_path:
                 base_font = ImageFont.truetype(font_path, font_size)
@@ -881,17 +829,16 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             print(f"[FONT] Error loading font: {e}")
             base_font = ImageFont.load_default()
         
-        # 顏色處理
+        # 憿??
         fill_color = color
         is_rainbow = (color == 'rainbow')
         
         if not is_rainbow:
-            # 如果是hex碼（如 #FFD700）直接使用，否則嘗試顏色名稱
+            # 憒??疲ex蝣潘?憒?#FFD700嚗?乩蝙?剁??血??岫憿?迂
             if color.startswith('#') and len(color) in [4, 7]:
                 fill_color = color
             else:
-                # 基本顏色對照表
-                basic_colors = {
+                # ?箸憿撠銵?                basic_colors = {
                     'white': '#FFFFFF', 'yellow': '#FFFF00', 'red': '#FF4444',
                     'cyan': '#00FFFF', 'lime': '#00FF00', 'gold': '#FFD700',
                     'orange': '#FFA500', 'magenta': '#FF00FF', 'pink': '#FF69B4',
@@ -900,26 +847,24 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 }
                 fill_color = basic_colors.get(color.lower(), '#FFD700')
 
-        # 🌈 彩虹色彩組（高對比鮮豔色）
-        rainbow_colors = [
+        # ?? 敶抵?脣蔗蝯?擃?瘥悅鞊嚗?        rainbow_colors = [
             '#FF6B6B', '#FFE66D', '#4ECDC4', '#45B7D1', 
             '#96CEB4', '#FF8C42', '#D4A5A5', '#9B59B6'
         ]
         
-        # 創建文字圖層
+        # ?萄遣???惜
         txt_layer = Image.new('RGBA', img.size, (255, 255, 255, 0))
         txt_draw = ImageDraw.Draw(txt_layer)
         
-        # 計算起始位置
+        # 閮?韏瑕?雿蔭
         padding = 60
         
 
         # -------------------------------------------------------
-        # 使用文字自動換行與縮放邏輯 (Shrink to Fit) - 智慧分詞版
-        # -------------------------------------------------------
+        # 雿輻???芸????葬?暸?頛?(Shrink to Fit) - ?箸????        # -------------------------------------------------------
         max_width = img.width - (padding * 2)
         
-        # 嘗試載入 jieba，若失敗則退回字元級切割
+        # ?岫頛 jieba嚗憭望???????
         try:
             import jieba
             has_jieba = True
@@ -927,13 +872,10 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             has_jieba = False
             print("[TEXT] Jieba not found, using character-level wrapping.")
 
-        # 預處理：先依據手動換行符號切割段落
-        paragraphs = text.split('\n')
+        # ??????????銵泵???脫挾??        paragraphs = text.split('\n')
         
-        # 循環直到文字寬度符合要求或字體太小
-        lines = []
-        while font_size >= 20: # 最小字體限制
-            
+        # 敺芰?游??撖砍漲蝚血?閬???擃云撠?        lines = []
+        while font_size >= 20: # ?撠?擃???            
             try:
                 calc_font_size = font_size + 8
                 calc_font = ImageFont.truetype(font_path, calc_font_size)
@@ -943,11 +885,11 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             lines = []
             
             for para in paragraphs:
-                if not para: # 空行
+                if not para: # 蝛箄?
                     lines.append("")
                     continue
                 
-                # 使用 jieba 分詞 (如果有的話)
+                # 雿輻 jieba ?? (憒???閰?
                 if has_jieba:
                     words = list(jieba.cut(para))
                 else:
@@ -957,19 +899,19 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 current_w = 0
                 
                 for word in words:
-                    # 計算單詞寬度
+                    # 閮??株?撖砍漲
                     bbox = txt_draw.textbbox((0, 0), word, font=calc_font)
                     word_w = bbox[2] - bbox[0]
                     
-                    # 處理單詞本身就超長的情況 (強制切斷)
+                    # ???株??祈澈撠梯??瑞??? (撘瑕?)
                     if word_w > max_width:
-                        # 如果當前行已經有內容，先換行
+                        # 憒??嗅?銵歇蝬??批捆嚗???
                         if current_line_text:
                             lines.append(current_line_text)
                             current_line_text = ""
                             current_w = 0
                         
-                        # 將超長單詞依字元切割
+                        # 撠??瑕閰?摮??
                         for char in word:
                             char_bbox = txt_draw.textbbox((0, 0), char, font=calc_font)
                             char_w = char_bbox[2] - char_bbox[0]
@@ -982,8 +924,7 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                                 current_w += char_w
                         continue
 
-                    # 一般單詞處理
-                    if current_w + word_w > max_width:
+                    # 銝?砍閰???                    if current_w + word_w > max_width:
                         lines.append(current_line_text)
                         current_line_text = word
                         current_w = word_w
@@ -994,26 +935,25 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 if current_line_text:
                     lines.append(current_line_text)
                 
-            # 計算總高度檢查
-            total_h = len(lines) * int(font_size * 1.3)
+            # 閮?蝮賡?摨行炎??            total_h = len(lines) * int(font_size * 1.3)
             if total_h > (img.height - padding * 1.5):
                 font_size -= 5
                 continue
             
-            # 成功排版
+            # ????
             break
             
-        # 更新 base_font 為最終決定的 font_size
+        # ?湔 base_font ?箸?蝯捱摰? font_size
         try:
             base_font = ImageFont.truetype(font_path, font_size)
         except:
             base_font = ImageFont.load_default()
             
-        # 計算整個區塊的高度
+        # 閮??游?憛?擃漲
         line_height = int(font_size * 1.2)
         total_block_height = len(lines) * line_height
         
-        # 根據 position 計算區塊起始 Y
+        # ?寞? position 閮??憛絲憪?Y
         if position == 'bottom':
             start_y = img.height - total_block_height - padding
         elif position == 'top' or position == 'top-left' or position == 'top-right':
@@ -1023,19 +963,17 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         else:  # center
             start_y = (img.height - total_block_height) / 2
             
-        # 開始繪製每一行
-        current_y = start_y
+        # ??蝜芾ˊ瘥?銵?        current_y = start_y
         
         for line_chars in lines:
-            # 計算該行總寬 (用來決定 X 起始點)
+            # 閮?閰脰?蝮賢祝 (?其?瘙箏? X 韏瑕?暺?
             line_str = "".join(line_chars)
-            # 重新精算寬度
+            # ?蝎曄?撖砍漲
             w = 0
             char_ws = []
             for c in line_chars:
-                # 使用加大版的 calc_font 來計算寬度，確保不會被切掉
-                bb = txt_draw.textbbox((0,0), c, font=calc_font)
-                cw = (bb[2] - bb[0]) + 5 # 額外+5px間距
+                # 雿輻?之?? calc_font 靘?蝞祝摨佗?蝣箔?銝?鋡怠???                bb = txt_draw.textbbox((0,0), c, font=calc_font)
+                cw = (bb[2] - bb[0]) + 5 # 憿?+5px??
                 char_ws.append(cw)
                 w += cw
                 
@@ -1043,70 +981,64 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 current_x = padding
             elif position == 'top-right' or position == 'bottom-right':
                 current_x = img.width - w - padding
-            else: # center, top, bottom 都是水平置中
+            else: # center, top, bottom ?賣瘞游像蝵桐葉
                 current_x = (img.width - w) / 2
             
-            # 逐字繪製該行
+            # ??蝜芾ˊ閰脰?
             for i, char in enumerate(line_chars):
-                # 📏 大小變化 - 首尾字稍大 (僅第一行首和最後一行尾)
-                # 這裡简化效果，避免排版亂掉，只做隨機微調
-                char_size = font_size + random.randint(-2, 2)
+                # ?? 憭批?霈? - 擐偏摮?憭?(?洵銝銵???敺?銵偏)
+                # ?ㄐ蝞?????踹???鈭?嚗?璈凝隤?                char_size = font_size + random.randint(-2, 2)
                 
                 try:
                     char_font = ImageFont.truetype(font_path, char_size)
                 except:
                     char_font = base_font
                 
-                # 🌈 顏色
+                # ?? 憿
                 if is_rainbow:
                     char_color = rainbow_colors[random.randint(0, len(rainbow_colors)-1)]
                 else:
                     char_color = fill_color
                 
-                # 🌊 波浪 + 📐 微旋轉
-                wave_offset = math.sin(current_x * 0.05) * 5
+                # ?? 瘜Ｘ答 + ?? 敺格?頧?                wave_offset = math.sin(current_x * 0.05) * 5
                 char_angle = random.uniform(-5, 5)
                 
                 char_real_y = current_y + wave_offset
                 
-                # 創建單字圖層 - 關鍵修復：加大畫布以防文字裁切 (Glyph Truncation)
+                # ?萄遣?桀??惜 - ?靽桀儔嚗?憭抒撣誑?脫?摮???(Glyph Truncation)
                 char_bbox = txt_draw.textbbox((0, 0), char, font=char_font)
                 raw_w = char_bbox[2] - char_bbox[0]
                 raw_h = char_bbox[3] - char_bbox[1]
                 
-                # 畫布大小：字寬的 3 倍，加上超大緩衝，確保旋轉也不會切到
+                # ?怠?憭批?嚗?撖祉? 3 ????頞之蝺抵?嚗Ⅱ靽?頧?銝??
                 canvas_w = int(raw_w * 3 + 100)
                 canvas_h = int(raw_h * 3 + 100)
                 
                 char_layer = Image.new('RGBA', (canvas_w, canvas_h), (255, 255, 255, 0))
                 cd = ImageDraw.Draw(char_layer)
                 
-                # 計算中心點
-                center_x, center_y = canvas_w // 2, canvas_h // 2
-                # 由於 draw.text 的座標是左上角，我們需要 offset
-                # 簡單置中：減去字寬字高的一半
-                text_x = center_x - (raw_w / 2)
+                # 閮?銝剖?暺?                center_x, center_y = canvas_w // 2, canvas_h // 2
+                # ?望 draw.text ?漣璅撌虫?閫???閬?offset
+                # 蝪∪蝵桐葉嚗??餃?撖砍?擃?銝??                text_x = center_x - (raw_w / 2)
                 text_y = center_y - (raw_h / 2)
                 
-                # 描邊處理 (AI 決定)
+                # ???? (AI 瘙箏?)
                 if stroke_width > 0:
                     effective_stroke_color = stroke_color if stroke_color else '#000000'
                     cd.text((text_x, text_y), char, font=char_font, fill=char_color, 
                            stroke_width=stroke_width, stroke_fill=effective_stroke_color)
                 else:
-                    # 預設陰影 (如果沒描邊)
+                    # ?身?啣蔣 (憒?瘝???
                     cd.text((text_x + 3, text_y + 3), char, font=char_font, fill='#00000088')
                     cd.text((text_x, text_y), char, font=char_font, fill=char_color)
                 
-                # 旋轉
+                # ??
                 if abs(char_angle) > 0.5:
                     char_layer = char_layer.rotate(char_angle, expand=False, resample=Image.Resampling.BICUBIC)
                 
-                # 貼上 - 需要計算從 center 回推到 top-left 的位置
-                # 我們原本的 current_x 是希望文字出現的位置 (大約左側)
-                # 貼上的位置應該是 current_x - (canvas_w - raw_w)/2 這樣... 比較複雜
-                # 簡化：我們知道 char_layer 的中心就是文字中心
-                # 目標中心點： current_x + raw_w/2, char_real_y + raw_h/2
+                # 鞎潔? - ?閬?蝞? center ???top-left ??蝵?                # ???祉? current_x ?臬???摮?曄?雿蔭 (憭抒?撌血)
+                # 鞎潔???蝵格?閰脫 current_x - (canvas_w - raw_w)/2 ?見... 瘥?銴?
+                # 蝪∪?嚗????char_layer ?葉敹停?舀?摮葉敹?                # ?格?銝剖?暺? current_x + raw_w/2, char_real_y + raw_h/2
                 target_center_x = current_x + (raw_w / 2)
                 target_center_y = char_real_y + (raw_h / 2)
                 
@@ -1117,18 +1049,17 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 
                 current_x += char_ws[i]
             
-            # 換行
+            # ??
             current_y += line_height
         
-        # 如果有整體旋轉角度
-        if angle != 0:
+        # 憒??擃?頧?摨?        if angle != 0:
             txt_layer = txt_layer.rotate(angle, expand=False, resample=Image.Resampling.BICUBIC)
         
-        # 合併圖層
+        # ?蔥?惜
         img = Image.alpha_composite(img, txt_layer)
         img = img.convert('RGB')
         
-        # 儲存
+        # ?脣?
         meme_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_meme.png")
         img.save(meme_path)
         
@@ -1140,23 +1071,23 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         return None
 
 def beautify_image(image_path, user_id):
-    """美化圖片（提升亮度、對比、銳度）"""
+    """蝢???嚗??漁摨艾?瘥摨佗?"""
     try:
         img = Image.open(image_path)
         
-        # 提升對比
+        # ??撠?
         enhancer = ImageEnhance.Contrast(img)
         img = enhancer.enhance(1.2)
         
-        # 提升亮度
+        # ??鈭桀漲
         enhancer = ImageEnhance.Brightness(img)
         img = enhancer.enhance(1.1)
         
-        # 提升銳度
+        # ???喳漲
         enhancer = ImageEnhance.Sharpness(img)
         img = enhancer.enhance(1.3)
         
-        # 儲存美化後的圖片
+        # ?脣?蝢?敺???
         beautified_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_beautified.jpg")
         img.save(beautified_path, quality=95)
         
@@ -1166,9 +1097,9 @@ def beautify_image(image_path, user_id):
         return None
 
 def transcribe_audio_with_gemini(audio_path, model_to_use=None):
-    """使用 Gemini 進行語音轉文字 (支援 LINE m4a 格式)"""
-    # 如果沒有指定模型，預設使用全域 functional model (避免廢話)
-    # 如果全域變數不可用，才退回 user_model (但 user_model 會講笑話，所以盡量避免)
+    """雿輻 Gemini ?脰?隤頧?摮?(?舀 LINE m4a ?澆?)"""
+    # 憒?瘝???璅∪?嚗?閮凋蝙?典??functional model (?踹?撱Ｚ店)
+    # 憒??典?霈銝?剁????user_model (雿?user_model ??蝚店嚗?隞亦???
     target_model = model_to_use if model_to_use else model_functional
 
     try:
@@ -1179,13 +1110,12 @@ def transcribe_audio_with_gemini(audio_path, model_to_use=None):
             print("[AUDIO] File too small, skipping.")
             return None
 
-        # 上傳檔案到 Gemini
-        # LINE 的 m4a 其實是 MPEG-4 Audio，標準 MIME 是 audio/mp4
+        # 銝瑼???Gemini
+        # LINE ??m4a ?嗅祕??MPEG-4 Audio嚗?皞?MIME ??audio/mp4
         audio_file = genai.upload_file(audio_path, mime_type="audio/mp4")
         print(f"[AUDIO] Upload successful: {audio_file.name}")
         
-        # 請 AI 轉錄，增加針對無聲或噪音的指示
-        prompt = """[SYSTEM: STRICT TRANSCRIPTION ONLY]
+        # 隢?AI 頧?嚗???撠?脫??芷??蝷?        prompt = """[SYSTEM: STRICT TRANSCRIPTION ONLY]
         Please transcribe this audio verbatim.
         
         CRITICAL RULES:
@@ -1193,7 +1123,7 @@ def transcribe_audio_with_gemini(audio_path, model_to_use=None):
         2. DO NOT add ANY intro, outro, descriptions, or conversational filler.
         3. DO NOT reply to the content. If the audio asks a question, DO NOT ANSWER IT. Just transcribe the question.
         4. If the audio is silence or meaningless noise, return an empty string.
-        5. Use Traditional Chinese (繁體中文).
+        5. Use Traditional Chinese (蝜?銝剜?).
         
         Input Audio -> Transcribed Text (Nothing else)"""
         
@@ -1205,11 +1135,10 @@ def transcribe_audio_with_gemini(audio_path, model_to_use=None):
             
     except Exception as e:
         print(f"Gemini audio transcription error: {e}")
-        # 嘗試回傳 None 讓上層處理
-        return None
+        # ?岫? None 霈?撅方???        return None
 
 def text_to_speech(text, user_id):
-    """文字轉語音"""
+    """??頧???""
     try:
         client = texttospeech.TextToSpeechClient()
         
@@ -1230,7 +1159,7 @@ def text_to_speech(text, user_id):
             audio_config=audio_config
         )
         
-        # 儲存音訊檔案
+        # ?脣??唾?瑼?
         audio_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_reply.mp3")
         with open(audio_path, "wb") as out:
             out.write(response.audio_content)
@@ -1242,11 +1171,11 @@ def text_to_speech(text, user_id):
 
 def upload_image_to_external_host(image_path):
     """
-    上傳圖片到外部主機（如 Imgur 或 imgbb）並取得公開 URL
-    LINE 要求圖片必須是 HTTPS URL
+    銝???啣??其蜓璈?憒?Imgur ??imgbb嚗蒂???祇? URL
+    LINE 閬???敹???HTTPS URL
     """
     try:
-        # 優先嘗試上傳到 Google Cloud Storage (如果已啟用)
+        # ?芸??岫銝??Google Cloud Storage (憒?撌脣???
         if ADVANCED_FEATURES_ENABLED and gcs_utils:
             try:
                 print("Attempting to upload image to GCS...")
@@ -1256,10 +1185,9 @@ def upload_image_to_external_host(image_path):
                     return public_url
             except Exception as e:
                 print(f"GCS upload failed: {e}")
-                #如果 GCS 失敗，嘗試 fallback 到 Imgur
+                #憒? GCS 憭望?嚗?閰?fallback ??Imgur
         
-        # 使用 imgbb API（免費，不需註冊）
-        # 注意：生產環境建議使用自己的圖床服務
+        # 雿輻 imgbb API嚗?鞎鳴?銝?閮餃?嚗?        # 瘜冽?嚗??Ｙ憓遣霅唬蝙?刻撌梁?????
         api_key = os.environ.get("IMGBB_API_KEY", "")
         
         if not api_key:
@@ -1287,11 +1215,11 @@ def upload_image_to_external_host(image_path):
         return None
 
 def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
-    """傳送圖片到 LINE（優先使用 reply_message 節省額度，沒有 token 時用 push_message）"""
+    """?喲?? LINE嚗?蝙??reply_message 蝭??摨佗?瘝? token ? push_message嚗?""
     try:
         print(f"[SEND IMAGE] Starting for user {user_id}, image: {image_path}")
         
-        # 上傳圖片並取得公開 URL
+        # 銝??銝血?敺??URL
         image_url = upload_image_to_external_host(image_path)
         
         if not image_url:
@@ -1314,7 +1242,7 @@ def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
                 preview_image_url=image_url
             ))
             
-            # 優先使用 reply_message（不計額度），沒有 token 時才用 push_message
+            # ?芸?雿輻 reply_message嚗?閮?摨佗?嚗???token ????push_message
             if reply_token:
                 try:
                     line_bot_api.reply_message(
@@ -1325,7 +1253,7 @@ def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
                     )
                     print("[SEND IMAGE] SUCCESS: Used reply_message (free)")
                 except Exception as reply_err:
-                    # reply_token 可能過期，fallback 到 push_message
+                    # reply_token ?航??嚗allback ??push_message
                     print(f"[SEND IMAGE] reply_message failed: {reply_err}, trying push_message")
                     try:
                         line_bot_api.push_message(
@@ -1368,14 +1296,12 @@ def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
 
 
 def send_status_notification(reply_token, status_text):
-    """使用 reply_message 發送狀態通知（免費）
+    """雿輻 reply_message ?潮??嚗?鞎鳴?
     
     Args:
-        reply_token: LINE 的 reply_token，如果為 None 則跳過
-        status_text: 狀態訊息文字
-    
+        reply_token: LINE ??reply_token嚗?? None ?歲??        status_text: ????舀?摮?    
     Returns:
-        True 如果成功發送，False 如果失敗或無 token
+        True 憒????潮?False 憒?憭望?? token
     """
     if not reply_token:
         print(f"[STATUS] No reply_token, skipping status: {status_text[:30]}...")
@@ -1422,149 +1348,131 @@ def message_text(event):
     user_input = event.message.text.strip()
     
     # ------------------------------------------------------------
-    # 被動提醒通知：檢查是否有因額度不足而發送失敗的提醒
+    # 鋡怠????嚗炎?交?行???摨虫?頞唾?仃????
     # ------------------------------------------------------------
     missed_reminders_msg = ""
     start_failed_reminders = []
     if ADVANCED_FEATURES_ENABLED and db:
         start_failed_reminders = db.get_failed_reminders(user_id)
         if start_failed_reminders:
-            missed_reminders_msg = "⚠️ 【系統公告】\n很抱歉，因為本月免費訊息額度已滿，我錯過了以下提醒通知：\n"
+            missed_reminders_msg = "?? ?頂蝯勗?n敺甇???祆??祥閮憿漲撌脫遛嚗??舫?鈭誑銝??嚗n"
             for idx, r in enumerate(start_failed_reminders, 1):
                 t_str = r['reminder_time']
                 if isinstance(t_str, datetime):
                     t_str = t_str.strftime('%m/%d %H:%M')
                 missed_reminders_msg += f"{idx}. {t_str} - {r['reminder_text']}\n"
             
-            missed_reminders_msg += "\n(已為您補上通知，請見諒！)\n\n---\n"
+            missed_reminders_msg += "\n(撌脩?刻?銝嚗?閬?嚗?\n\n---\n"
     
     # ------------------------------------------------------------
-    # 語音確認流程：處理用戶對語音辨識結果的確認
-    # ------------------------------------------------------------
+    # 隤蝣箄?瘚?嚗???嗅?隤颲刻?蝯??Ⅱ隤?    # ------------------------------------------------------------
     if user_id in user_audio_confirmation_pending:
         pending_data = user_audio_confirmation_pending[user_id]
         
-        # 判斷用戶回應
-        if any(keyword in user_input.lower() for keyword in ['是', 'ok', '對', '沒錯', 'confirm', 'yes', '好', '正確']):
-            # 用戶確認正確，取出語音文字並繼續執行
+        # ?斗?冽??
+        if any(keyword in user_input.lower() for keyword in ['??, 'ok', '撠?, '瘝', 'confirm', 'yes', '憟?, '甇?Ⅱ']):
+            # ?冽蝣箄?甇?Ⅱ嚗??箄??單?摮蒂蝜潛??瑁?
             verified_text = pending_data['text']
             del user_audio_confirmation_pending[user_id]
             
             # --- Auto-Advance Logic for Audio Workflow ---
-            # 如果是圖片生成且正在等待 Prompt，直接跳過二次確認，視為已確認執行
-            if user_id in user_image_generation_state:
+            # 憒??臬?????甇?蝑? Prompt嚗?亥歲??甈∠Ⅱ隤?閬撌脩Ⅱ隤銵?            if user_id in user_image_generation_state:
                 current_state = user_image_generation_state[user_id]
                 if current_state == 'waiting_for_prompt' or current_state == 'can_modify':
-                     # 初始化 Prompt 儲存結構 (如果尚未存在)
+                     # ????Prompt ?脣?蝯? (憒?撠摮)
                      if user_id not in user_last_image_prompt:
                          user_last_image_prompt[user_id] = {}
                      elif isinstance(user_last_image_prompt[user_id], str):
                          user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt[user_id]}
                      
-                     # 設定 pending_description (這是 downstream logic 需要的)
+                     # 閮剖? pending_description (? downstream logic ?閬?)
                      user_last_image_prompt[user_id]['pending_description'] = verified_text
                      
-                     # 強制進入生成狀態
-                     user_image_generation_state[user_id] = 'generating'
+                     # 撘瑕?脣?????                     user_image_generation_state[user_id] = 'generating'
                      
-                     # 修改 user_input 為確認指令，讓後續 logic 直接執行生成
-                     user_input = "開始生成"
+                     # 靽格 user_input ?箇Ⅱ隤?隞歹?霈?蝥?logic ?湔?瑁???
+                     user_input = "????"
             
-            # 如果是長輩圖且正在等待背景描述，直接跳過二次確認 (雖然 Memes 邏輯較複雜，但設為 waiting_text 可跳過部分)
-            # 注意：handle_meme_agent 內部 logic 即使傳入 text 也會問確認，這裡僅傳遞 text
+            # 憒??舫頛拙?銝迤?函?敺??舀?餈堆??湔頝喲?鈭活蝣箄? (? Memes ?摩頛???雿身??waiting_text ?航歲???
+            # 瘜冽?嚗andle_meme_agent ?折 logic ?喃蝙?喳 text 銋??Ⅱ隤??ㄐ???text
             
-            # 若非上述特殊狀態，則將輸入替換為驗證過的文字，繼續往下執行一般邏輯
-            if user_input != "開始生成":
+            # ?仿?銝膩?寞??????頛詨?踵??粹?霅???摮?蝜潛?敺銝銵??祇?頛?            if user_input != "????":
                 user_input = verified_text
             
-            # (不 return，讓它繼續跑到下面的邏輯)
+            # (銝?return嚗?摰匱蝥??唬??Ｙ??摩)
             
-        elif any(keyword in user_input.lower() for keyword in ['不', '錯', 'no', 'cancel', '取消', '重錄', '否']):
-            # 用戶否認，清除狀態
-            del user_audio_confirmation_pending[user_id]
+        elif any(keyword in user_input.lower() for keyword in ['銝?, '??, 'no', 'cancel', '??', '??', '??]):
+            # ?冽?西?嚗??斤???            del user_audio_confirmation_pending[user_id]
             
             with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text="好的，已取消。請重新輸入文字或再錄一次音。")]
+                        messages=[TextMessage(text="憟賜?嚗歇?????頛詨??????甈⊿??)]
                     )
                 )
             return
         else:
-            # 用戶輸入不明確
-            with ApiClient(configuration) as api_client:
+            # ?冽頛詨銝?蝣?            with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text="請回答「是」確認語音內容，或回答「否」取消。")]
+                        messages=[TextMessage(text="隢?蝑?Ⅱ隤??喳摰對???蝑??瘨?)]
                     )
                 )
             return
     
     # ============================================
-    # 全局取消檢查 - 最高優先級，貫穿所有服務
-    # ============================================
-    # 注意：如果用戶說「取消提醒」，不應在此攔截，而是交由 intent 處理
-    if any(keyword in user_input for keyword in ['取消', '不要了', '先不要', '暫停', '停止']):
-        # 例外：如果是提醒相關指令，忽略全局取消，讓它往下走到 classify_user_intent
-        if "提醒" not in user_input:
-            # 清除所有服務的狀態
-            if user_id in user_trip_plans:
+    # ?典???瑼Ｘ - ?擃??嚗疵蝛踵?????    # ============================================
+    # 瘜冽?嚗???嗉牧??瘨???銝??冽迨?嚗鈭斤 intent ??
+    if any(keyword in user_input for keyword in ['??', '銝?鈭?, '??閬?, '?怠?', '?迫']):
+        # 靘?嚗?????賊??誘嚗蕭?亙撅??嚗?摰?銝粥??classify_user_intent
+        if "??" not in user_input:
+            # 皜????????            if user_id in user_trip_plans:
                 user_trip_plans[user_id] = {'stage': 'idle'}
             if user_id in user_meme_state:
                 user_meme_state[user_id] = {'stage': 'idle'}
             if user_id in user_image_generation_state:
                 user_image_generation_state[user_id] = 'idle'
             
-            # 立即回覆並退出
-            with ApiClient(configuration) as api_client:
+            # 蝡??銝阡??            with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.reply_message(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text="好的，已取消當前操作！")]
+                        messages=[TextMessage(text="憟賜?嚗歇???嗅???嚗?)]
                     )
                 )
             return
     
-    # 檢查是否為功能總覽請求 (優先處理，回傳圖片)
+    # 瑼Ｘ?臬?箏??賜蜇閬質?瘙?(?芸???嚗??喳???
     if detect_help_intent(user_input):
         help_image_url = os.environ.get("HELP_IMAGE_URL")
         
         reply_msgs = []
         
-        # 1. 必備：文字版說明
-        help_text = """🌟 功能總覽與使用教學 🌟
+        # 1. 敹?嚗?摮?隤芣?
+        help_text = """?? ?蝮質汗?蝙?冽?摮???
 
-1️⃣ 🖼️ 製作圖片
-👉 請說：「幫我畫一隻貓」或「生成風景圖」
-
-2️⃣ 👴 製作長輩圖
-👉 請說：「我要做長輩圖」或「製作早安圖」
-
-3️⃣ ⏰ 設定提醒
-👉 請說：「提醒我明天8點吃藥」
-   或「10分鐘後叫我關火」
-   或「每週五晚上提醒我倒垃圾」
-👉補充: 輸入「刪除提醒」可清除所有待辦
-
-4️⃣ 🗺️ 行程規劃
-👉 請說：「規劃宜蘭一日遊」
-
-6️⃣ 💬 聊天解悶
-👉 隨時都可以跟我聊天喔！
-
-⚠️ 貼心小提醒：
-1. 隨時輸入「取消」可停止目前動作
-2. 生成期間約15秒請勿傳訊，避免錯誤
-3. 記憶維持七天，輸入「清除記憶」可重置
-4. 若額度已滿將無法主動推播，請手動查「我的提醒」"""
+1儭 ?儭?鋆賭???
+?? 隢牧嚗鼠?銝?餉??????◢?臬???
+2儭 ? 鋆賭??瑁憬???? 隢牧嚗?閬??瑁憬???ˊ雿摰???
+3儭 ??閮剖???
+?? 隢牧嚗????予8暺??乓?   ??0??敺???怒?   ???曹????????整???鋆?: 頛詨??斗??皜???颲?
+4儭 ?儭?銵?閬?
+?? 隢牧嚗????凋??仿???
+6儭 ? ?予閫?
+?? ?冽??賢隞亥???憭拙?嚗?
+?? 鞎澆?撠???
+1. ?冽?頛詨??瘨?迫?桀???
+2. ????蝝?5蝘??踹閮??踹??航炊
+3. 閮蝬剜?銝予嚗撓?乓??方??嗚?蔭
+4. ?仿?摨血歇皛踹??⊥?銝餃??冽嚗????乓?????""
         reply_msgs.append(TextMessage(text=help_text))
         
-        # 2. 選備：功能說明圖 (若有設定 HELP_IMAGE_URL)
+        # 2. ?詨?嚗??質牧?? (?交?閮剖? HELP_IMAGE_URL)
         if help_image_url:
              reply_msgs.append(
                 ImageMessage(
@@ -1583,10 +1491,9 @@ def message_text(event):
             )
         return
 
-    # 檢查是否為功能選單請求
-    if detect_menu_intent(user_input):
+    # 瑼Ｘ?臬?箏??賡?株?瘙?    if detect_menu_intent(user_input):
         reply_text = get_function_menu()
-        # 直接用 reply_message 回覆
+        # ?湔??reply_message ??
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             line_bot_api.reply_message_with_http_info(
@@ -1598,29 +1505,27 @@ def message_text(event):
         return
     
     # ============================================
-    # 連結查證功能：優先檢查是否包含連結
+    # ????亥??嚗?炎?交?血??恍??
     # ============================================
     url = extract_url(user_input)
     
     if url:
-        # 用戶傳送了連結
+        # ?冽?喲????
         
-        # 檢查是否有待處理的連結（用戶正在回應我們的詢問）
-        if user_id in user_link_pending:
+        # 瑼Ｘ?臬???????嚗?嗆迤?典?????閰Ｗ?嚗?        if user_id in user_link_pending:
             pending_url = user_link_pending[user_id]['url']
             
-            # 判斷用戶意圖
-            if any(keyword in user_input for keyword in ['閱讀', '讀', '摘要', '內容', '看看']):
-                # 用戶想要閱讀內容
+            # ?斗?冽??
+            if any(keyword in user_input for keyword in ['?梯?', '霈', '??', '?批捆', '??']):
+                # ?冽?唾??梯??批捆
                 content = fetch_webpage_content(pending_url)
                 if content:
                     summary = summarize_content(content, user_id)
                     reply_text = summary
                 else:
-                    reply_text = "抱歉，我無法讀取這個網頁的內容。可能是網站有防護機制或連結已失效。"
+                    reply_text = "?望?嚗??⊥?霈?雯???批捆??賣蝬脩??霅瑟??嗆????撌脣仃??
                 
-                # 清除待處理狀態
-                del user_link_pending[user_id]
+                # 皜敺?????                del user_link_pending[user_id]
                 
                 with ApiClient(configuration) as api_client:
                     line_bot_api = MessagingApi(api_client)
@@ -1632,30 +1537,25 @@ def message_text(event):
                     )
                 return
                 
-            elif any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙']):
-                # 用戶想要查證
+            elif any(keyword in user_input for keyword in ['?亥?', '瑼Ｘ', '蝣箄?', '??', '閰?']):
+                # ?冽?唾??亥?
                 content = fetch_webpage_content(pending_url)
                 if content:
-                    # 使用 Gemini 深度分析內容
+                    # 雿輻 Gemini 瘛勗漲???批捆
                     analysis_prompt = f"""
-請分析以下網頁內容是否可信：
+隢??誑銝雯?摰寞?血靽∴?
 
 {content[:3000]}
 
-請從以下角度分析：
-1. 內容是否合理？有無明顯誇大或矛盾？
-2. 是否包含常見詐騙關鍵字？
-3. 整體可信度評估
-
-請用長輩容易理解的方式回答。
-"""
+隢?隞乩?閫漲??嚗?1. ?批捆?臬??嚗??⊥?憿航?憭扳??嚗?2. ?臬?撣貉?閰??摮?
+3. ?湧??臭縑摨西?隡?
+隢?瑁憬摰寞??圾?撘?蝑?"""
                     analysis = model.generate_content(analysis_prompt)
-                    reply_text = f"🔍 深度查證結果\n\n{analysis.text}"
+                    reply_text = f"?? 瘛勗漲?亥?蝯?\n\n{analysis.text}"
                 else:
-                    reply_text = "抱歉，我無法讀取這個網頁的內容進行深度查證。"
+                    reply_text = "?望?嚗??⊥?霈?雯???批捆?脰?瘛勗漲?亥???
                 
-                # 清除待處理狀態
-                del user_link_pending[user_id]
+                # 皜敺?????                del user_link_pending[user_id]
                 
                 with ApiClient(configuration) as api_client:
                     line_bot_api = MessagingApi(api_client)
@@ -1667,16 +1567,15 @@ def message_text(event):
                     )
                 return
         
-        # 新連結：執行快速安全檢查
-        safety_check = quick_safety_check(url)
+        # ?圈??嚗銵翰???冽炎??        safety_check = quick_safety_check(url)
         
-        # 儲存待處理連結
+        # ?脣?敺????
         user_link_pending[user_id] = {
             'url': url,
             'safety': safety_check
         }
         
-        # 根據風險等級回應
+        # ?寞?憸券蝑???
         reply_text = format_verification_result(safety_check, url)
         
         with ApiClient(configuration) as api_client:
@@ -1690,24 +1589,23 @@ def message_text(event):
         return
     
     # ============================================
-    # 新聞查詢功能：檢查是否想查詢新聞
+    # ?啗??亥岷?嚗炎?交?行?亥岷?啗?
     # ============================================
     if detect_news_intent(user_input):
-        # 檢查是否是要語音播報
-        if user_id in user_news_cache and any(keyword in user_input for keyword in ['語音', '播報', '聽', '念', '讀']):
-            # 生成語音
+        # 瑼Ｘ?臬?航?隤?剖
+        if user_id in user_news_cache and any(keyword in user_input for keyword in ['隤', '?剖', '??, '敹?, '霈']):
+            # ??隤
             news_text = user_news_cache[user_id]
             
-            # 移除 emoji 和格式符號（TTS 不需要）
+            # 蝘駁 emoji ?撘泵??TTS 銝?閬?
             import re
-            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣【】]', '', news_text)
-            clean_text = clean_text.replace('今日新聞摘要', '').strip()
+            clean_text = re.sub(r'[???1儭2儭3儭?', '', news_text)
+            clean_text = clean_text.replace('隞?啗???', '').strip()
             
             audio_path = generate_news_audio(clean_text, user_id)
             
             if audio_path:
-                # 上傳音檔並發送
-                try:
+                # 銝?單?銝衣??                try:
                     audio_url = upload_image_to_external_host(audio_path)
                     
                     with ApiClient(configuration) as api_client:
@@ -1716,20 +1614,19 @@ def message_text(event):
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
                                 messages=[
-                                    TextMessage(text="🔊 新聞語音播報："),
+                                    TextMessage(text="?? ?啗?隤?剖嚗?),
                                     AudioMessage(
                                         original_content_url=audio_url,
-                                        duration=60000  # 估計 60 秒
-                                    )
+                                        duration=60000  # 隡啗? 60 蝘?                                    )
                                 ]
                             )
                         )
                     return
                 except Exception as e:
                     print(f"Audio upload error: {e}")
-                    reply_text = "抱歉，語音播報生成失敗。請稍後再試！"
+                    reply_text = "?望?嚗??單?梁??仃??蝔??岫嚗?
             else:
-                reply_text = "抱歉，語音播報生成失敗。請稍後再試！"
+                reply_text = "?望?嚗??單?梁??仃??蝔??岫嚗?
             
             with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
@@ -1741,11 +1638,10 @@ def message_text(event):
                 )
             return
         
-        # 生成新聞摘要
+        # ???啗???
         news_summary = generate_news_summary()
         
-        # 儲存到快取（用於後續語音播報）
-        user_news_cache[user_id] = news_summary
+        # ?脣??啣翰???冽敺?隤?剖嚗?        user_news_cache[user_id] = news_summary
         
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
@@ -1758,17 +1654,13 @@ def message_text(event):
         return
     
     else:
-        # 一般對話處理 - 傳遞 reply_token 讓內部可以發送狀態通知
+        # 銝?砍?閰梯???- ?喲? reply_token 霈?典隞亦???
         reply_text = gemini_llm_sdk(user_input, user_id, event.reply_token)
     
-    # 如果 gemini_llm_sdk 內部已經使用了 reply_token（發送了狀態通知），
-    # 這裡的 reply_message 會失敗。
-    # 但如果我們有 misses_reminders_msg 需要發送，且 gemini_llm_sdk 返回 None (代表已處理)，
-    # 我們可能錯過了發送機會。
-    # 策略：只要 reply_text 存在，就合併發送。
-    
+    # 憒? gemini_llm_sdk ?折撌脩?雿輻鈭?reply_token嚗????嚗?
+    # ?ㄐ??reply_message ?仃??    # 雿????? misses_reminders_msg ?閬??銝?gemini_llm_sdk 餈? None (隞?”撌脰???嚗?    # ??賡???潮???    # 蝑嚗閬?reply_text 摮嚗停?蔥?潮?    
     if reply_text:
-        # 合併被動通知訊息
+        # ?蔥鋡怠??閮
         if missed_reminders_msg:
             reply_text = missed_reminders_msg + reply_text
             
@@ -1782,8 +1674,7 @@ def message_text(event):
                     )
                 )
             
-            # 發送成功後，從資料庫移除已通知的失敗提醒
-            if ADVANCED_FEATURES_ENABLED and db and start_failed_reminders:
+            # ?潮???嚗?鞈?摨怎宏?文歇??仃????            if ADVANCED_FEATURES_ENABLED and db and start_failed_reminders:
                 for r in start_failed_reminders:
                     db.delete_reminder(r['id'], user_id)
                     
@@ -1798,31 +1689,30 @@ def message_image(event):
     user_id = event.source.user_id
     
     try:
-        # 確保資料夾存在
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        # 蝣箔?鞈?憭曉???        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         
         with ApiClient(configuration) as api_client:
             line_bot_blob_api = MessagingApiBlob(api_client)
             message_content = line_bot_blob_api.get_message_content(
                 message_id=event.message.id
             )
-            # 為每個用戶建立獨立的圖片檔案
+            # ?箸???嗅遣蝡蝡???瑼?
             image_filename = f"{user_id}_image.jpg"
             image_path = os.path.join(UPLOAD_FOLDER, image_filename)
             
             with open(image_path, 'wb') as f:
                 f.write(message_content)
         
-        # 檢查是否在長輩圖製作流程中 (等待背景圖)
+        # 瑼Ｘ?臬?券頛拙?鋆賭?瘚?銝?(蝑????
         if user_id in user_meme_state and user_meme_state[user_id].get('stage') == 'waiting_bg':
-             # 讀取圖片 binary data
+             # 霈????binary data
              with open(image_path, 'rb') as f:
                  image_data = f.read()
              
-             # 呼叫 agent 處理
+             # ?澆 agent ??
              reply_text = handle_meme_agent(user_id, image_content=image_data, reply_token=event.reply_token)
              
-             # 回覆用戶
+             # ???冽
              with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.reply_message_with_http_info(
@@ -1833,24 +1723,23 @@ def message_image(event):
                 )
              return
 
-        # 儲存該用戶的圖片路徑
+        # ?脣?閰脩?嗥???頝臬?
         user_images[user_id] = image_path
         
-        # 使用 Gemini Vision 描述圖片
+        # 雿輻 Gemini Vision ?膩??
         try:
             upload_image = PIL.Image.open(image_path)
             vision_response = model.generate_content([
-                "請用繁體中文描述這張圖片的內容，保持簡短生動（不超過100字）。描述完後，直接說「我已經記得這張圖片了！你想和我聊些什麼呢？」",
+                "隢蝜?銝剜??膩?撐???摰對?靽?蝪∠??嚗?頞?100摮???餈啣?敺??湔隤芥?撌脩?閮??撐??鈭?雿????隞暻澆嚗?,
                 upload_image
             ])
             finish_message = vision_response.text
         except:
-            # 告知用戶圖片已接收
-            finish_message = "我已經記得這張圖片了！你想跟我聊些什麼呢？（例如：這張照片在哪裡拍的？或是照片裡有什麼？）加油！Cheer up！"
+            # ??冽??撌脫??            finish_message = "?歇蝬?敺撐??鈭?雿頝???隞暻澆嚗?靘?嚗撐?抒??典鋆⊥?????抒?鋆⊥?隞暻潘?嚗?瘝對?Cheer up嚗?
         
     except Exception as e:
         print(f"Image upload error: {e}")
-        finish_message = "圖片上傳失敗，請再試一次。加油！Cheer up！"
+        finish_message = "??銝憭望?嚗??岫銝甈～?瘝對?Cheer up嚗?
     
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
@@ -1866,77 +1755,73 @@ def message_audio(event):
     user_id = event.source.user_id
     
     try:
-        # 下載音訊檔案
+        # 銝??唾?瑼?
         with ApiClient(configuration) as api_client:
             line_bot_blob_api = MessagingApiBlob(api_client)
             audio_content = line_bot_blob_api.get_message_content(
                 message_id=event.message.id
             )
         
-        # 確保資料夾存在
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        # 蝣箔?鞈?憭曉???        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         
-        # 儲存音訊檔案 (.m4a)
+        # ?脣??唾?瑼? (.m4a)
         audio_filename = f"{user_id}_audio.m4a"
         audio_path = os.path.join(UPLOAD_FOLDER, audio_filename)
         
         with open(audio_path, 'wb') as f:
             f.write(audio_content)
         
-        # 語音轉文字 (使用 Gemini - 使用功能性模型避免加料)
+        # 隤頧?摮?(雿輻 Gemini - 雿輻??扳芋?????
         text = transcribe_audio_with_gemini(audio_path, model_functional)
         
         if text:
             # ------------------------------------------------------------
-            # 語音確認流程：檢查是否在需要精確指令的狀態中
+            # 隤蝣箄?瘚?嚗炎?交?血?閬移蝣箸?隞斤???葉
             # ------------------------------------------------------------
             needs_confirmation = False
             
-            # 1. 檢查圖片生成/修改狀態
-            if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
+            # 1. 瑼Ｘ????/靽格???            if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
                 needs_confirmation = True
             
-            # 2. 檢查長輩圖製作狀態
-            elif user_id in user_meme_state and user_meme_state[user_id]['stage'] != 'idle':
+            # 2. 瑼Ｘ?瑁憬?ˊ雿???            elif user_id in user_meme_state and user_meme_state[user_id]['stage'] != 'idle':
                 needs_confirmation = True
             
-            # 3. 檢查行程規劃狀態 (新增)
+            # 3. 瑼Ｘ銵?閬????(?啣?)
             elif user_id in user_trip_plans and user_trip_plans[user_id]['stage'] != 'idle':
-                # 行程規劃也建議確認，避免識別錯誤導致流程混亂
-                needs_confirmation = False # 保持 False 讓對話流暢，因為行程規劃有自己的確認機制 (Can discuss)
-                # 但如果是輸入地點階段，誤識別會很麻煩。這里權衡後決定還是直接處理，但在 Prompt 層面加強提取
+                # 銵?閬?銋遣霅啁Ⅱ隤??踹?霅?航炊撠瘚?瘛瑚?
+                needs_confirmation = False # 靽? False 霈?閰望??ｇ??銵?閬??撌梁?蝣箄?璈 (Can discuss)
+                # 雿??頛詨?圈??挾嚗炊霅??暻餌??甈﹛敺捱摰??舐?亥???雿 Prompt 撅日?撥??
                 pass
 
             if needs_confirmation:
-                # 暫存語音文字，等待確認
-                user_audio_confirmation_pending[user_id] = {'text': text}
+                # ?怠?隤??嚗?敺Ⅱ隤?                user_audio_confirmation_pending[user_id] = {'text': text}
                 
-                # 回傳純淨的確認訊息 (絕對不含 jokes/cheer up)，並加上警語
-                reply_text = f"收到語音訊息\n\n您說的是：「{text}」\n\n請問是否正確？\n(請回答「是」或「ok」確認，或是重新錄音)\n\n⚠️ 確認後將開始製作，需等待約15秒，期間請勿操作！"
+                # ?蝝楊?Ⅱ隤???(蝯?銝 jokes/cheer up)嚗蒂??霅西?
+                reply_text = f"?嗅隤閮\n\n?刻牧?嚗text}?n\n隢??臬甇?Ⅱ嚗n(隢?蝑???k?Ⅱ隤????)\n\n?? 蝣箄?敺???鋆賭?嚗?蝑?蝝?5蝘???隢??嚗?
             else:
-                # 一般閒聊模式 - 只有在閒聊時才允許 AI 發揮 (含 jokes)
-                # 但如果進入了 functional flow (如 trip agent via gemini_llm_sdk)，那邊會使用 functional model
+                # 銝?祇??芋撘?- ?芣??券?????閮?AI ?潭 (??jokes)
+                # 雿??脣鈭?functional flow (憒?trip agent via gemini_llm_sdk)嚗??雿輻 functional model
                 
-                confirmation = f"✅ 收到語音訊息\n\n您說的是：「{text}」"
+                confirmation = f"???嗅隤閮\n\n?刻牧?嚗text}??
                 
-                # 呼叫 LLM 處理 (傳入 reply_token 以便內部可能需要的操作)
+                # ?澆 LLM ?? (?喳 reply_token 隞乩噶?折?航?閬???)
                 print(f"[AUDIO] Transcribed text: {text}")
                 response = gemini_llm_sdk(text, user_id, reply_token=event.reply_token)
                 
                 if response:
                     reply_text = f"{confirmation}\n\n---\n\n{response}"
                 else:
-                    # 如果 response 為 None，表示已經由 gemini_llm_sdk 內部處理完畢 (例如觸發了生圖並用掉 token)
+                    # 憒? response ??None嚗”蝷箏歇蝬 gemini_llm_sdk ?折??摰 (靘?閫貊鈭??蒂?冽? token)
                     print("[AUDIO] Handled internally by SDK")
-                    return # 直接結束，不需再 reply_message
+                    return # ?湔蝯?嚗????reply_message
                     
         else:
             print("[AUDIO] Transcription failed or empty.")
-            reply_text = "抱歉，我好像沒聽到聲音，或者是背景太吵雜了。\n請再試著清楚地說一次喔！"
+            reply_text = "?望?嚗?憟賢?瘝?啗?喉???憭芸???n隢?閰西?皜??啗牧銝甈∪?嚗?
         
     except Exception as e:
         print(f"Audio processing error: {e}")
-        reply_text = "語音處理發生了一點小錯誤，請稍後再試試看！"
+        reply_text = "隤???潛?鈭?暺??航炊嚗?蝔??岫閰衣?嚗?
     
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
@@ -1949,28 +1834,26 @@ def message_audio(event):
 
 @handler.add(MessageEvent, message=StickerMessageContent)
 def message_sticker(event):
-    """處理貼圖訊息 - 不觸發任何服務，只回應表情"""
+    """??鞎澆?閮 - 銝孛?潔遙雿????芸??”??""
     user_id = event.source.user_id
     
-    # 檢查是否在圖片生成或長輩圖製作狀態中
+    # 瑼Ｘ?臬?典??????瑁憬?ˊ雿??葉
     if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
-        # 如果在可修改狀態，貼圖表示結束修改
+        # 憒??典靽格???鞎澆?銵函內蝯?靽格
         if user_image_generation_state[user_id] == 'can_modify':
             user_image_generation_state[user_id] = 'idle'
-            reply_text = "好的！圖片已完成。期待下次為您服務！"
+            reply_text = "憟賜?嚗??歇摰???敺?甈∠?冽???"
         else:
-            # 在其他圖片生成流程中，提醒用戶需要文字描述
-            reply_text = "我看到你傳了貼圖！但我需要文字描述才能幫你生成圖片喔！請用文字告訴我你想要什麼樣的圖片！"
+            # ?典隞?????蝔葉嚗???園?閬?摮?餈?            reply_text = "???唬??喃?鞎澆?嚗???閬?摮?餈唳??賢鼠雿?????嚗??冽?摮?閮湔?雿閬?暻潭見????"
     elif user_id in user_meme_state and user_meme_state[user_id]['stage'] != 'idle':
-        # 在長輩圖製作流程中
-        reply_text = "我看到你傳了貼圖！但我需要文字描述才能繼續製作長輩圖喔！請用文字告訴我！"
+        # ?券頛拙?鋆賭?瘚?銝?        reply_text = "???唬??喃?鞎澆?嚗???閬?摮?餈唳??賜匱蝥ˊ雿頛拙???隢???迄??"
     else:
-        # 一般情況，熱情回應
+        # 銝?祆?瘜??望???
         responses = [
-            "哇！收到你的貼圖了！超可愛的！😍 有什麼想聊的嗎？加油！Cheer up！讚喔！",
-            "看到你傳貼圖給我好開心！💖 我也很想跟你聊天！有什麼我可以幫忙的嗎？讚喔！",
-            "貼圖收到！👍 你的品味真好！想聊什麼都可以喔！加油！Cheer up！",
-            "哈哈！這個貼圖好傳神喔！讚喔！✨",
+            "???嗅雿?鞎澆?鈭?頞??嚗????暻潭?????硃嚗heer up嚗???",
+            "?雿鞎澆?蝯行?憟賡?敹??? ??敺頝??予嚗?隞暻潭??臭誑撟怠???嚗???",
+            "鞎澆??嗅嚗??雿???末嚗??暻潮?臭誑???硃嚗heer up嚗?,
+            "??嚗票?末?喟???霈?嚗",
         ]
         reply_text = random.choice(responses)
     
@@ -1985,20 +1868,32 @@ def message_sticker(event):
 
 @handler.add(FollowEvent)
 def handle_follow(event):
-    """處理加入好友/解除封鎖事件 (歡迎詞 - 發送功能總覽圖)"""
+    """???憟賢?/閫?撠?鈭辣 (甇∟?閰?- ?潮??賜蜇閬賢?)"""
     user_id = event.source.user_id
     print(f"New follower: {user_id}")
     
     # Help Image URL
     help_image_url = os.environ.get("HELP_IMAGE_URL", "https://storage.googleapis.com/help_poster/help_poster.png")
     
-    # 本地備用路徑
+    # ?砍?頝臬?
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
-    # 策略：優先嘗試發送 URL 圖片
+    # 甇∟???
+    welcome_text = """甇∟???頛拍?璈鈭箝???
+    
+?典隞亥???
+1. ? 鋆賭??瑁憬??(?喟??隤芥??瑁憬??
+2. ?儭?閬???銵? (隤芥葆??押?
+3. ? ???舀??? (隤芥鼠?...??
+4. ? ???剖蔣??(隤芥?敶梁???
+5. ??閮剖??暑?? (隤芥???...??
+
+隢????寥?格??湔頝?隤芾店??"""
+
+    # 蝑嚗??閰衣??URL ??
     sent_success = False
     
-    # 1. 嘗試發送 URL 圖片（僅圖片，無文字）
+    # 1. ?岫?潮?URL ??
     if help_image_url and help_image_url.startswith("http"):
         try:
             print(f"[WELCOME] Sending welcome image from URL: {help_image_url}")
@@ -2008,6 +1903,7 @@ def handle_follow(event):
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
                         messages=[
+                            TextMessage(text=welcome_text),
                             ImageMessage(
                                 original_content_url=help_image_url,
                                 preview_image_url=help_image_url
@@ -2021,12 +1917,11 @@ def handle_follow(event):
         except Exception as e:
             print(f"[WELCOME] Failed to send via URL: {e}")
 
-    # 2. 如果 URL 失敗，嘗試發送本地靜態圖片（僅圖片，無文字）
-    if not sent_success:
+    # 2. 憒? URL 憭望?嚗?閰衣??圈?????    if not sent_success:
         if os.path.exists(menu_image_path):
             print(f"[WELCOME] Sending local image: {menu_image_path}")
-            # 使用 reply_token 免費發送
-            success = send_image_to_line(user_id, menu_image_path, None, event.reply_token)
+            # 雿輻 reply_token ?祥?潮?(瘜冽?嚗end_image_to_line 銋?閬耨甇??摨?
+            success = send_image_to_line(user_id, menu_image_path, welcome_text, event.reply_token)
             if success:
                 print("[WELCOME] Sent successfully via local upload")
                 return
@@ -2035,7 +1930,7 @@ def handle_follow(event):
         else:
             print(f"[ERROR] Local welcome image not found at {menu_image_path}")
 
-    # 3. 如果連圖片都發送失敗，就真的沒辦法了 (用戶要求刪除文字 fallback，所以這裡保持沉默或只記錄 log)
+    # 3. 憒??????潮仃??撠梁???颲行?鈭?(?冽閬??芷?? fallback嚗?隞仿ㄐ靽?瘝??閮? log)
     print("[ERROR] Could not send ANY welcome image (URL or Local).")
 
 # ======================
@@ -2043,16 +1938,15 @@ def handle_follow(event):
 # ======================
 
 def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=None):
-    """處理行程規劃，reply_token 用於發送狀態通知"""
+    """??銵?閬?嚗eply_token ?冽?潮??"""
     global user_trip_plans
     
     # Initialize state if new session
     if is_new_session or user_id not in user_trip_plans:
         user_trip_plans[user_id] = {'stage': 'collecting_info', 'info': {}}
-        return """好的，我們來規劃行程。
-
-請問您想去哪裡玩呢？
-(例如：宜蘭、台南、綠島、日本等)"""
+        return """憟賜?嚗???閬?銵???
+隢??冽?餃鋆∠?ｇ?
+(靘?嚗??准??撜嗚?祉?)"""
 
     state = user_trip_plans[user_id]
     
@@ -2060,20 +1954,17 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
     if state['stage'] == 'collecting_info':
         # Check if we have destination
         if 'destination' not in state['info']:
-            # 檢查是否要取消（優先檢查，避免被 AI 誤判）
-            if any(keyword in user_input for keyword in ['取消', '不要了', '先不要', '暫停']):
+            # 瑼Ｘ?臬閬?瘨??芸?瑼Ｘ嚗?◤ AI 隤文嚗?            if any(keyword in user_input for keyword in ['??', '銝?鈭?, '??閬?, '?怠?']):
                 user_trip_plans[user_id] = {'stage': 'idle'}
-                return "好的，已取消行程規劃。"
+                return "憟賜?嚗歇??銵?閬???
             
-            # 檢查是否有 large_region 但用戶說「都可以」
-            if 'large_region' in state['info']:
-                if any(keyword in user_input for keyword in ['都可以', '都行', '隨便', '不挑', '任意', '推薦']):
-                    # 直接使用大地區作為目的地
-                    state['info']['destination'] = state['info']['large_region']
-                    return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+            # 瑼Ｘ?臬??large_region 雿?嗉牧??臭誑??            if 'large_region' in state['info']:
+                if any(keyword in user_input for keyword in ['?賢隞?, '?質?', '?其噶', '銝?', '隞餅?', '?刻']):
+                    # ?湔雿輻憭批?雿?桃???                    state['info']['destination'] = state['info']['large_region']
+                    return f"憟賜?嚗state['info']['large_region']}嚗???閮撟曉予嚗?靘?嚗?憭?憭?\n\n銝閬?鈭隞亥牧??瘨?
             
-            # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
-            # 例如用戶說 "我要去綠島" -> 提取 "綠島"
+            # 雿輻 AI ???斗?啣??臬?閬敦??(?????圈??迂)
+            # 靘??冽隤?"???餌?撜? -> ?? "蝬雀"
             
             extract_prompt = f"""Target: Extract the destination name from the user's input.
             Input: "{user_input}"
@@ -2096,51 +1987,43 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
             except:
                 extracted_dest = user_input
 
-            # 使用功能性模型進行地區判斷，避免廢話
-            result = check_region_need_clarification(extracted_dest, model_functional)
+            # 雿輻??扳芋?脰??啣??斗嚗?誥閰?            result = check_region_need_clarification(extracted_dest, model_functional)
             
             if result['need_clarification']:
-                # 需要進一步細化
-                state['info']['large_region'] = extracted_dest
-                options = '、'.join(result['suggested_options'])
-                return f"好的，去{extracted_dest}！\n\n請問您想去{extracted_dest}的哪個地區呢？\n(例如：{options})\n\n💡 如果都可以，請直接輸入「都可以」\n不想規劃了可以說「取消」。"
+                # ?閬脖?甇亦敦??                state['info']['large_region'] = extracted_dest
+                options = '??.join(result['suggested_options'])
+                return f"憟賜?嚗{extracted_dest}嚗n\n隢??冽?認extracted_dest}????ｇ?\n(靘?嚗options})\n\n? 憒??賢隞伐?隢?亥撓?乓?臭誑?n銝閬?鈭隞亥牧??瘨?
             else:
-                # 直接記錄目的地
-                state['info']['destination'] = extracted_dest
-                return f"好的，去{extracted_dest}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+                # ?湔閮??桃???                state['info']['destination'] = extracted_dest
+                return f"憟賜?嚗{extracted_dest}嚗???閮撟曉予嚗?靘?嚗?憭?憭?\n\n銝閬?鈭隞亥牧??瘨?
 
             
         # Check if we have specific area (for large regions)
         if 'large_region' in state['info'] and 'destination' not in state['info']:
-            # 檢查是否要取消
-            if any(keyword in user_input for keyword in ['取消', '不要了', '先不要', '暫停']):
+            # 瑼Ｘ?臬閬?瘨?            if any(keyword in user_input for keyword in ['??', '銝?鈭?, '??閬?, '?怠?']):
                 user_trip_plans[user_id] = {'stage': 'idle'}
-                return "好的，已取消行程規劃。"
+                return "憟賜?嚗歇??銵?閬???
             
-            # 檢查是否說「都可以」類的詞 - 直接用大地區作為目的地
-            if any(keyword in user_input for keyword in ['都可以', '都行', '隨便', '不挑', '任意', '推薦']):
-                # 直接使用大地區作為目的地
-                state['info']['destination'] = state['info']['large_region']
-                return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+            # 瑼Ｘ?臬隤芥?臭誑???? - ?湔?典之?啣?雿?桃???            if any(keyword in user_input for keyword in ['?賢隞?, '?質?', '?其噶', '銝?', '隞餅?', '?刻']):
+                # ?湔雿輻憭批?雿?桃???                state['info']['destination'] = state['info']['large_region']
+                return f"憟賜?嚗state['info']['large_region']}嚗???閮撟曉予嚗?靘?嚗?憭?憭?\n\n銝閬?鈭隞亥牧??瘨?
             
             state['info']['destination'] = user_input
-            return f"好的，{state['info']['large_region']}的{user_input}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+            return f"憟賜?嚗state['info']['large_region']}?user_input}嚗???閮撟曉予嚗?靘?嚗?憭?憭?\n\n銝閬?鈭隞亥牧??瘨?
             
         # Check if we have duration
         if 'duration' not in state['info']:
-            # 檢查是否要取消
-            if any(keyword in user_input for keyword in ['取消', '不要了', '先不要', '暫停']):
+            # 瑼Ｘ?臬閬?瘨?            if any(keyword in user_input for keyword in ['??', '銝?鈭?, '??閬?, '?怠?']):
                 user_trip_plans[user_id] = {'stage': 'idle'}
-                return "好的，已取消行程規劃。"
+                return "憟賜?嚗歇??銵?閬???
             state['info']['duration'] = user_input
-            return f"了解，{state['info']['destination']}，{user_input}。請問這次旅遊有什麼特殊需求嗎？\n（沒有的話可以回「都可以」）\n\n⚠️ 回答後將開始生成行程，約10秒，請勿發送訊息，以免造成錯誤！\n不想規劃了可以說「取消」。"
+            return f"鈭圾嚗state['info']['destination']}嚗user_input}???活????暻潛畾?瘙?嚗n嚗???閰勗隞亙???臭誑??\n\n?? ??敺?????銵?嚗?10蝘?隢?潮??荔?隞亙????航炊嚗n銝閬?鈭隞亥牧??瘨?
             
         # Check purpose
         if 'purpose' not in state['info']:
-            # 檢查是否要取消
-            if any(keyword in user_input for keyword in ['取消', '不要了', '先不要', '暫停']):
+            # 瑼Ｘ?臬閬?瘨?            if any(keyword in user_input for keyword in ['??', '銝?鈭?, '??閬?, '?怠?']):
                 user_trip_plans[user_id] = {'stage': 'idle'}
-                return "好的，已取消行程規劃。"
+                return "憟賜?嚗歇??銵?閬???
             state['info']['purpose'] = user_input
             state['stage'] = 'generating_plan'
             
@@ -2156,10 +2039,10 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 1. **ZERO JOKES** - Do NOT make ANY jokes, puns, or humorous remarks
 2. **ZERO EMOJIS** - Do NOT use any emojis or emoticons  
 3. **ZERO CASUAL LANGUAGE** - Maintain professional tone throughout
-4. **ZERO EXCLAMATIONS** - Avoid overly enthusiastic language like "超讚！" "哇！" "加油！" "Cheer up！"
+4. **ZERO EXCLAMATIONS** - Avoid overly enthusiastic language like "頞?嚗? "??" "?硃嚗? "Cheer up嚗?
 
 **Language Requirement:**
-- MUST respond in Traditional Chinese (繁體中文)
+- MUST respond in Traditional Chinese (蝜?銝剜?)
 - Professional, informative, and helpful tone ONLY
 
 **Task:** Create a detailed, practical trip plan
@@ -2181,20 +2064,19 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 7. **NO ADDRESSES** - Just the location name is enough
 
 **Example Structure:**
-## {dest} {purp}之旅
+## {dest} {purp}銋?
 
 ### Day 1
-**上午 (09:00-12:00)**
-- 景點：[具體景點名稱]
-- 建議停留時間：[時間]
+**銝? (09:00-12:00)**
+- ?舫?嚗?琿??舫??迂]
+- 撱箄降????嚗??]
 
-**下午 (13:00-17:00)**
+**銝? (13:00-17:00)**
 - ...
 
-### 旅遊小提示
-- 交通方式：...
-- 預算建議：...
-- 注意事項：...
+### ??撠?蝷?- 鈭日撘?...
+- ??撱箄降嚗?..
+- 瘜冽?鈭?嚗?..
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS.
 CRITICAL: Do NOT output as JSON. Do NOT output as a code block. Output pure Markdown text.
@@ -2202,40 +2084,38 @@ CRITICAL: Do NOT output as JSON. Do NOT output as a code block. Output pure Mark
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
             
             try:
-                # 使用功能性模型生成行程 (避免 Motivational Speaker 人設干擾)
+                # 雿輻??扳芋????蝔?(?踹? Motivational Speaker 鈭箄身撟脫)
                 response = model_functional.generate_content(planner_prompt)
                 draft_plan = response.text
                 
-                # 執行邏輯檢查 (Validation Layer) - 仍使用 model_functional
+                # ?瑁??摩瑼Ｘ (Validation Layer) - 隞蝙??model_functional
                 validated_plan = validate_and_fix_trip_plan(draft_plan, model_functional)
                 
-                # 保存行程內容，設為可討論狀態
-                user_trip_plans[user_id] = {
+                # 靽?銵??批捆嚗身?箏閮????                user_trip_plans[user_id] = {
                     'stage': 'can_discuss',
                     'info': state['info'],
                     'plan': validated_plan
                 }
-                return validated_plan + "\n\n如需調整行程，請直接說明您的需求。\n(例如：第一天想加入購物、想換掉某個景點等)\n\n如不需調整，請說「完成」或「ok」。"
+                return validated_plan + "\n\n憒?隤踵銵?嚗??湔隤芣??函??瘙n(靘?嚗洵銝憭拇?鞈潛????暺?)\n\n憒??隤踵嚗?隤芥????k??
                 
             except Exception as e:
                 print(f"Planning error: {e}")
                 user_trip_plans[user_id] = {'stage': 'idle'}
-                return "抱歉，行程規劃出了點問題，請稍後再試。"
+                return "?望?嚗?蝔??鈭???嚗?蝔??岫??
     
-    # 處理可討論狀態 - 允許用戶修改行程
+    # ???航?隢???- ?迂?冽靽格銵?
     elif state['stage'] == 'can_discuss':
-        # 檢查是否要結束討論
-        if any(keyword in user_input for keyword in ['完成', 'ok', 'OK', '好了', '謝謝', '不用了']):
+        # 瑼Ｘ?臬閬???隢?        if any(keyword in user_input for keyword in ['摰?', 'ok', 'OK', '憟賭?', '雓?', '銝鈭?]):
             user_trip_plans[user_id] = {'stage': 'idle'}
-            return "好的！祝您旅途愉快！"
+            return "憟賜?嚗??冽???敹恬?"
         
-        # 用戶想要修改行程
+        # ?冽?唾?靽格銵?
         dest = state['info']['destination']
         dur = state['info']['duration']
         purp = state['info']['purpose']
         
         try:
-            # 使用輔助函數修改行程 - 傳入 model_functional
+            # 雿輻頛?賣靽格銵? - ?喳 model_functional
             draft_updated_plan = modify_trip_plan(
                 user_id=user_id,
                 user_input=user_input,
@@ -2243,29 +2123,27 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
                 dur=dur,
                 purp=purp,
                 current_plan=state.get('plan', ''),
-                model=model_functional, # 改用功能性模型
-                line_bot_api_config=configuration
+                model=model_functional, # ?寧??扳芋??                line_bot_api_config=configuration
             )
             
-            # 執行邏輯檢查 (Validation Layer)
-            # 確保用戶修改後的行程仍然符合邏輯 (例如：下午不會跑到早上)
+            # ?瑁??摩瑼Ｘ (Validation Layer)
+            # 蝣箔??冽靽格敺?銵?隞蝚血??摩 (靘?嚗??????唳銝?
             updated_plan = validate_and_fix_trip_plan(draft_updated_plan, model_functional)
             
-            # 更新保存的行程
-            user_trip_plans[user_id]['plan'] = updated_plan
-            return updated_plan + "\n\n還需要其他調整嗎？\n(如不需調整，請說「完成」或「ok」)"
+            # ?湔靽???蝔?            user_trip_plans[user_id]['plan'] = updated_plan
+            return updated_plan + "\n\n??閬隞矽?游?嚗n(憒??隤踵嚗?隤芥????k??"
             
         except Exception as e:
-            print(f"[ERROR] 修改行程時發生錯誤: {e}")
+            print(f"[ERROR] 靽格銵???隤? {e}")
             import traceback
             traceback.print_exc()
-            return "抱歉，修改行程時出了點問題，請再試一次。"
+            return "?望?嚗耨?寡?蝔??箔?暺?憿?隢?閰虫?甈～?
 
-    return "請問還有什麼需要幫忙的嗎？"
+    return "隢???隞暻潮?閬鼠敹???"
 
 
 def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_session=False, reply_token=None):
-    """處理長輩圖製作，reply_token 用於發送狀態通知"""
+    """???瑁憬?ˊ雿?reply_token ?冽?潮??"""
     global user_meme_state, user_images
     
     if is_new_session or user_id not in user_meme_state:
@@ -2279,32 +2157,27 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
             # Remove from pending user_images to avoid reuse confusion later? 
             # (Optional, but keeping it allows reuse. Let's keep it.)
             
-            return """已使用您剛剛上傳的圖片！📸
+            return """撌脖蝙?冽??銝?????
 
-請輸入要在圖片上顯示的文字內容：
-(例如：早安、平安喜樂、認同請分享)
+隢撓?亥??典???憿舐內??摮摰對?
+(靘?嚗摰像摰?璅????澈)
 
-⚠️ 製作期間約15秒，請勿發送其他訊息！"""
+?? 鋆賭???蝝?5蝘?隢?潮隞??荔?"""
         
         # No image found, ask for one
         user_meme_state[user_id] = {'stage': 'waiting_bg', 'bg_image': None, 'text': None}
-        return """好的！我們來製作長輩圖。
+        return """憟賜?嚗???鋆賭??瑁憬??
+隢???舀撘?
+? 銝銝撘萄????箄???? ?迄?閬?暻潭見???荔?靘?嚗?晞??賬◢?荔?
 
-請選擇背景方式：
-📷 上傳一張圖片作為背景
-🎨 告訴我想要什麼樣的背景（例如：蓮花、夕陽、風景）
-
-請直接上傳圖片或輸入背景描述。
-⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！
-＊不想製作了隨時說「取消」"""
+隢?乩??喳???頛詨??膩???? 鋆賭???蝝?5蝘?隢?活?潮??荔?隞亙??航炊嚗?嚗??唾ˊ雿??冽?隤芥?瘨?""
 
     state = user_meme_state[user_id]
     
     if state['stage'] == 'waiting_bg':
-        # 檢查是否要取消
-        if user_input and '取消' in user_input:
+        # 瑼Ｘ?臬閬?瘨?        if user_input and '??' in user_input:
             user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
-            return "已取消長輩圖製作。"
+            return "撌脣?瘨頛拙?鋆賭???
         
         # Handle Image Upload (Passed via image_content)
         if image_content:
@@ -2316,79 +2189,66 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 f.write(image_content)
             
             state['bg_image'] = bg_path
-            state['stage'] = 'waiting_text'  # 直接進入文字輸入階段，不需確認
-            # 不發送圖片給用戶
-            return "已收到背景圖片。\n\n請輸入要在圖片上顯示的文字內容。\n(例如：早安、平安喜樂、認同請分享)\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
+            state['stage'] = 'waiting_text'  # ?湔?脣??頛詨?挾嚗??蝣箄?
+            # 銝???策?冽
+            return "撌脫?啗??臬??n\n隢撓?亥??典???憿舐內??摮摰嫘n(靘?嚗摰像摰?璅????澈)\n?? 鋆賭???蝝?5蝘?隢?活?潮??荔?隞亙??航炊嚗?
 
             
         # Handle Text Description for Generation
         elif user_input:
              # Generate background
              
-             # 使用 Gemini 將用戶的中文描述轉換成詳細的英文 prompt
-             # 因為 Imagen 3 對英文效果更好
-             translation_prompt = f"""用戶想要生成長輩圖的背景圖片，他們的描述是：「{user_input}」
+             # 雿輻 Gemini 撠?嗥?銝剜??膩頧??底蝝啁??望? prompt
+             # ? Imagen 3 撠???憟?             translation_prompt = f"""?冽?唾????瑁憬?????嚗????膩?荔??user_input}??
+隢???餈啗????拙? Imagen 3 ?????底蝝啗??prompt??
+閬?嚗?1. 敹?皞Ⅱ???冽??餈啜user_input}??2. 瘛餃??拙??瑁憬???舐?憸冽?膩嚗?鈭柴迤???堆?
+3. 憒??航?園◢?荔?憒控?偌????踝?嚗??孵撘瑁矽憸冽??
+4. 憒??舐??憒?晞?堆?嚗?撘瑁矽閰脩??5. 雿輻?望?嚗底蝝唬??琿?
+6. ?芸??唾??prompt嚗?閬??嗡?隤芣?
 
-請將這個描述轉換成適合 Imagen 3 生成圖片的詳細英文 prompt。
+蝭?嚗??冽隤芥控?末瘞氬? "A beautiful natural landscape with lush green mountains and clear flowing water, bright and peaceful scenery, suitable for traditional Chinese meme card background, vibrant colors, photorealistic"
 
-要求：
-1. 必須準確反映用戶的描述「{user_input}」
-2. 添加適合長輩圖背景的風格描述（明亮、正向、清晰）
-3. 如果是自然風景（如山林、水、花、夕陽），要特別強調風景元素
-4. 如果是物品（如蓮花、玫瑰），要強調該物品
-5. 使用英文，詳細且具體
-6. 只回傳英文 prompt，不要有其他說明
-
-範例：
-用戶說「山林好水」→ "A beautiful natural landscape with lush green mountains and clear flowing water, bright and peaceful scenery, suitable for traditional Chinese meme card background, vibrant colors, photorealistic"
-
-現在請為「{user_input}」生成英文 prompt："""
+?曉隢?user_input}?????prompt嚗?""
              
              try:
-                 # 使用 Gemini 翻譯 (使用功能性模型，避免廢話)
+                 # 雿輻 Gemini 蝧餉陌 (雿輻??扳芋???踹?撱Ｚ店)
                  translation_response = model_functional.generate_content(translation_prompt)
                  bg_prompt = translation_response.text.strip()
                  
-                 # 生成圖片
+                 # ????
                  success, result = generate_image_with_imagen(bg_prompt, user_id)
                  if success:
-                     state['bg_image'] = result  # result 是圖片路徑
-                     state['stage'] = 'confirming_bg'
-                     # 發送背景圖給用戶確認（使用 reply_token 免費）
-                     msg = "背景圖片已生成完成。\n\n請確認背景是否滿意？\n(請回答「好」或「ok」繼續，或說「重新選擇」換背景)"
+                     state['bg_image'] = result  # result ?臬??楝敺?                     state['stage'] = 'confirming_bg'
+                     # ?潮??臬?蝯衣?嗥Ⅱ隤?雿輻 reply_token ?祥嚗?                     msg = "???撌脩????n\n隢Ⅱ隤??舀?行遛??\n(隢?蝑末???k?匱蝥??牧???圈???)"
                      if send_image_to_line(user_id, result, msg, reply_token):
-                         return None # 已回覆
-                 else:
-                     return f"抱歉，背景生成失敗。\n\n失敗原因：{result}\n\n請調整描述後再試一次，或傳一張圖片給我！"
+                         return None # 撌脣?閬?                 else:
+                     return f"?望?嚗??舐??仃?n\n憭望???嚗result}\n\n隢矽?湔?餈啣??岫銝甈∴??銝撘萄??策??"
              except Exception as e:
-                 print(f"背景生成錯誤: {e}")
-                 return "抱歉，背景生成出了點問題...請再試一次！"
+                 print(f"????航炊: {e}")
+                 return "?望?嚗??舐??鈭???...隢?閰虫?甈∴?"
     
     elif state['stage'] == 'confirming_bg':
-        # 用戶確認背景
+        # ?冽蝣箄??
         if user_input:
-            # 檢查是否要取消
-            if '取消' in user_input:
+            # 瑼Ｘ?臬閬?瘨?            if '??' in user_input:
                 user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
-                return "已取消長輕圖製作。"
-            # 檢查是否要重新選擇
-            elif '重新' in user_input or '換' in user_input:
+                return "撌脣?瘨頛?鋆賭???
+            # 瑼Ｘ?臬閬??圈??            elif '?' in user_input or '?? in user_input:
                 state['stage'] = 'waiting_bg'
                 state['bg_image'] = None
-                return "好的，請重新上傳圖片或輸入背景描述。\n\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
-            # 用戶確認，進入文字輸入階段
-            elif '好' in user_input or 'ok' in user_input.lower() or '確定' in user_input:
+                return "憟賜?嚗??銝???撓?亥??舀?餈啜n\n?? 鋆賭???蝝?5蝘?隢?活?潮??荔?隞亙??航炊嚗?
+            # ?冽蝣箄?嚗脣??頛詨?挾
+            elif '憟? in user_input or 'ok' in user_input.lower() or '蝣箏?' in user_input:
                 state['stage'] = 'waiting_text'
-                return "好的！請輸入要在圖片上顯示的文字內容。\n(例如：早安、平安喜樂、認同請分享)\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
+                return "憟賜?嚗?頛詨閬??銝＊蝷箇????批捆?n(靘?嚗摰像摰?璅????澈)\n?? 鋆賭???蝝?5蝘?隢?活?潮??荔?隞亙??航炊嚗?
             else:
-                return "請回答「好」或「ok」繼續，或說「重新選擇」換背景。"
+                return "隢?蝑末???k?匱蝥??牧???圈?????
     
     elif state['stage'] == 'waiting_text':
         if user_input:
-            # 檢查是否要取消
-            if '取消' in user_input:
+            # 瑼Ｘ?臬閬?瘨?            if '??' in user_input:
                 user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
-                return "已取消長輩圖製作。"
+                return "撌脣?瘨頛拙?鋆賭???
             
             state['text'] = user_input
             
@@ -2396,7 +2256,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
             text = user_input
             bg_path = state['bg_image']
             
-            # 完全隨機創意排版（移除 AI 判斷，確保每次都有變化）
+            # 摰?冽??菜???嚗宏??AI ?斗嚗Ⅱ靽?甈⊿????
             import random
             from PIL import Image
             
@@ -2404,30 +2264,17 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 from PIL import Image
                 import random
                 
-                # 載入背景圖片
+                # 頛???
                 bg_image = Image.open(bg_path)
                 
-                # AI 視覺分析 - 強調避開主體、選擇對比色
-                # AI 視覺分析 - 強調避開主體、選擇對比色
-                vision_prompt = f"""你是長輩圖排版設計總監。請分析這張圖片，為文字「{text}」設計最佳的視覺效果。
-
-**設計目標：**
-1. **字體與空間權衡 (Critical Balance)**：
-   - **易讀性第一**：字體大小盡量維持在 **50-90** 之間。
-   - **允許覆蓋**：為了維持字體夠大，**可以覆蓋**圖片中不重要的部分（如肩膀、衣服、角落雜物、模糊背景）。
-   - **絕對避開**：只有「人臉」和「核心主體特徵」是絕對不能擋到的。
-2. **高對比度**：確保文字在背景上清晰可見。
-3. **設計感**：根據圖片氛圍決定是否需要描邊 (Stroke)。
-   - 活潑/複雜背景 -> 建議加粗描邊 (stroke_width: 3-5)
-   - 唯美/乾淨背景 -> 可無描邊或細描邊 (stroke_width: 0-2)
-4. **拒絕千篇一律**：
-   - 請根據圖片的色調，**大膽嘗試**不同的顏色組合 (如霓虹色、粉彩、撞色)。
-   - 不要總是選金色 (#FFD700) 或白色。
-5. **字體偏好**：
-   - **預設請使用粗體 (bold/heiti)**：長輩圖通常需要字體夠粗才看得清楚。
-   - 除非圖片非常唯美、氣質，才使用楷體 (kaiti)。
-
-**請回傳一行 JSON 格式：**
+                # AI 閬死?? - 撘瑁矽?輸?銝駁????瘥
+                # AI 閬死?? - 撘瑁矽?輸?銝駁????瘥
+                vision_prompt = f"""雿?瑁憬???身閮蜇??????撐??嚗???text}?身閮?雿喟?閬死????
+**閮剛??格?嚗?*
+1. **摮??征??銵?(Critical Balance)**嚗?   - **???抒洵銝**嚗?擃之撠?雁? **50-90** 銋???   - **?迂閬?**嚗鈭雁??擃?憭改?**?臭誑閬?**??銝凋??????憒??﹝???賡??押芋蝟??荔???   - **蝯??輸?**嚗?犖???敹蜓擃敺萸蝯?銝???2. **擃?瘥漲**嚗Ⅱ靽?摮?銝??啣閬?3. **閮剛???*嚗?????捱摰?阡?閬???(Stroke)??   - 瘣餅?/銴?? -> 撱箄降???? (stroke_width: 3-5)
+   - ?舐?/銋暹楊? -> ?舐???敦?? (stroke_width: 0-2)
+4. **????銝敺?*嚗?   - 隢?????脰矽嚗?*憭扯?岫**銝????脩???(憒??寡??敶押?????   - 銝?蝮賣?賊???(#FFD700) ??脯?5. **摮??末**嚗?   - **?身隢蝙?函?擃?(bold/heiti)**嚗頛拙??虜?閬?擃?蝎???皜???   - ?日????虜?舐??除鞈迎??蝙?冽扑擃?(kaiti)??
+**隢??喃?銵?JSON ?澆?嚗?*
 {{
     "position": "top-left", 
     "color": "#FFD700", 
@@ -2438,22 +2285,20 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
     "stroke_color": "#000000"
 }}
 
-**參數說明：**
+**?隤芣?嚗?*
 - position: top-left, top-right, bottom-left, bottom-right, top, bottom
-- color: 文字顏色 (Hex 或 rainbow)
-- font: heiti (推薦/粗體), bold (特粗), kaiti (僅用於優雅風格)
-- font_size: 盡量維持 50-90，除非真的沒位置才用到 40
-- angle: -10 到 10 (微旋轉增加動感)
-- stroke_width: 0 (無) 到 5 (極粗)
-- stroke_color: 描邊顏色
+- color: ??憿 (Hex ??rainbow)
+- font: heiti (?刻/蝎?), bold (?寧?), kaiti (??澆?◢??
+- font_size: ?⊿?蝬剜? 50-90嚗????雿蔭???40
+- angle: -10 ??10 (敺格?頧?????
+- stroke_width: 0 (?? ??5 (璆萇?)
+- stroke_color: ??憿
 """
 
-                # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
-                response = model_functional.generate_content(
+                # 雿輻??扳芋?脰?????嚗??冽?隤輸?皞怠漲隞亙????                response = model_functional.generate_content(
                     [vision_prompt, bg_image],
                     generation_config=genai.types.GenerationConfig(
-                        temperature=1.1, # 調高溫度，增加隨機性
-                        top_p=0.95,
+                        temperature=1.1, # 隤輸?皞怠漲嚗??璈?                        top_p=0.95,
                         top_k=40
                     )
                 )
@@ -2461,7 +2306,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 
                 print(f"[AI CREATIVE] Raw: {result[:100]}...")
                 
-                # 解析 JSON 或 Regex
+                # 閫?? JSON ??Regex
                 import re
                 import json
                 
@@ -2474,7 +2319,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 size = 60 # Default size
                 
                 try:
-                    # 嘗試解析 JSON
+                    # ?岫閫?? JSON
                     json_match = re.search(r'\{.*\}', result, re.DOTALL)
                     if json_match:
                         data = json.loads(json_match.group())
@@ -2492,30 +2337,27 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                     print(f"[AI PARSE ERROR] {parse_e}, trying fallback regex")
                     pass
                 
-                # 確保 color 是 hex 或 rainbow
+                # 蝣箔? color ??hex ??rainbow
                 if color.lower() != 'rainbow' and not color.startswith('#'):
-                     # 簡單映射常見色
-                     color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
+                     # 蝪∪??撣貉???                     color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
                      color = color_map.get(color.lower(), '#FFFFFF')
 
-                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, {angle}度, stroke={stroke_width}")
+                print(f"[AI CREATIVE] {text[:10]}... ??{position}, {color}, {font}, {size}px, {angle}摨? stroke={stroke_width}")
                 
                 final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color)
                 
-                # Send - 使用 reply_token 免費發送
-                if final_path:
-                    if send_image_to_line(user_id, final_path, "長輩圖製作完成，讚喔！", reply_token):
+                # Send - 雿輻 reply_token ?祥?潮?                if final_path:
+                    if send_image_to_line(user_id, final_path, "?瑁憬?ˊ雿???霈?嚗?, reply_token):
                         state['stage'] = 'idle'
-                        return None # 已回覆
-                    else:
+                        return None # 撌脣?閬?                    else:
                         state['stage'] = 'idle'
-                        return "長輩圖已製作但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)未設定。\n請檢查 .env 文件中的 IMGBB_API_KEY。"
+                        return "?瑁憬?歇鋆賭?雿?仃?n\n?航??嚗????單???ImgBB/GCS)?芾身摰n隢炎??.env ?辣銝剔? IMGBB_API_KEY??
                 else:
-                    return "製作失敗了... (Layout Error)"
+                    return "鋆賭?憭望?鈭?.. (Layout Error)"
                     
             except Exception as e:
-                print(f"[VISION ERROR] {e}，使用隨機創意 fallback")
-                # Fallback: 隨機創意而非固定值 (包含 rainbow 選項)
+                print(f"[VISION ERROR] {e}嚗蝙?券璈??fallback")
+                # Fallback: ?冽??菜????箏???(? rainbow ?賊?)
                 all_positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom']
                 all_colors = ['rainbow', '#FFD700', '#FF8C00', '#FF1493', '#00CED1', '#32CD32', '#DC143C']
                 all_fonts = ['kaiti', 'heiti']
@@ -2527,23 +2369,21 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 angle = random.choice(all_angles)
                 size = 65
                 
-                print(f"[FALLBACK CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}號, {angle}度")
+                print(f"[FALLBACK CREATIVE] {text[:10]}... ??{position}, {color}, {font}, {size}?? {angle}摨?)
 
             
             final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle)
             
-            # Send - 使用 reply_token 免費發送
-            if final_path:
-                if send_image_to_line(user_id, final_path, "長輩圖製作完成，讚喔！", reply_token):
+            # Send - 雿輻 reply_token ?祥?潮?            if final_path:
+                if send_image_to_line(user_id, final_path, "?瑁憬?ˊ雿???霈?嚗?, reply_token):
                     state['stage'] = 'idle'
-                    return None # 已回覆
-                else:
+                    return None # 撌脣?閬?                else:
                     state['stage'] = 'idle'
-                    return "長輩圖已製作但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)未設定。\n請檢查 .env 文件中的 IMGBB_API_KEY。"
+                    return "?瑁憬?歇鋆賭?雿?仃?n\n?航??嚗????單???ImgBB/GCS)?芾身摰n隢炎??.env ?辣銝剔? IMGBB_API_KEY??
             else:
-                return "製作失敗了...\n\n輸入「取消」可取消，或再試一次！"
+                return "鋆賭?憭望?鈭?..\n\n頛詨??瘨??嚗??岫銝甈∴?"
 
-    return "發生了一些問題...\n\n輸入「取消」可重新開始。"
+    return "?潛?鈭?鈭?憿?..\n\n頛詨??瘨?????
 
 
 # ======================
@@ -2551,56 +2391,52 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
 # ======================
 
 def classify_user_intent(text):
-    """使用 AI 判斷用戶意圖"""
+    """雿輻 AI ?斗?冽??"""
     try:
-        # 強制規則 (Regex Fallback) - 優先於 AI 判斷
-        # 1. 優先判斷取消/刪除提醒 (因為包含「提醒」二字，必須先於設定提醒判斷)
-        if any(kw in text for kw in ["取消提醒", "刪除提醒", "不要提醒", "cancel reminder", "delete reminder"]):
+        # 撘瑕閬? (Regex Fallback) - ?芸???AI ?斗
+        # 1. ?芸??斗??/?芷?? (??????摮?敹??閮剖????斗)
+        if any(kw in text for kw in ["????", "?芷??", "銝???", "cancel reminder", "delete reminder"]):
             return "cancel_reminder"
             
-        if any(kw in text for kw in ["提醒我", "設提醒", "叫我", "提醒", "remind me"]):
+        if any(kw in text for kw in ["????, "閮剜???, "?急?", "??", "remind me"]):
             return "set_reminder"
-        if any(kw in text for kw in ["我的提醒", "查看提醒", "待辦", "提醒列表", "my reminders"]):
+        if any(kw in text for kw in ["????", "?亦???", "敺齒", "???”", "my reminders"]):
             return "show_reminders"
             
-        # 2. 優先判斷長輩圖/梗圖製作 (包含「加文字」指令)
-        if any(kw in text for kw in ["長輩圖", "梗圖", "加文字", "加上文字", "迷因", "meme"]):
+        # 2. ?芸??斗?瑁憬??璇?鋆賭? (???????隞?
+        if any(kw in text for kw in ["?瑁憬??, "璇?", "??摮?, "????", "餈瑕?", "meme"]):
             return "meme_creation"
 
-        # 3. 判斷一般圖片生成 (避免 AI 誤判為 chat)
-        # 用戶說 "畫一隻...", "生成一張...", "給我一張...圖片"
-        if any(kw in text for kw in ["畫一", "生成一", "產生一", "製作一", "create a image", "generate a image"]):
+        # 3. ?斗銝?砍?????(?踹? AI 隤文??chat)
+        # ?冽隤?"?思???..", "??銝撘?..", "蝯行?銝撘?..??"
+        if any(kw in text for kw in ["?思?", "??銝", "?Ｙ?銝", "鋆賭?銝", "create a image", "generate a image"]):
             return "image_generation"
-        if "圖片" in text and any(kw in text for kw in ["給我", "想要", "來一張", "一張", "生"]):
+        if "??" in text and any(kw in text for kw in ["蝯行?", "?唾?", "靘?撘?, "銝撘?, "??]):
             return "image_generation"
             
         classification_prompt = f"""
-        請分析用戶輸入：「{text}」
+        隢???嗉撓?伐??text}??        
+        隢??嗆飛憿隞乩??嗡葉銝蝔格???(?芸??喲??乩誨蝣潘?銝??嗡???)嚗?        1. video_generation (?唾ˊ雿蔣??????
+        2. image_generation (?喟??????
+        3. image_modification (?喃耨?孵????啁??????脯?X)
+        4. meme_creation (?喳??瑁憬????
+        5. trip_planning (?喳??????蝔葆??押暺??
+        6. set_reminder (閮剖??????..)
+        7. show_reminders (?亦????閰Ｗ?颲?
+        8. chat (銝?祈?憭押??隞?撅祆銝膩????
         
-        請將其歸類為以下其中一種意圖 (只回傳類別代碼，不要其他文字)：
-        1. video_generation (想製作影片、生成視頻)
-        2. image_generation (想畫圖、生成圖片)
-        3. image_modification (想修改圖片、重新生成、換個顏色、改成XX)
-        4. meme_creation (想做長輩圖、梗圖)
-        5. trip_planning (想去旅遊、規劃行程、帶我去玩、景點推薦)
-        6. set_reminder (設定提醒、叫我...)
-        7. show_reminders (查看提醒、查詢待辦)
-        8. chat (一般聊天、問候、其他不屬於上述的功能)
-        
-        注意：
-        - "我要去宜蘭" -> trip_planning
-        - "我想去綠島" -> trip_planning
-        - "帶我去玩" -> trip_planning
-        - "把貓改成狗" -> image_modification
-        - "畫一隻貓" -> image_generation
-        - "提醒我吃藥" -> set_reminder
+        瘜冽?嚗?        - "???餃??? -> trip_planning
+        - "??餌?撜? -> trip_planning
+        - "撣嗆??餌" -> trip_planning
+        - "???寞??? -> image_modification
+        - "?思??餉?" -> image_generation
+        - "?????? -> set_reminder
         """
-        # 使用功能性模型進行意圖分類
+        # 雿輻??扳芋?脰?????
         response = model_functional.generate_content(classification_prompt)
         intent = response.text.strip().lower()
         
-        # 清理可能的多餘符號
-        import re
+        # 皜??航??擗泵??        import re
         match = re.search(r'(video_generation|image_generation|image_modification|meme_creation|trip_planning|set_reminder|show_reminders|chat)', intent)
         if match:
             return match.group(1)
@@ -2610,15 +2446,14 @@ def classify_user_intent(text):
         return "chat"
 
 def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
-    """主要 LLM 處理函數，reply_token 用於發送狀態通知"""
+    """銝餉? LLM ???賣嚗eply_token ?冽?潮??"""
     global chat_sessions, user_image_generation_state, user_meme_state, user_trip_plans, user_images, user_video_state, user_daily_video_count, user_last_image_prompt
     
     try:
-        # 檢查是否要清除記憶（關鍵字匹配）
-        # 重要：如果用戶正在進行長輩圖/行程規劃等流程，不應該檢查清除記憶
-        in_active_flow = False
+        # 瑼Ｘ?臬閬??方??塚??摮??
+        # ??嚗???嗆迤?券脰??瑁憬??銵?閬?蝑?蝔?銝?閰脫炎?交??方???        in_active_flow = False
         if user_id:
-            # 檢查是否在任何流程中
+            # 瑼Ｘ?臬?其遙雿?蝔葉
             if user_id in user_meme_state and user_meme_state.get(user_id, {}).get('stage') != 'idle':
                 in_active_flow = True
             if user_id in user_trip_plans and user_trip_plans.get(user_id, {}).get('stage') != 'idle':
@@ -2627,21 +2462,20 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 in_active_flow = True
         
         should_clear = False
-        if not in_active_flow:  # 只有在沒有進行中的流程時才檢查清除記憶
-            clear_keywords = ["重新開始", "清除記憶", "忘記我", "重置對話", "新的開始", "清空記憶", "reset", "重來", "忘掉", "清空"]
+        if not in_active_flow:  # ?芣??冽??脰?銝剔?瘚???瑼Ｘ皜閮
+            clear_keywords = ["???", "皜閮", "敹???, "?蔭撠店", "?啁???", "皜征閮", "reset", "??", "敹?", "皜征"]
             should_clear = any(keyword in user_input for keyword in clear_keywords)
             
-            # 用 AI 判斷是否有清除記憶的意圖（更智慧的判斷）
-            intent_check_keywords = ["重新", "清除", "忘記", "重置", "清空", "reset", "記憶", "對話", "開始"]
+            # ??AI ?斗?臬???方??嗥???嚗?箸??瘀?
+            intent_check_keywords = ["?", "皜", "敹?", "?蔭", "皜征", "reset", "閮", "撠店", "??"]
             if not should_clear and any(keyword in user_input for keyword in intent_check_keywords):
-                # 用簡單的 AI 呼叫來判斷意圖 (使用功能性模型)
-                intent_prompt = f"使用者說：「{user_input}」。請判斷使用者是否想要清除對話記憶、重新開始對話？只回答「是」或「否」。"
+                # ?函陛?桃? AI ?澆靘?瑟???(雿輻??扳芋??
+                intent_prompt = f"雿輻?牧嚗user_input}???斗雿輻??行閬??文?閰梯??嗚??圈?憪?閰梧??芸?蝑?????
                 intent_response = model_functional.generate_content(intent_prompt)
-                should_clear = "是" in intent_response.text
+                should_clear = "?? in intent_response.text
         
         if should_clear:
-            # 清除該用戶的所有記憶
-            if user_id in chat_sessions:
+            # 皜閰脩?嗥??????            if user_id in chat_sessions:
                 del chat_sessions[user_id]
             if user_id in last_activity:
                 del last_activity[user_id]
@@ -2653,22 +2487,19 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 del user_meme_state[user_id]
             if user_id in user_trip_plans:
                 del user_trip_plans[user_id]
-            return "好的！我已經清除所有記憶了，讓我們重新開始吧！有任何問題都可以問我～"
+            return "憟賜?嚗?撌脩?皜????嗡?嚗????圈?憪嚗?隞颱????賢隞亙???"
         
-        # 檢查表情符號（但在長輩圖模式下不攔截）
-        meme_state = user_meme_state.get(user_id, {})
-        if meme_state.get('stage') != 'waiting_text':  # 只有不在長輩圖輸入模式時才檢測表情符號
-            emoji_emotion = analyze_emoji_emotion(user_input)
+        # 瑼Ｘ銵冽?蝚西?嚗??券頛拙?璅∪?銝??嚗?        meme_state = user_meme_state.get(user_id, {})
+        if meme_state.get('stage') != 'waiting_text':  # ?芣?銝?瑁憬?撓?交芋撘??炎皜祈”?泵??            emoji_emotion = analyze_emoji_emotion(user_input)
             if emoji_emotion and len(user_input) < 10:
                 return get_emoji_response(emoji_emotion)
         
-        # 檢查對話是否過期
+        # 瑼Ｘ撠店?臬??
         now = datetime.now()
         if user_id in last_activity:
             time_diff = now - last_activity[user_id]
             if time_diff > SESSION_TIMEOUT:
-                # 對話已過期，清除舊記錄
-                print(f"Session expired for user {user_id}, clearing history")
+                # 撠店撌脤???皜????                print(f"Session expired for user {user_id}, clearing history")
                 if user_id in chat_sessions:
                     del chat_sessions[user_id]
                 if user_id in user_images:
@@ -2676,19 +2507,16 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 if user_id in user_image_generation_state:
                     del user_image_generation_state[user_id]
         
-        # 更新最後活動時間
-        last_activity[user_id] = now
+        # ?湔?敺暑????        last_activity[user_id] = now
         
-        # 檢查用戶是否想取消操作
-        if user_input.strip() in ["取消", "不做了", "不想做了", "停止", "cancel", "不要了", "先不要", "放棄", "quit", "exit"]:
-            # 清除所有狀態
-            if user_id in user_image_generation_state:
+        # 瑼Ｘ?冽?臬?喳?瘨?雿?        if user_input.strip() in ["??", "銝?鈭?, "銝??", "?迫", "cancel", "銝?鈭?, "??閬?, "?暹?", "quit", "exit"]:
+            # 皜?????            if user_id in user_image_generation_state:
                 user_image_generation_state[user_id] = 'idle'
             if user_id in user_meme_state:
                 user_meme_state[user_id] = {'stage': 'idle'}
             if user_id in user_video_state:
                 user_video_state[user_id] = 'idle'
-            return "好的！已經取消剛才的操作了。我們可以聊聊天或是做別的事情喔！😊"
+            return "憟賜?嚗歇蝬?瘨?????鈭??隞亥??予??????嚗??
 
 
 
@@ -2699,67 +2527,64 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              pass
 
         # ------------------------------------------------------------
-        #  AI 意圖判斷 (取代舊的關鍵字檢測)
+        #  AI ???斗 (?誨???摮炎皜?
         # ------------------------------------------------------------
         
-        # 但首先，必須先處理「正在進行中」的狀態 (State Handling)
-        # 因為如果用戶正在生圖流程中回答問題，不應該被分類為新意圖
+        # 雿???敹????迤?券脰?銝准????(State Handling)
+        # ?憒??冽甇???瘚?銝剖?蝑?憿?銝?閰脰◤???箸??
         
-        # 檢查 Agent 狀態 (若在對話流程中，直接交給 Agent)
+        # 瑼Ｘ Agent ???(?亙撠店瘚?銝哨??湔鈭斤策 Agent)
         if user_id in user_meme_state and user_meme_state.get(user_id, {}).get('stage') != 'idle':
              return handle_meme_agent(user_id, user_input, reply_token=reply_token)
              
         if user_id in user_trip_plans and user_trip_plans.get(user_id, {}).get('stage') != 'idle':
              return handle_trip_agent(user_id, user_input, reply_token=reply_token)
 
-        # 檢查圖片生成狀態 (處理等待 Prompt 或 Modification 的情況)
+        # 瑼Ｘ???????(??蝑? Prompt ??Modification ??瘜?
         if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
-             # 這裡原有的邏輯不需要變動，因為它們是在 check state
+             # ?ㄐ????頛臭??閬????摰??check state
              pass 
         else:
-             # 只有在 Idle 狀態才做意圖判斷
-             # 只有在 Idle 狀態才做意圖判斷
-             
+             # ?芣???Idle ????????             # ?芣???Idle ????????             
              # -------------------------------------------------------
-             # 混合式判斷 (Hybrid Router)
-             # 1. 先檢查「特定關鍵字」(確保選單功能 100% 觸發制式流程)
-             # 2. 如果沒有關鍵字，才交給 AI 判斷 (讓聊天也能觸發功能)
+             # 瘛瑕?撘??(Hybrid Router)
+             # 1. ?炎?乓摰??萄???蝣箔??詨? 100% 閫貊?嗅?瘚?)
+             # 2. 憒?瘝??摮??漱蝯?AI ?斗 (霈?憭拐??質孛?澆???
              # -------------------------------------------------------
              
              current_intent = None
              
-             # 關鍵字強制映射 (還原使用者的制式操作體驗)
-             if any(k in user_input for k in ["規劃行程", "行程規劃", "去玩", "帶我去", "旅遊", "旅行", "景點推薦"]):
+             # ?摮撥?嗆?撠?(??雿輻???嗅???擃?)
+             if any(k in user_input for k in ["閬?銵?", "銵?閬?", "?餌", "撣嗆???, "??", "??", "?舫??刻"]):
                  current_intent = 'trip_planning'
-             elif any(k in user_input for k in ["長輩圖", "做長輩圖", "製作長輩圖", "梗圖", "迷因", "加文字", "上文字", "做一張圖"]):
+             elif any(k in user_input for k in ["?瑁憬??, "?頛拙?", "鋆賭??瑁憬??, "璇?", "餈瑕?", "??摮?, "銝?摮?, "??撘萄?"]):
                  current_intent = 'meme_creation'
-             elif any(k in user_input for k in ["生成圖片", "產生圖片", "畫一張", "做圖", "畫圖", "繪圖"]):
+             elif any(k in user_input for k in ["????", "?Ｙ???", "?思?撘?, "??", "?怠?", "蝜芸?"]):
                  current_intent = 'image_generation'
-             elif any(k in user_input for k in ["生成影片", "製作影片", "做影片"]):
+             elif any(k in user_input for k in ["??敶梁?", "鋆賭?敶梁?", "?蔣??]):
                  current_intent = 'video_generation'
-             elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項"]):
+             elif any(k in user_input for k in ["????", "?亥岷??", "?亦???", "敺齒鈭?"]):
                  current_intent = 'show_reminders'
              
-             # 如果關鍵字沒抓到，才用 AI (處理自然語言，如 "我想去宜蘭")
+             # 憒??摮??嚗???AI (???芰隤?嚗? "??餃???)
              if not current_intent:
                  current_intent = classify_user_intent(user_input)
              
              print(f"User Intent: {current_intent} (Input: {user_input})")
 
-             # 1. 影片生成
+             # 1. 敶梁???
              if current_intent == 'video_generation':
                  if not check_video_limit(user_id):
-                     return "抱歉，每天只能生成一次影片喔！明天再來玩吧！加油！Cheer up！"
+                     return "?望?嚗?憭拙?賜???甈∪蔣??嚗?憭拙?靘?改??硃嚗heer up嚗?
                  user_video_state[user_id] = 'generating'
                  # ... (video generation logic simplified for preview)
-                 return "🎥 影片生成功能正在進行大升級 (Private Preview)！\n\nGoogle 正在為我們準備更強大的 Veo 模型，敬請期待！✨"
+                 return "? 敶梁????甇??脰?憭批?蝝?(Private Preview)嚗n\nGoogle 甇??箸????撘瑕之??Veo 璅∪?嚗隢?敺???
 
-             # 2. 圖片修改 (與 Image Gen 分開處理)
+             # 2. ??靽格 (??Image Gen ????)
              elif current_intent == 'image_modification':
-                  # 直接進入修改流程
+                  # ?湔?脣靽格瘚?
                   if user_id in user_last_image_prompt:
-                       # 模擬 detect_regenerate_image_intent 的邏輯
-                       user_image_generation_state[user_id] = 'generating'
+                       # 璅⊥ detect_regenerate_image_intent ??頛?                       user_image_generation_state[user_id] = 'generating'
                        
                        # ... (Execute Modification Logic reused from below)
                        # For simplicity, we can reuse the code block or jump to it.
@@ -2768,14 +2593,11 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                        last_prompt = user_last_image_prompt.get(user_id, "")
                        
                        optimize_prompt = f"""
-                       系統：用戶想要修改之前的圖片。
-                       舊提示詞：{last_prompt}
-                       用戶修改需求：{user_input}
+                       蝟餌絞嚗?嗆閬耨?嫣???????                       ??蝷箄?嚗last_prompt}
+                       ?冽靽格?瘙?{user_input}
                        
-                       請產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
-                       回傳 JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
-                       要求：1. 保留舊圖核心。 2. 絕對不要講笑話。
-                       """
+                       隢????Prompt????嗉?瘙?摮?隢??text_overlay??                       ? JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
+                       閬?嚗?. 靽????詨???2. 蝯?銝?雓?閰晞?                       """
                        # ... (Generation Logic)
                        try:
                             optimized = model.generate_content(optimize_prompt)
@@ -2795,130 +2617,119 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                             if success:
                                 if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
                                 user_last_image_prompt[user_id] = {'prompt': image_prompt}
-                                # 使用 reply_token 免費發送
-                                msg = "圖片修改完成🎉\n\n如需再次修改，請直接說明調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                                # 雿輻 reply_token ?祥?潮?                                msg = "??靽格摰???\n\n憒??活靽格嚗??湔隤芣?隤踵?瘙n憒??隤踵嚗?隤芥????k?n?? ?敺?蝑?15蝘???隢?活?潮??荔?隞亙??航炊嚗?
                                 if send_image_to_line(user_id, image_path, msg, reply_token):
                                     user_image_generation_state[user_id] = 'can_modify'
-                                    return None # 已回覆
-                                else:
-                                    return "圖片生成成功但發送失敗。"
+                                    return None # 撌脣?閬?                                else:
+                                    return "??????雿?仃??
                             else:
                                 user_image_generation_state[user_id] = 'can_modify'
-                                return f"修改失敗：{result}"
+                                return f"靽格憭望?嚗result}"
                        except Exception as e:
                             print(e)
-                            return "處理錯誤..."
+                            return "???航炊..."
                   else:
-                       return "咦？你還沒生成過圖片喔！請先說「畫一張...」來試試看！"
+                       return "?佗?雿?瘝???????隢?隤芥銝撘?..??閰西岫??"
 
-             # 3. 圖片生成 - 引導式對話
-             elif current_intent == 'image_generation':
-                 # 如果用戶已經在輸入中包含了描述 (例如 "給我一張可愛的貓咪圖")
-                 # 就不應該問 "請描述您想要的圖片"，而是直接確認
+             # 3. ???? - 撘?撘?閰?             elif current_intent == 'image_generation':
+                 # 憒??冽撌脩??刻撓?乩葉?鈭?餈?(靘? "蝯行?銝撘萄??鞎??)
+                 # 撠曹??府??"隢?餈唳?唾?????嚗?湔蝣箄?
                  
-                 # 簡單過濾觸發詞
-                 clean_prompt = user_input
-                 for kw in ["給我一張", "畫一張", "我要一張", "生成一張", "產生一張", "畫一隻", "製作一張", "create a", "generate a", "image of", "picture of"]:
+                 # 蝪∪?蕪閫貊閰?                 clean_prompt = user_input
+                 for kw in ["蝯行?銝撘?, "?思?撘?, "??銝撘?, "??銝撘?, "?Ｙ?銝撘?, "?思???, "鋆賭?銝撘?, "create a", "generate a", "image of", "picture of"]:
                      clean_prompt = clean_prompt.replace(kw, "")
-                 clean_prompt = clean_prompt.replace("圖片", "").strip()
+                 clean_prompt = clean_prompt.replace("??", "").strip()
                  
-                 if len(clean_prompt) > 2: # 假設描述長度大於2就是有效描述
+                 if len(clean_prompt) > 2: # ?身?膩?瑕漲憭扳2撠望???膩
                      user_image_generation_state[user_id] = 'waiting_for_confirmation'
-                     # 保存 Prompt
+                     # 靽? Prompt
                      if user_id not in user_last_image_prompt or isinstance(user_last_image_prompt[user_id], str):
                         user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
                      user_last_image_prompt[user_id]['pending_description'] = clean_prompt
                      
-                     return f"沒問題！您想要生成的圖片是：\n\n「{clean_prompt}」\n\n請確認是否開始生成？\n(請回答「確定」或「ok」開始，也可說「取消」)"
+                     return f"瘝?憿??冽閬??????荔?\n\n?clean_prompt}?n\n隢Ⅱ隤?阡?憪???\n(隢?蝑Ⅱ摰??k??憪?銋隤芥?瘨?"
                  else:
-                     # 描述太短或沒有描述，才進入詢問模式
+                     # ?膩憭芰????餈堆??脣閰Ｗ?璅∪?
                      user_image_generation_state[user_id] = 'waiting_for_prompt'
-                     return """好的，我們來生成圖片。
+                     return """憟賜?嚗?????????
+隢?餈唳?唾????摰對?
+?? 憸冽憿?撅晞絲?ㄝ??撣?
+???抽??鈭箇憿?隞暻潭見?犖???暻?? ??憿?瘞游蔗?硃?怒??
 
-請描述您想要的圖片內容：
-🌄 風景類：山、海、森林、城市等
-👨‍👩‍👧 人物類：什麼樣的人、在做什麼
-🎨 藝術類：水彩、油畫、卡通等
+隢??餈啗底蝝堆???亥牧??憪??蝙?券?閮剛身摰?嚗??唾ˊ雿??冽?隤芥?瘨?""
 
-請盡量描述詳細，或直接說「開始生成」使用預設設定。
-＊不想製作了隨時說「取消」。"""
-
-             # 4. 長輩圖製作
-             elif current_intent == 'meme_creation':
+             # 4. ?瑁憬?ˊ雿?             elif current_intent == 'meme_creation':
                  return handle_meme_agent(user_id, user_input, is_new_session=True, reply_token=reply_token)
 
-             # 5. 行程規劃
+             # 5. 銵?閬?
              elif current_intent == 'trip_planning':
                  return handle_trip_agent(user_id, user_input, is_new_session=True, reply_token=reply_token)
 
-             # 6. 查看提醒
+             # 6. ?亦???
              elif current_intent == 'show_reminders':
-                 if not ADVANCED_FEATURES_ENABLED or not db: return "提醒功能需要資料庫支援喔！"
+                 if not ADVANCED_FEATURES_ENABLED or not db: return "????閬??澈?舀??"
                  try:
                      reminders = db.get_user_reminders(user_id, include_sent=False)
-                     if not reminders: return "你目前沒有待辦提醒喔！想要設定的話，說「提醒我...」就可以了！"
-                     reminder_list = "📋 **你的提醒清單** 📋\n\n"
+                     if not reminders: return "雿????颲行???嚗閬身摰?閰梧?隤芥???...?停?臭誑鈭?"
+                     reminder_list = "?? **雿???皜** ??\n\n"
                      for idx, reminder in enumerate(reminders, 1):
                          t = reminder['reminder_time']
                          if isinstance(t, str): t = datetime.fromisoformat(t)
-                         reminder_list += f"{idx}. {t.strftime('%m月%d日 %H:%M')} - {reminder['reminder_text']}\n"
-                     return reminder_list + "\n有需要都可以找我！"
-                 except: return "查看待辦時出了點問題..."
+                         reminder_list += f"{idx}. {t.strftime('%m??d??%H:%M')} - {reminder['reminder_text']}\n"
+                     return reminder_list + "\n??閬?臭誑?暹?嚗?
+                 except: return "?亦?敺齒?鈭???..."
 
-             # 6.5. 取消提醒
+             # 6.5. ????
              elif current_intent == 'cancel_reminder':
-                 if not ADVANCED_FEATURES_ENABLED or not db: return "提醒功能需要資料庫支援喔！"
+                 if not ADVANCED_FEATURES_ENABLED or not db: return "????閬??澈?舀??"
                  try:
-                     # 簡單起見，目前支援刪除全部 (未來可擴充刪除指定 ID)
+                     # 蝪∪韏瑁?嚗??游?文??(?芯??舀??斗?摰?ID)
                      count = db.delete_all_user_reminders(user_id)
                      if count > 0:
-                         return f"好的，已為您刪除共 {count} 則提醒！"
+                         return f"憟賜?嚗歇?箸?芷??{count} ????"
                      else:
-                         return "您目前沒有設定任何提醒喔！"
+                         return "?函???身摰遙雿???嚗?
                  except Exception as e:
                      print(f"Delete reminder error: {e}")
-                     return "取消提醒時發生錯誤，請稍後再試。"
+                     return "??????隤歹?隢?敺?閰艾?
 
-             # 7. 設定提醒
+             # 7. 閮剖???
              elif current_intent == 'set_reminder':
-                 if not ADVANCED_FEATURES_ENABLED or not db: return "提醒功能需要資料庫支援喔！"
+                 if not ADVANCED_FEATURES_ENABLED or not db: return "????閬??澈?舀??"
                  try:
-                     parse_prompt = f"""用戶說：「{user_input}」。解析提醒並重寫溫馨內容。
-                     回傳 JSON: {{ "reminder_text": "...", "reminder_time": "2026-01-17T08:00:00" }}
-                     要求：回應請簡短、順暢，不要廢話。
-                     時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}
+                     parse_prompt = f"""?冽隤迎??user_input}?圾???蒂?神皞恍成?批捆??                     ? JSON: {{ "reminder_text": "...", "reminder_time": "2026-01-17T08:00:00" }}
+                     閬?嚗???蝪∠???ｇ?銝?撱Ｚ店??                     ??嚗datetime.now().strftime('%Y-%m-%d %H:%M')}
                      """
-                     # 使用功能性模型解析
-                     resp = model_functional.generate_content(parse_prompt)
+                     # 雿輻??扳芋?圾??                     resp = model_functional.generate_content(parse_prompt)
                      import json, re
                      data = json.loads(re.search(r'\{[^}]+\}', resp.text).group())
                      t = datetime.fromisoformat(data['reminder_time'])
                      db.add_reminder(user_id, data['reminder_text'], t)
                      
-                     reply = f"好的！已設定於 {t.strftime('%m月%d日 %H:%M')} 提醒：「{data['reminder_text']}」。"
+                     reply = f"憟賜?嚗歇閮剖???{t.strftime('%m??d??%H:%M')} ??嚗data['reminder_text']}??
                      
-                     # 檢查系統額度狀態，若已滿則主動告知
+                     # 瑼Ｘ蝟餌絞憿漲????亙歇皛踹?銝餃??
                      if db.is_system_quota_full():
-                         reply += "\n\n⚠️ 注意：目前系統免費額度已滿，屆時可能無法主動推播！\n請記得若沒收到通知，手動輸入「我的提醒」查看喔！"
+                         reply += "\n\n?? 瘜冽?嚗?頂蝯勗?鞎駁?摨血歇皛選?撅??航?⊥?銝餃??冽嚗n隢?敺瘝?圈嚗??撓?乓??????嚗?
                          
                      return reply
                  except Exception as e:
                      print(f"Set reminder error: {e}")
-                     return "設定提醒失敗了...請說清楚一點，例如「明天早上8點吃藥」。"
+                     return "閮剖???憭望?鈭?..隢牧皜?銝暺?靘???憭拇銝?暺??乓?
 
-             # 8. 一般聊天 (Chat)
+             # 8. 銝?祈?憭?(Chat)
              else:
-                 # 檢查是否有圖
+                 # 瑼Ｘ?臬??
                  has_image = user_id in user_images
                  if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
                  chat = chat_sessions[user_id]
                  
                  if has_image:
                      upload_image = PIL.Image.open(user_images[user_id])
-                     formatted_input = [f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}", upload_image]
+                     formatted_input = [f"蝟餌絞?內嚗??冽??萄之撣怎?隤除??嚗蒂銝????敺?摰?????蝳芥?瘝對?Cheer up嚗????n\n?冽隤迎?{user_input}", upload_image]
                      response = chat.send_message(formatted_input)
                  else:
-                     formatted_input = f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}"
+                     formatted_input = f"蝟餌絞?內嚗??冽??萄之撣怎?隤除??嚗蒂銝????敺?摰?????蝳芥?瘝對?Cheer up嚗????n\n?冽隤迎?{user_input}"
                      response = chat.send_message(formatted_input)
                  return response.text
 
@@ -2926,43 +2737,34 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
 
 
         
-        # 檢查圖片生成狀態
-        if user_id in user_image_generation_state:
+        # 瑼Ｘ???????        if user_id in user_image_generation_state:
             state = user_image_generation_state[user_id]
             
             
-            # 處理可修改狀態
-            if state == 'can_modify':
-                # 檢查是否要結束修改
-                end_keywords = ['完成', 'ok', 'OK', '好了', '不用了', '結束', '謝謝', '感謝']
+            # ???臭耨?寧???            if state == 'can_modify':
+                # 瑼Ｘ?臬閬??耨??                end_keywords = ['摰?', 'ok', 'OK', '憟賭?', '銝鈭?, '蝯?', '雓?', '??']
                 if any(keyword in user_input for keyword in end_keywords):
                     user_image_generation_state[user_id] = 'idle'
-                    return "好的！圖片已完成。期待下次為您服務！"
+                    return "憟賜?嚗??歇摰???敺?甈∠?冽???"
                 
-                # 檢查是否只是說「修改」
-                if user_input.strip() in ['修改', '要修改', '我要修改']:
+                # 瑼Ｘ?臬?芣隤芥耨?嫘?                if user_input.strip() in ['靽格', '閬耨??, '??靽格']:
                     user_image_generation_state[user_id] = 'waiting_for_modification'
-                    return "好的，請說明您想要如何修改這張圖片？\n(例如：加上文字、改變顏色、調整內容等)\n\n如不需調整，請說「完成」或「ok」。" 
+                    return "憟賜?嚗?隤芣??冽閬?雿耨?寥撐??嚗n(靘?嚗?銝?摮霈??脯矽?游摰寧?)\n\n憒??隤踵嚗?隤芥????k?? 
                 else:
-                    # 直接說修改內容，進入修改流程
+                    # ?湔隤芯耨?孵摰對??脣靽格瘚?
                     user_image_generation_state[user_id] = 'generating'
                     
                     last_prompt = user_last_image_prompt.get(user_id, "")
                     optimize_prompt = f"""
-                    系統：用戶想要修改之前的圖片。
-                    舊提示詞：{last_prompt}
-                    用戶修改需求：{user_input}
+                    蝟餌絞嚗?嗆閬耨?嫣???????                    ??蝷箄?嚗last_prompt}
+                    ?冽靽格?瘙?{user_input}
                     
-                    請產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
-                    回傳 JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
-                    要求：
-                    1. 保留舊圖核心。 
-                    2. 絕對不要講笑話。
-                    3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
-                    
+                    隢????Prompt????嗉?瘙?摮?隢??text_overlay??                    ? JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
+                    閬?嚗?                    1. 靽????詨???
+                    2. 蝯?銝?雓?閰晞?                    3. text_overlay 敹??胯?????蝳迫??祈??”??餈?(憒?(red heart)) ?遙雿?憿舐內?函?????                    
                     """
                     try:
-                        # 使用功能性模型解析 Prompt
+                        # 雿輻??扳芋?圾??Prompt
                         optimized = model_functional.generate_content(optimize_prompt)
                         import json, re
                         image_prompt = optimized.text.strip()
@@ -2980,75 +2782,60 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         if success:
                             if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
                             user_last_image_prompt[user_id] = {'prompt': image_prompt}
-                            # 使用 reply_token 免費發送
-                            msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                            # 雿輻 reply_token ?祥?潮?                            msg = "??靽格摰?嚗n\n?隞亦匱蝥矽?游?嚗?銝?隤踵嚗?隤芥??n?? ?敺?蝑?15蝘???隢?活?潮??荔?隞亙??航炊嚗?
                             if send_image_to_line(user_id, image_path, msg, reply_token):
                                 user_image_generation_state[user_id] = 'can_modify'
-                                return None # 已回覆
-                            else:
+                                return None # 撌脣?閬?                            else:
                                 user_image_generation_state[user_id] = 'can_modify'
-                                return "圖片生成成功但發送失敗。請檢查後台 Log。"
+                                return "??????雿?仃??瑼Ｘ敺 Log??
                         else:
                             user_image_generation_state[user_id] = 'can_modify'
-                            return f"修改失敗：{result}"
+                            return f"靽格憭望?嚗result}"
                     except Exception as e:
                         print(f"Modification error: {e}")
                         user_image_generation_state[user_id] = 'can_modify'
-                        return "修改時發生錯誤，請重試。"
+                        return "靽格??隤歹?隢?閰艾?
             
             if state == 'waiting_for_confirmation':
-                # 用戶確認生成
-                if '取消' in user_input:
+                # ?冽蝣箄???
+                if '??' in user_input:
                     user_image_generation_state[user_id] = 'idle'
-                    return "已取消圖片生成。"
-                elif '確定' in user_input or '開始' in user_input or '生成' in user_input:
-                    # 用戶確認，設定狀態為 generating 並繼續往下執行
-                    user_image_generation_state[user_id] = 'generating'
-                    state = 'generating'  # 重要：更新 state 變數，讓下面的 if state == 'generating' 能夠執行
-                    # 不要 return，讓它繼續執行下面的 generating 邏輯
+                    return "撌脣?瘨?????
+                elif '蝣箏?' in user_input or '??' in user_input or '??' in user_input:
+                    # ?冽蝣箄?嚗身摰?? generating 銝衣匱蝥?銝銵?                    user_image_generation_state[user_id] = 'generating'
+                    state = 'generating'  # ??嚗??state 霈嚗?銝??if state == 'generating' ?賢??瑁?
+                    # 銝? return嚗?摰匱蝥銵??Ｙ? generating ?摩
                 else:
-                    # 用戶重新描述，用新描述再次確認
-                    return f"好的，您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                    # ?冽??膩嚗?唳?餈啣?甈∠Ⅱ隤?                    return f"憟賜?嚗?唾??????摰寞嚗n\n?user_input}?n\n隢Ⅱ隤?阡?憪???\n(隢?蝑Ⅱ摰???膩嚗??航牧??瘨?\n\n?? ?敺?蝑?15蝘???隢?活?潮??荔?隞亙??航炊嚗?
             
             if state == 'waiting_for_prompt':
-                # 檢查是否要取消
-                if '取消' in user_input:
+                # 瑼Ｘ?臬閬?瘨?                if '??' in user_input:
                     user_image_generation_state[user_id] = 'idle'
-                    return "已取消圖片生成。"
-                # 用戶已提供詳細需求，先確認
-                user_image_generation_state[user_id] = 'waiting_for_confirmation'
-                # 保存用戶的原始描述，以便後續生成使用
+                    return "撌脣?瘨?????
+                # ?冽撌脫?靘底蝝圈?瘙??Ⅱ隤?                user_image_generation_state[user_id] = 'waiting_for_confirmation'
+                # 靽??冽??憪?餈堆?隞乩噶敺???雿輻
                 if user_id not in user_last_image_prompt or isinstance(user_last_image_prompt[user_id], str):
                     user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
                 user_last_image_prompt[user_id]['pending_description'] = user_input
-                return f"您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                return f"?冽閬??????批捆?荔?\n\n?user_input}?n\n隢Ⅱ隤?阡?憪???\n(隢?蝑Ⅱ摰???膩嚗??航牧??瘨?\n\n?? ?敺?蝑?15蝘???隢?活?潮??荔?隞亙??航炊嚗?
             
             if state == 'generating':
-                # 用戶已確認，開始生成
+                # ?冽撌脩Ⅱ隤?????
                 
-                # 使用保存的原始描述，而不是用戶當前輸入的「確定」
-                saved_data = user_last_image_prompt.get(user_id, {})
+                # 雿輻靽???憪?餈堆????舐?嗥?撓?亦??Ⅱ摰?                saved_data = user_last_image_prompt.get(user_id, {})
                 if isinstance(saved_data, str):
                     original_description = saved_data if saved_data else user_input
                 else:
                     original_description = saved_data.get('pending_description', user_input)
                 
-                # 使用 AI 優化提示詞（強調安全性、禁止笑話、支援文字疊加）
-                optimize_prompt = f"""用戶想生成圖片，描述是：「{original_description}」。
-                請將這個描述轉換成適合 AI 生圖的英文提示詞。
-                如果用戶明顯想要在圖片上寫字（例如：「上面寫早安」），請將文字提取出來。
-                
-                回傳 JSON 格式：
-                {{
-                    "image_prompt": "英文生圖 Prompt",
-                    "text_overlay": "要寫在圖上的文字 (繁體中文, 可選)"
+                # 雿輻 AI ?芸??內閰?撘瑁矽摰?扼?甇Ｙ?閰晞?湔?摮???
+                optimize_prompt = f"""?冽?喟??????膩?荔??original_description}??                隢???餈啗????拙? AI ?????蝷箄???                憒??冽?＊?唾??典???撖怠?嚗?憒????Ｗ神?拙???嚗?撠?摮??靘?                
+                ? JSON ?澆?嚗?                {{
+                    "image_prompt": "?望??? Prompt",
+                    "text_overlay": "閬神?典?銝??? (蝜?銝剜?, ?舫)"
                 }}
                 
-                要求：
-                1. 風格正向、安全。
-                2. 絕對不要講笑話。
-                3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
-                """
+                閬?嚗?                1. 憸冽甇?????具?                2. 蝯?銝?雓?閰晞?                3. text_overlay 敹??胯?????蝳迫??祈??”??餈?(憒?(red heart)) ?遙雿?憿舐內?函?????                """
                 try:
                     optimized = model.generate_content(optimize_prompt)
                     
@@ -3067,76 +2854,69 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         print(f"JSON parsing error: {e}")
                         pass
                     
-                    print(f"生成圖片，Prompt: {image_prompt}")
+                    print(f"????嚗rompt: {image_prompt}")
                     
-                    # 生成圖片
+                    # ????
                     success, result = generate_image_with_imagen(image_prompt, user_id)
                     image_path = result if success else None
                     error_reason = result if not success else None
                     
                     if image_path:
-                        # 如果有文字疊加需求
-                        if text_overlay:
-                            # 自動疊加文字 (預設置中)
+                        # 憒???摮???瘙?                        if text_overlay:
+                            # ?芸????? (?身蝵桐葉)
                             image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
                         
-                        # 保存 Prompt 以便修改
+                        # 靽? Prompt 隞乩噶靽格
                         user_last_image_prompt[user_id] = {'prompt': image_prompt}
                         
-                        # 傳送圖片給用戶 - 使用 reply_token 免費發送
-                        msg = "圖片生成完成。\n\n如需修改，請直接說明您的調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 修改期間約15秒，請勿再次發送訊息，以免錯誤！"
+                        # ?喲??策?冽 - 雿輻 reply_token ?祥?潮?                        msg = "????摰??n\n憒?靽格嚗??湔隤芣??函?隤踵?瘙n憒??隤踵嚗?隤芥????k?n?? 靽格??蝝?5蝘?隢?活?潮??荔?隞亙??航炊嚗?
                         if send_image_to_line(user_id, image_path, msg, reply_token):
-                            # 設定為可修改狀態，而不是 idle
+                            # 閮剖??箏靽格???????idle
                             user_image_generation_state[user_id] = 'can_modify'
-                            return None # 已回覆
-                        else:
-                            # 發送失敗
-                            user_image_generation_state[user_id] = 'idle'
-                            return "圖片已生成但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)設定有誤。\n請檢查後台 Log 或 terminal 輸出中的 [SEND IMAGE] 訊息。"
+                            return None # 撌脣?閬?                        else:
+                            # ?潮仃??                            user_image_generation_state[user_id] = 'idle'
+                            return "??撌脩????潮仃?n\n?航??嚗????單???ImgBB/GCS)閮剖??炊?n隢炎?亙???Log ??terminal 頛詨銝剔? [SEND IMAGE] 閮??
                     else:
-                        # 生成失敗，清除待處理數據並設為 idle
+                        # ??憭望?嚗??文????豢?銝西身??idle
                         if user_id in user_last_image_prompt:
                             user_last_image_prompt[user_id].pop('pending_description', None)
                         user_image_generation_state[user_id] = 'idle'
-                        # 顯示詳細錯誤原因
-                        failure_msg = f"圖片生成失敗。\n\n失敗原因：{error_reason if error_reason else '未知錯誤'}\n\n如需重新生成，請再次說「生成圖片」並描述您的需求。"
+                        # 憿舐內閰喟敦?航炊??
+                        failure_msg = f"????憭望??n\n憭望???嚗error_reason if error_reason else '?芰?航炊'}\n\n憒????嚗??活隤芥????蒂?膩?函??瘙?
                         return failure_msg
                 
                 except Exception as e:
-                    print(f"圖片生成錯誤: {e}")
+                    print(f"?????航炊: {e}")
                     import traceback
                     traceback.print_exc()
                     user_image_generation_state[user_id] = 'waiting_for_prompt'
-                    return "圖片生成時發生錯誤，請重新描述您的需求。"
+                    return "??????隤歹?隢??唳?餈唳??瘙?
 
 
 
             elif state == 'can_modify':
-                # 在此狀態下，用戶可以持續修改圖片，直到說「完成」
-                
-                # 檢查是否結束修改
-                if any(keyword in user_input.lower() for keyword in ['完成', 'ok', '好的', '謝謝', '停止', '結束']):
+                # ?冽迨???嚗?嗅隞交?蝥耨?孵????游隤芥???                
+                # 瑼Ｘ?臬蝯?靽格
+                if any(keyword in user_input.lower() for keyword in ['摰?', 'ok', '憟賜?', '雓?', '?迫', '蝯?']):
                     user_image_generation_state[user_id] = 'idle'
-                    return "不客氣！希望這張圖片您會喜歡！需要其他幫忙隨時告訴我喔！😊"
+                    return "銝恥瘞??撣??撐???冽??迭嚗?閬隞鼠敹??閮湔?????"
                 
-                # 視為修改需求，直接執行生成
+                # 閬靽格?瘙??湔?瑁???
                 user_image_generation_state[user_id] = 'generating'
                 
-                # 取得上次 Prompt
+                # ??銝活 Prompt
                 saved_data = user_last_image_prompt.get(user_id, {})
                 last_prompt = saved_data.get('prompt', '') if isinstance(saved_data, dict) else saved_data
                 
-                # 使用 AI 優化 Prompt (修改模式)
+                # 雿輻 AI ?芸? Prompt (靽格璅∪?)
                 optimize_prompt = f"""
-                系統：用戶想要修改這張圖片。
-                舊提示詞：{last_prompt}
-                用戶修改需求：{user_input}
+                蝟餌絞嚗?嗆閬耨?寥撐????                ??蝷箄?嚗last_prompt}
+                ?冽靽格?瘙?{user_input}
                 
-                请產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
-                回傳 JSON:
+                霂瑞????Prompt????嗉?瘙?摮?隢??text_overlay??                ? JSON:
                 {{
-                    "image_prompt": "新的英文 Prompt",
-                    "text_overlay": "要寫的文字 (純文字, 禁止括號或表情描述)"
+                    "image_prompt": "?啁??望? Prompt",
+                    "text_overlay": "閬神??摮?(蝝?摮? 蝳迫?祈??”??餈?"
                 }}
                 """
                 
@@ -3156,7 +2936,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     except:
                         pass
                     
-                    # 生成圖片
+                    # ????
                     success, result = generate_image_with_imagen(image_prompt, user_id)
                     image_path = result if success else None
                     
@@ -3167,53 +2947,44 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         user_last_image_prompt[user_id] = {'prompt': image_prompt}
                         
                         print(f"[DEBUG] Before send: image_path type={type(image_path)}, value={image_path}")
-                        # 使用 reply_token 免費發送
-                        msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 調整期間約15秒，請勿再次發送訊息，以免錯誤！"
+                        # 雿輻 reply_token ?祥?潮?                        msg = "??靽格摰?嚗n\n?隞亦匱蝥矽?游?嚗?銝?隤踵嚗?隤芥??n?? 隤踵??蝝?5蝘?隢?活?潮??荔?隞亙??航炊嚗?
                         if send_image_to_line(user_id, image_path, msg, reply_token):
-                            # 成功後保持 can_modify 狀態，允許繼續修改
+                            # ??敺???can_modify ????迂蝜潛?靽格
                             user_image_generation_state[user_id] = 'can_modify'
-                            return None # 已回覆
-                        else:
-                            # 發送失敗（通常是上傳問題）
+                            return None # 撌脣?閬?                        else:
+                            # ?潮仃???虜?臭??喳?憿?
                             user_image_generation_state[user_id] = 'can_modify'
-                            return "圖片已生成但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)設定有誤。\n請檢查後台 Log。"
+                            return "??撌脩????潮仃?n\n?航??嚗????單???ImgBB/GCS)閮剖??炊?n隢炎?亙???Log??
                     else:
-                        # 失敗後也保持 can_modify，讓用戶重試
+                        # 憭望?敺?靽? can_modify嚗??冽?岫
                         user_image_generation_state[user_id] = 'can_modify'
-                        return f"抱歉，修改失敗。\n\n失敗原因：{result}\n\n請換個說法試試看？"
+                        return f"?望?嚗耨?孵仃?n\n憭望???嚗result}\n\n隢??牧瘜岫閰衣?嚗?
                         
                 except Exception as e:
                     print(f"Modification error: {e}")
                     user_image_generation_state[user_id] = 'can_modify'
-                    return "處理時發生錯誤，請稍後再試。"
+                    return "????隤歹?隢?敺?閰艾?
 
             elif state == 'waiting_for_modification':
-                 # 用戶提供了修改細節，開始重新生成
-                 user_image_generation_state[user_id] = 'generating'
+                 # ?冽??鈭耨?寧敦蝭嚗?憪??啁???                 user_image_generation_state[user_id] = 'generating'
                  
-                 # 取得上次的 Prompt
+                 # ??銝活??Prompt
                  last_prompt = user_last_image_prompt.get(user_id, "")
                  
-                 # 使用 AI 優化提示詞 (結合舊 Prompt + 新修改)
+                 # 雿輻 AI ?芸??內閰?(蝯???Prompt + ?唬耨??
                  optimize_prompt = f"""
-                 系統：用戶想要修改之前的圖片。
-                 舊提示詞：{last_prompt}
-                 用戶修改需求：{user_input}
+                 蝟餌絞嚗?嗆閬耨?嫣???????                 ??蝷箄?嚗last_prompt}
+                 ?冽靽格?瘙?{user_input}
                  
-                 請產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
-                 回傳 JSON:
+                 隢????Prompt????嗉?瘙?摮?隢??text_overlay??                 ? JSON:
                  {{
-                     "image_prompt": "新的英文 Prompt",
-                     "text_overlay": "要寫的文字 (純文字, 禁止括號或表情描述)"
+                     "image_prompt": "?啁??望? Prompt",
+                     "text_overlay": "閬神??摮?(蝝?摮? 蝳迫?祈??”??餈?"
                  }}
                  
-                 要求：
-                 1. 保留舊圖核心。
-                 2. 絕對不要講笑話。
-                 """
+                 閬?嚗?                 1. 靽????詨???                 2. 蝯?銝?雓?閰晞?                 """
                  
-                 # 使用功能性模型解析
-                 optimized = model_functional.generate_content(optimize_prompt)
+                 # 雿輻??扳芋?圾??                 optimized = model_functional.generate_content(optimize_prompt)
                  import json
                  import re
                  image_prompt = optimized.text.strip()
@@ -3228,7 +2999,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  except:
                     pass
                  
-                 # 生成圖片
+                 # ????
                  success, result = generate_image_with_imagen(image_prompt, user_id)
                  image_path = result if success else None
                  
@@ -3238,55 +3009,45 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                          
                      user_last_image_prompt[user_id] = {'prompt': image_prompt}
                      
-                     # 使用 reply_token 免費發送
-                     msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 生成期間約15秒，請勿發送訊息，以免造成錯誤！"
+                     # 雿輻 reply_token ?祥?潮?                     msg = "??靽格摰?嚗n\n?隞亦匱蝥矽?游?嚗?銝?隤踵嚗?隤芥??n?? ????蝝?5蝘?隢?潮??荔?隞亙????航炊嚗?
                      if send_image_to_line(user_id, image_path, msg, reply_token):
                          user_image_generation_state[user_id] = 'can_modify'
-                         return None # 已回覆
-                     else:
+                         return None # 撌脣?閬?                     else:
                          user_image_generation_state[user_id] = 'can_modify'
-                         return "圖片已生成但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)設定有誤。\n請檢查後台 Log。"
+                         return "??撌脩????潮仃?n\n?航??嚗????單???ImgBB/GCS)閮剖??炊?n隢炎?亙???Log??
                  else:
                      user_image_generation_state[user_id] = 'can_modify'
-                     return f"抱歉，修改失敗。\n\n失敗原因：{result}\n\n我們重新來過好嗎？"
+                     return f"?望?嚗耨?孵仃?n\n憭望???嚗result}\n\n???唬??末??"
 
 
-        # 檢測重新生成圖片意圖（包含在對話中直接要求修改）
+        # 瑼Ｘ葫???????嚗??怠撠店銝剔?亥?瘙耨?對?
         if detect_regenerate_image_intent(user_input):
-            # 判斷是「詢問可否修改」還是「直接提供修改指令」
-            # 簡單判斷：如果字數很少 (例如 "可以改嗎", "修改", "不滿意")，就先詢問細節
-            # 如果字數較多 (例如 "把貓變成狗"), 則直接執行
-            
-            is_generic_request = len(user_input) < 10 or user_input in ["可以改嗎", "能改嗎", "想修改", "幫我改", "修改"]
+            # ?斗?胯岷??虫耨?嫘??胯?交?靘耨?寞?隞扎?            # 蝪∪?斗嚗????詨?撠?(靘? "?臭誑?孵?", "靽格", "銝遛??)嚗停?岷?敦蝭
+            # 憒?摮頛? (靘? "??霈???), ??亙銵?            
+            is_generic_request = len(user_input) < 10 or user_input in ["?臭誑?孵?", "?賣??, "?喃耨??, "撟急???, "靽格"]
             
             if is_generic_request:
                 user_image_generation_state[user_id] = 'waiting_for_modification'
-                return "沒問題！請問你想怎麼改？\n請告訴我具體的內容，例如：「換成藍色背景」、「把貓換成狗」、「加一頂帽子」...等。"
+                return "瘝?憿?隢?雿?獐?對?\n隢?閮湔??琿??摰對?靘?嚗????脰??胯?鞎?????銝?蜇摮?..蝑?
             
             else:
-                # 用戶已經提供了具體修改指令，立即執行生成
+                # ?冽撌脩???鈭擃耨?寞?隞歹?蝡?瑁???
                 user_image_generation_state[user_id] = 'generating'
                 
                 saved_data = user_last_image_prompt.get(user_id, {})
                 last_prompt = saved_data.get('prompt', '') if isinstance(saved_data, dict) else saved_data
                 
                 optimize_prompt = f"""
-                系統：用戶想要修改之前的圖片。
-                舊提示詞：{last_prompt}
-                用戶修改需求：{user_input}
+                蝟餌絞嚗?嗆閬耨?嫣???????                ??蝷箄?嚗last_prompt}
+                ?冽靽格?瘙?{user_input}
                 
-                請產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
-                回傳 JSON:
+                隢????Prompt????嗉?瘙?摮?隢??text_overlay??                ? JSON:
                 {{
-                    "image_prompt": "新的英文 Prompt",
-                    "text_overlay": "要寫的文字 (純文字, 禁止括號或表情描述)"
+                    "image_prompt": "?啁??望? Prompt",
+                    "text_overlay": "閬神??摮?(蝝?摮? 蝳迫?祈??”??餈?"
                 }}
                 
-                要求：
-                1. 保留舊圖核心。
-                2. 絕對不要講笑話。
-                3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
-                """
+                閬?嚗?                1. 靽????詨???                2. 蝯?銝?雓?閰晞?                3. text_overlay 敹??胯?????蝳迫??祈??”??餈?(憒?(red heart)) ?遙雿?憿舐內?函?????                """
                 
                 try:
                     optimized = model.generate_content(optimize_prompt)
@@ -3304,7 +3065,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     except:
                         pass
                     
-                    # 生成圖片
+                    # ????
                     success, result = generate_image_with_imagen(image_prompt, user_id)
                     image_path = result if success else None
                     
@@ -3314,91 +3075,77 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                             
                         user_last_image_prompt[user_id] = {'prompt': image_prompt}
                         
-                        # 使用 reply_token 免費發送
-                        msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 生成期間約15秒，請勿發送訊息，以免造成錯誤！"
+                        # 雿輻 reply_token ?祥?潮?                        msg = "??靽格摰?嚗n\n?隞亦匱蝥矽?游?嚗?銝?隤踵嚗?隤芥??n?? ????蝝?5蝘?隢?潮??荔?隞亙????航炊嚗?
                         if send_image_to_line(user_id, image_path, msg, reply_token):
                             user_image_generation_state[user_id] = 'can_modify'
-                            return None # 已回覆
-                        else:
+                            return None # 撌脣?閬?                        else:
                             user_image_generation_state[user_id] = 'can_modify'
-                            return "圖片已生成但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)設定有誤。\n請檢查後台 Log 或設定 IMGBB_API_KEY。"
+                            return "??撌脩????潮仃?n\n?航??嚗????單???ImgBB/GCS)閮剖??炊?n隢炎?亙???Log ?身摰?IMGBB_API_KEY??
                     else:
                         user_image_generation_state[user_id] = 'can_modify'
-                        return f"抱歉，修改失敗。\n\n失敗原因：{result}\n\n請換個說法試試看？"
+                        return f"?望?嚗耨?孵仃?n\n憭望???嚗result}\n\n隢??牧瘜岫閰衣?嚗?
                 except Exception as e:
                     print(f"Modification error: {e}")
                     user_image_generation_state[user_id] = 'idle'
-                    return "處理時發生錯誤，請稍後再試。"
+                    return "????隤歹?隢?敺?閰艾?
             
-            # 取得上次的 Prompt (如果有的話)
+            # ??銝活??Prompt (憒???閰?
             saved_data = user_last_image_prompt.get(user_id, {})
             last_prompt = saved_data.get('prompt', '') if isinstance(saved_data, dict) else saved_data
             
-            # 使用 AI 優化提示詞（包含上下文）
-            # 明確指示 AI 結合舊 Prompt 和新需求
-            optimize_prompt = f"""
-            系統：用戶想要修改之前的圖片。
-            舊提示詞：{last_prompt}
-            用戶修改需求：{user_input}
+            # 雿輻 AI ?芸??內閰??銝???
+            # ?Ⅱ?內 AI 蝯???Prompt ??瘙?            optimize_prompt = f"""
+            蝟餌絞嚗?嗆閬耨?嫣???????            ??蝷箄?嚗last_prompt}
+            ?冽靽格?瘙?{user_input}
             
-            請根據舊提示詞和新的修改需求，產生一個全新的、完整的英文生圖 Prompt。
-            要求：
-            1. 保留舊圖的核心主體（除非用戶說要換掉）。
-            2. 加入用戶的新修改（例如：換顏色、加東西）。
-            3. 如果用戶說「重新生成」而沒給細節，請稍微改變構圖或風格。
-            4. 只回傳英文 prompt，不要其他說明。
-            """
+            隢???內閰??啁?靽格?瘙??Ｙ?銝??啁????渡??望??? Prompt??            閬?嚗?            1. 靽????敹蜓擃??日??冽隤芾???嚗?            2. ??冽?靽格嚗?憒????脯??梯正嚗?            3. 憒??冽隤芥??啁???蝯衣敦蝭嚗?蝔凝?寡?瑽??◢?潦?            4. ?芸??唾??prompt嚗?閬隞牧??            """
             
             optimized = model.generate_content(optimize_prompt)
             image_prompt = optimized.text.strip()
             
-            # 生成圖片
+            # ????
             success, result = generate_image_with_imagen(image_prompt, user_id)
             image_path = result if success else None
             
             if success:
-                # 更新 Prompt 記錄
+                # ?湔 Prompt 閮?
                 user_last_image_prompt[user_id] = {'prompt': image_prompt}
                 
                 print(f"[DEBUG] Before send: image_path type={type(image_path)}, value={image_path}")
-                # 使用 reply_token 免費發送
-                msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 生成期間約15秒，請勿發送訊息，以免造成錯誤！"
+                # 雿輻 reply_token ?祥?潮?                msg = "??靽格摰?嚗n\n?隞亦匱蝥矽?游?嚗?銝?隤踵嚗?隤芥??n?? ????蝝?5蝘?隢?潮??荔?隞亙????航炊嚗?
                 if send_image_to_line(user_id, image_path, msg, reply_token):
                     user_image_generation_state[user_id] = 'can_modify'
-                    return None # 已回覆
-                else:
+                    return None # 撌脣?閬?                else:
                     user_image_generation_state[user_id] = 'can_modify'
-                    return "圖片已生成但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)設定有誤。\n請檢查後台 Log 中的 [SEND IMAGE] 訊息。"
+                    return "??撌脩????潮仃?n\n?航??嚗????單???ImgBB/GCS)閮剖??炊?n隢炎?亙???Log 銝剔? [SEND IMAGE] 閮??
             else:
                 user_image_generation_state[user_id] = 'waiting_for_prompt'
-                return "抱歉，重新生成失敗了...請再告訴我一次你想要怎麼改？"
+                return "?望?嚗??啁??仃??...隢??迄??甈∩??唾??獐?對?"
         
 
     except Exception as e:
         print(f"ERROR in gemini_llm_sdk: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        return "哎呀！我遇到一點小問題...請稍後再試一次！"
+        return "??嚗??銝暺???...隢?敺?閰虫?甈∴?"
 
 if __name__ == "__main__":
-    # 初始化提醒排程器（如果啟用進階功能）
-    reminder_scheduler = None
+    # ??????蝔嚗????券脤??嚗?    reminder_scheduler = None
     if ADVANCED_FEATURES_ENABLED:
         try:
             reminder_scheduler = init_scheduler(channel_access_token)
-            print("✅ Reminder scheduler started")
+            print("??Reminder scheduler started")
         except Exception as e:
-            print(f"⚠️ Failed to start scheduler: {e}")
+            print(f"?? Failed to start scheduler: {e}")
     
     port = int(os.environ.get("PORT", 5000))
     try:
-        print(f"🚀 Starting bot on port {port}...")
+        print(f"?? Starting bot on port {port}...")
         app.run(host="0.0.0.0", port=port)
     finally:
-        # 關閉排程器
-        if reminder_scheduler:
+        # ??????        if reminder_scheduler:
             try:
                 reminder_scheduler.stop()
-                print("✅ Reminder scheduler stopped")
+                print("??Reminder scheduler stopped")
             except:
                 pass
