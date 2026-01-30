@@ -1995,22 +1995,10 @@ def handle_follow(event):
     # 本地備用路徑
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
-    # 歡迎文字
-    welcome_text = """歡迎加入【長輩版機器人】！🎉
-    
-您可以跟我：
-1. 📸 製作長輩圖 (傳照片或說「做長輩圖」)
-2. 🗺️ 規劃旅遊行程 (說「帶我去玩」)
-3. 🎨 生成可愛圖片 (說「幫我畫...」)
-4. 📹 生成短影片 (說「做影片」)
-5. ⏰ 設定生活提醒 (說「提醒我...」)
-
-請點擊下方選單或直接跟我說話喔！"""
-
     # 策略：優先嘗試發送 URL 圖片
     sent_success = False
     
-    # 1. 嘗試發送 URL 圖片
+    # 1. 嘗試發送 URL 圖片（僅圖片，無文字）
     if help_image_url and help_image_url.startswith("http"):
         try:
             print(f"[WELCOME] Sending welcome image from URL: {help_image_url}")
@@ -2020,7 +2008,6 @@ def handle_follow(event):
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
                         messages=[
-                            TextMessage(text=welcome_text),
                             ImageMessage(
                                 original_content_url=help_image_url,
                                 preview_image_url=help_image_url
@@ -2034,12 +2021,12 @@ def handle_follow(event):
         except Exception as e:
             print(f"[WELCOME] Failed to send via URL: {e}")
 
-    # 2. 如果 URL 失敗，嘗試發送本地靜態圖片
+    # 2. 如果 URL 失敗，嘗試發送本地靜態圖片（僅圖片，無文字）
     if not sent_success:
         if os.path.exists(menu_image_path):
             print(f"[WELCOME] Sending local image: {menu_image_path}")
-            # 使用 reply_token 免費發送 (注意：send_image_to_line 也需要修正順序)
-            success = send_image_to_line(user_id, menu_image_path, welcome_text, event.reply_token)
+            # 使用 reply_token 免費發送
+            success = send_image_to_line(user_id, menu_image_path, None, event.reply_token)
             if success:
                 print("[WELCOME] Sent successfully via local upload")
                 return
