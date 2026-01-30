@@ -60,10 +60,10 @@ def create_rich_menu():
                     bounds=RichMenuBounds(x=1667, y=0, width=833, height=843),
                     action=MessageAction(label="製作長輩圖", text="我要做長輩圖")
                 ),
-                # Row 2, Col 1: 生成影片
+                # Row 2, Col 1: 連結查證
                 RichMenuArea(
                     bounds=RichMenuBounds(x=0, y=843, width=833, height=843),
-                    action=MessageAction(label="生成影片", text="生成影片")
+                    action=MessageAction(label="連結查證", text="連結查證")
                 ),
                 # Row 2, Col 2: 提醒通知
                 RichMenuArea(

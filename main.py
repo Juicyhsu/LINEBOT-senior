@@ -66,7 +66,6 @@ from google.cloud import speech
 from google.cloud import texttospeech
 from region_helper import check_region_need_clarification
 from trip_modify_helper import modify_trip_plan, validate_and_fix_trip_plan
-from create_menu_image import create_menu_image
 
 # Image processing
 import PIL
