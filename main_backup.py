@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import configparser
 import os, tempfile
 from datetime import datetime, timedelta
@@ -226,16 +226,6 @@ SESSION_TIMEOUT = timedelta(days=7)
 user_audio_confirmation_pending = {}
 
 # ======================
-# 連結查證與新聞功能狀態
-# ======================
-# 用戶待處理連結狀態
-user_link_pending = {}
-# 新聞快取 (減少API呼叫)
-news_cache = {'data': None, 'timestamp': None}
-# 用戶新聞快取(語音播報)
-user_news_cache = {}
-
-# ======================
 # Helper Functions
 # ======================
 
@@ -254,314 +244,7 @@ def speech_to_text(audio_content):
         return None
 
 
-# ======================
-# 連結查證功能
-# ======================
 
-def extract_url(text):
-    """從文字中提取 URL"""
-    import re
-    url_pattern = r'https?://[^\s<>"\']+'
-    urls = re.findall(url_pattern, text)
-    return urls[0] if urls else None
-
-def extract_domain(url):
-    """從 URL 中提取網域名稱"""
-    from urllib.parse import urlparse
-    try:
-        parsed = urlparse(url)
-        return parsed.netloc
-    except:
-        return None
-
-def check_trusted_media(domain):
-    """檢查是否為台灣可信賴新聞媒體"""
-    trusted_domains = [
-        'cna.com.tw',    # 中央社
-        'pts.org.tw',    # 公視
-        'udn.com',       # 聯合新聞網
-        'ltn.com.tw',    # 自由
-        'chinatimes.com',# 中時
-        'ettoday.net',   # ETtoday
-        'storm.mg',      # 風傳媒
-        'setn.com',      # 三立新聞
-        'tvbs.com.tw',   # TVBS
-        'nownews.com',   # 今日新聞
-        'rti.org.tw',    # 中央廣播電台
-        'bcc.com.tw',    # 中國廣播公司
-    ]
-    return any(td in domain.lower() for td in trusted_domains)
-
-def get_domain_age(url):
-    """查詢網域年齡（天數）"""
-    try:
-        import whois
-        from datetime import datetime
-        domain = extract_domain(url)
-        if not domain:
-            return None
-        w = whois.whois(domain)
-        creation_date = w.creation_date
-        if isinstance(creation_date, list):
-            creation_date = creation_date[0]
-        if creation_date:
-            age = (datetime.now() - creation_date).days
-            return age
-        return None
-    except Exception as e:
-        print(f"Domain age check error: {e}")
-        return None
-
-def quick_safety_check(url):
-    """
-    快速安全檢查
-    返回: {'level': 'safe'|'warning'|'danger', 'risks': [...], 'is_trusted': bool, 'is_scam_like': bool}
-    """
-    risks = []
-    domain = extract_domain(url)
-    
-    if not domain:
-        return {'level': 'warning', 'risks': ['無法解析網域'], 'is_trusted': False, 'is_scam_like': False}
-    
-    is_trusted = check_trusted_media(domain)
-    
-    domain_age = get_domain_age(url)
-    is_new_domain = False
-    if domain_age is not None:
-        if domain_age < 90:
-            risks.append(f"網域註冊不久 ({domain_age} 天)")
-            is_new_domain = True
-        elif domain_age < 180:
-            risks.append(f"網域較新 ({domain_age} 天)")
-    
-    scam_keywords = ['震驚', '必看', '不可思議', '驚人', '免費送', '限時']
-    has_scam_keywords = any(kw in url for kw in scam_keywords)
-    if has_scam_keywords:
-        risks.append("網址包含可疑關鍵字")
-    
-    is_scam_like = is_new_domain and has_scam_keywords
-    
-    if is_scam_like or len(risks) >= 3:
-        level = 'danger'
-    elif is_new_domain:
-        level = 'warning'
-    else:
-        level = 'safe'
-    
-    return {
-        'level': level,
-        'risks': risks,
-        'is_trusted': is_trusted,
-        'is_scam_like': is_scam_like
-    }
-
-def format_verification_result(safety_check, url):
-    """格式化查證結果"""
-    domain = extract_domain(url)
-    
-    if safety_check['level'] == 'danger':
-        risks_text = '\n'.join(['• ' + risk for risk in safety_check['risks']])
-        return f"""🚨 等等！我發現這個連結有點可疑：
-
-⚠️ 風險提示：
-{risks_text}
-
-💡 建議先不要點開！
-
-如果您想了解更多，請告訴我您的需求！"""
-    
-    elif safety_check['level'] == 'warning':
-        risks_text = '\n'.join(['• ' + risk for risk in safety_check['risks']])
-        return f"""⚠️ 提醒！這個網站比較新：
-{risks_text}
-
-💡 請謹慎查看。
-
-您是想：
-1️⃣ 🔍 查證這個連結是否為詐騙
-2️⃣ 📖 讓我幫你讀內容
-
-請告訴我「閱讀」或「查證」！"""
-    
-    else:
-        return """收到連結！
-
-您是想：
-1️⃣ 📖 讓我讀給你聽（摘要內容）
-2️⃣ 🔍 查證這個連結
-
-請告訴我「閱讀」或「查證」！"""
-
-def fetch_webpage_content(url):
-    """抓取網頁內容"""
-    try:
-        from bs4 import BeautifulSoup
-        import requests
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        response = requests.get(url, headers=headers, timeout=10)
-        response.encoding = 'utf-8'
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        for script in soup(["script", "style"]):
-            script.decompose()
-        
-        text = soup.get_text()
-        lines = (line.strip() for line in text.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        text = '\n'.join(chunk for chunk in chunks if chunk)
-        
-        if len(text) > 5000:
-            text = text[:5000] + "..."
-        
-        return text
-    except Exception as e:
-        print(f"Fetch webpage error: {e}")
-        return None
-
-def summarize_content(content, user_id):
-    """使用 Gemini 摘要網頁內容"""
-    try:
-        prompt = f"""
-請幫我這位長輩讀懂這個網頁，用溫暖的口吻告訴他：
-
-{content}
-
-請用這樣的格式回應：
-
-📖 **內容摘要**
-
-（用3-5句話解釋重點）
-
-💡 **我的建議**
-
-（告訴長輩這內容是否可信，有什麼要注意的）
-"""
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Summarize error: {e}")
-        return "抱歉，我無法讀懂這個網頁內容，請稍後再試！"
-
-
-# ======================
-# 新聞查詢功能
-# ======================
-
-def fetch_latest_news():
-    """抓取最新新聞(使用 RSS)"""
-    try:
-        import feedparser
-        from datetime import datetime, timedelta
-        
-        if news_cache['data'] and news_cache['timestamp']:
-            if datetime.now() - news_cache['timestamp'] < timedelta(minutes=5):
-                return news_cache['data']
-        
-        feeds = [
-            'https://www.cna.com.tw/rss/headline.xml',
-        ]
-        
-        news_items = []
-        for feed_url in feeds:
-            try:
-                feed = feedparser.parse(feed_url)
-                for entry in feed.entries[:5]:
-                    news_items.append({
-                        'title': entry.title,
-                        'summary': entry.get('summary', ''),
-                        'link': entry.link,
-                        'published': entry.get('published', '')
-                    })
-            except Exception as e:
-                print(f"Feed parse error for {feed_url}: {e}")
-                continue
-        
-        news_cache['data'] = news_items
-        news_cache['timestamp'] = datetime.now()
-        
-        return news_items
-    except Exception as e:
-        print(f"Fetch news error: {e}")
-        return []
-
-def detect_news_intent(text):
-    """檢測是否想要查詢新聞"""
-    keywords = ['新聞', '消息', '發生', '今天', '最近', '時事', '頭條']
-    return any(keyword in text for keyword in keywords)
-
-def generate_news_summary():
-    """生成新聞摘要"""
-    news_items = fetch_latest_news()
-    
-    if not news_items:
-        return "抱歉，目前無法取得新聞資訊，請稍後再試！"
-    
-    try:
-        news_text = "\n\n".join([
-            f"標題: {item['title']}\n內容: {item['summary']}"
-            for item in news_items[:6]
-        ])
-        
-        prompt = f"""
-請從這些新聞中，挑選最重要的 3 則
-每則摘要控制在50字以內：
-
-{news_text}
-
-格式：
-📰 今日新聞摘要
-
-1️⃣ 【標題】
-   （摘要內容...）
-
-2️⃣ 【標題】
-   （摘要內容...）
-
-3️⃣ 【標題】
-   （摘要內容...）
-"""
-        response = model.generate_content(prompt)
-        return response.text + "\n\n🔊 要語音播報嗎？說「要語音」！"
-    except Exception as e:
-        print(f"News summary error: {e}")
-        return "抱歉，無法整理新聞資訊，請稍後再試！"
-
-def generate_news_audio(text, user_id):
-    """生成新聞語音"""
-    try:
-        from google.cloud import texttospeech
-        
-        client = texttospeech.TextToSpeechClient()
-        
-        synthesis_input = texttospeech.SynthesisInput(text=text)
-        voice = texttospeech.VoiceSelectionParams(
-            language_code="zh-TW",
-            name="cmn-TW-Wavenet-A"
-        )
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
-        )
-        
-        response = client.synthesize_speech(
-            input=synthesis_input,
-            voice=voice,
-            audio_config=audio_config
-        )
-        
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-        audio_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_news.mp3")
-        with open(audio_path, 'wb') as f:
-            f.write(response.audio_content)
-        
-        return audio_path
-    except Exception as e:
-        print(f"TTS error: {e}")
-        return None
 
 
 
@@ -611,38 +294,37 @@ def get_emoji_response(emotion):
     return responses.get(emotion, "收到你的訊息了！讚喔！有什麼我可以幫忙的嗎？")
 
 def get_function_menu():
-    """返回功能選單文字（與功能總覽統一）"""
-    return """🌟 功能總覽與使用教學 🌟
+    """返回功能選單文字"""
+    return """📋 **我可以幫你做這些事：**
 
-1️⃣ 🖼️ 製作圖片
-👉 請說：「幫我畫一隻貓」或「生成風景圖」
+💬 **陪你聊天**
+   我會記得我們的對話喔！
 
-2️⃣ 👴 製作長輩圖
-👉 請說：「我要做長輩圖」或「製作早安圖」
+🖼️ **看圖聊天**
+   傳圖片給我，我會描述內容並陪你聊！
 
-3️⃣ ⏰ 設定提醒
-👉 請說：「提醒我明天8點吃藥」
-   或「10分鐘後叫我關火」
-👉 輸入「刪除提醒」可清除所有待辦
+🎨 **製作圖片**
+   說「作圖」或「生成圖片」就可以囉！
 
-4️⃣ 🗺️ 行程規劃
-👉 請說：「規劃宜蘭一日遊」
+📢 **長輩圖製作**
+   說「做長輩圖」，我會引導你製作！
 
-5️⃣ 🔗 連結查證（新功能！）
-👉 貼上任何連結，我會幫你：
-   • 📖 摘要內容
-   • 🔍 查證是否可信
+🗺️ **行程規劃**
+   說「規劃行程」，我幫你安排舒適的行程！
 
-6️⃣ 📰 新聞快報（新功能！）
-👉 請說：「看新聞」或「今日新聞」
+🎤 **語音聊天**
+   傳語音給我，我會聽懂並回覆！
 
-7️⃣ 💬 聊天解悶
-👉 隨時都可以跟我聊天喔！
+😊 **貼圖互動**
+   傳貼圖或表情符號給我試試！
 
-⚠️ 貼心小提醒：
-• 輸入「取消」可停止目前動作
-• 生成期間約15秒請勿傳訊
-• 記憶維持七天，輸入「清除記憶」可重置"""
+⏰ **提醒功能**
+   說「提醒我...」，我會幫你記住！
+
+🔄 **重新開始**
+   說「清除記憶」可以重置對話
+
+有任何需要都可以找我！讚喔！✨"""
 
 # ======================
 # 連結查證與新聞功能
@@ -892,9 +574,8 @@ def fetch_latest_news():
                 return news_cache['data']
         
         feeds = [
-            'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FucG9MV1JsWm1GMWJIUUtP?hl=zh-TW&gl=TW&ceid=TW:zh-Hant',  # Google News 台灣
             'https://www.cna.com.tw/rss/headline.xml',  # 中央社頭條
-            'https://udn.com/rssfeed/news/2/6638?ch=news',  # 聯合新聞網生活
+            # 可以加更多來源
         ]
         
         news_items = []
@@ -1624,14 +1305,14 @@ def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
             
             messages = []
             
-            # Fixed Order: Image FIRST, Text SECOND (用戶要求先傳圖片再傳文字)
+            # Change Order: Text FIRST, Image SECOND
+            if message_text:
+                messages.append(TextMessage(text=message_text))
+                
             messages.append(ImageMessage(
                 original_content_url=image_url,
                 preview_image_url=image_url
             ))
-            
-            if message_text:
-                messages.append(TextMessage(text=message_text))
             
             # 優先使用 reply_message（不計額度），沒有 token 時才用 push_message
             if reply_token:
@@ -1719,10 +1400,6 @@ def send_status_notification(reply_token, status_text):
 # ======================
 # Webhook Handlers
 # ======================
-
-@app.route("/")
-def health_check():
-    return "OK", 200
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -1921,92 +1598,8 @@ def message_text(event):
         return
     
     # ============================================
-    # 連結查證功能：首先檢查是否有待處理的連結回應
+    # 連結查證功能：優先檢查是否包含連結
     # ============================================
-    # 優先處理：用戶正在回應我們的連結詢問（不一定包含新連結）
-    if user_id in user_link_pending:
-        pending_data = user_link_pending[user_id]
-        pending_url = pending_data['url']
-        
-        # 檢測用戶想要「閱讀」
-        if any(keyword in user_input for keyword in ['閱讀', '讀', '摘要', '內容', '看看', '1', '①', '１']):
-            content = fetch_webpage_content(pending_url)
-            if content:
-                summary = summarize_content(content, user_id)
-                reply_text = summary
-            else:
-                reply_text = "抱歉，我無法讀取這個網頁的內容。可能是網站有防護機制或連結已失效。"
-            
-            del user_link_pending[user_id]
-            
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.reply_message(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_text)]
-                    )
-                )
-            return
-        
-        # 檢測用戶想要「查證」
-        elif any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙', '2', '②', '２']):
-            content = fetch_webpage_content(pending_url)
-            if content:
-                analysis_prompt = f"""
-請分析以下網頁內容是否可信：
-
-{content[:3000]}
-
-請從以下角度分析：
-1. 內容是否合理？有無明顯誇大或矛盾？
-2. 是否包含常見詐騙關鍵字？
-3. 整體可信度評估
-
-請用長輩容易理解的方式回答。
-"""
-                analysis = model.generate_content(analysis_prompt)
-                reply_text = f"🔍 深度查證結果\n\n{analysis.text}"
-            else:
-                reply_text = "抱歉，我無法讀取這個網頁的內容進行深度查證。"
-            
-            del user_link_pending[user_id]
-            
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.reply_message(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_text)]
-                    )
-                )
-            return
-        
-        # 用戶輸入不明確，重新提示
-        elif not extract_url(user_input):  # 確保不是發送新連結
-            reply_text = f"""收到您的訊息！
-
-您之前發送的連結還沒處理完喔：
-🔗 {pending_url[:50]}...
-
-請告訴我您想要：
-1️⃣ 📖 閱讀 - 幫您摘要內容
-2️⃣ 🔍 查證 - 檢查是否可信
-
-回覆「閱讀」或「查證」即可！
-（或輸入「取消」放棄）"""
-            
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.reply_message(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_text)]
-                    )
-                )
-            return
-    
-    # 檢查是否包含新連結
     url = extract_url(user_input)
     
     if url:

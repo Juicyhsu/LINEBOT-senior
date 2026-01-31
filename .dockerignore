@@ -1,0 +1,26 @@
+# Docker ignore file for Zeabur
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.env
+.gate
+.git
+.github
+.vscode
+.idea
+*.log
+*.pot
+*.DS_Store
+*.db
+static
+tmp
+temp
+*_temp.py
+temp_*
+fix_*.py
+*backup*
+_archive
