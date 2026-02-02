@@ -2463,48 +2463,46 @@ def handle_follow(event):
     # 本地備用路徑
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
-    # 策略：優先嘗試發送 URL 圖片
-    sent_success = False
+    # 準備歡迎文字 (從統一選單獲取)
+    welcome_text = "🎉 歡迎加入！我是您的長輩好朋友！\n\n" + get_function_menu()
     
-    # 1. 嘗試發送 URL 圖片（僅圖片，無文字）
+    messages = []
+    
+    # 1. 先加入文字訊息 (Text First)
+    messages.append(TextMessage(text=welcome_text))
+    
+    # 2. 再加入圖片訊息 (Image Second)
+    image_url_to_send = None
+    
+    # 嘗試使用 URL
     if help_image_url and help_image_url.startswith("http"):
-        try:
-            print(f"[WELCOME] Sending welcome image from URL: {help_image_url}")
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.reply_message_with_http_info(
-                    ReplyMessageRequest(
-                        reply_token=event.reply_token,
-                        messages=[
-                            ImageMessage(
-                                original_content_url=help_image_url,
-                                preview_image_url=help_image_url
-                            )
-                        ]
-                    )
+        image_url_to_send = help_image_url
+    # 嘗試上傳本地圖片
+    elif os.path.exists(menu_image_path):
+        print(f"[WELCOME] Uploading local image: {menu_image_path}")
+        image_url_to_send = upload_image_to_external_host(menu_image_path)
+    
+    if image_url_to_send:
+        messages.append(ImageMessage(
+            original_content_url=image_url_to_send,
+            preview_image_url=image_url_to_send
+        ))
+    else:
+        print("[WELCOME] No valid image to send, sending text only.")
+    
+    # 發送訊息
+    try:
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=messages
                 )
-            sent_success = True
-            print("[WELCOME] Sent successfully via URL")
-            return
-        except Exception as e:
-            print(f"[WELCOME] Failed to send via URL: {e}")
-
-    # 2. 如果 URL 失敗，嘗試發送本地靜態圖片（僅圖片，無文字）
-    if not sent_success:
-        if os.path.exists(menu_image_path):
-            print(f"[WELCOME] Sending local image: {menu_image_path}")
-            # 使用 reply_token 免費發送
-            success = send_image_to_line(user_id, menu_image_path, None, event.reply_token)
-            if success:
-                print("[WELCOME] Sent successfully via local upload")
-                return
-            else:
-                print("[ERROR] Failed to upload/send local welcome image")
-        else:
-            print(f"[ERROR] Local welcome image not found at {menu_image_path}")
-
-    # 3. 如果連圖片都發送失敗，就真的沒辦法了 (用戶要求刪除文字 fallback，所以這裡保持沉默或只記錄 log)
-    print("[ERROR] Could not send ANY welcome image (URL or Local).")
+            )
+        print(f"[WELCOME] Welcome message sent to {user_id}")
+    except Exception as e:
+        print(f"[WELCOME] Failed to send welcome message: {e}")
 
 # ======================
 # Agent Handlers
