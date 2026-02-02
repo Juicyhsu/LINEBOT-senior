@@ -945,7 +945,7 @@ def fetch_latest_news():
         for feed_url in feeds:
             try:
                 feed = feedparser.parse(feed_url)
-                for entry in feed.entries[:5]:  # 每個來源取 5 則
+                for entry in feed.entries[:10]:  # 增加到 10 則，確保有足夠新聞供挑選
                     news_items.append({
                         'title': entry.title,
                         'summary': entry.get('summary', ''),
@@ -978,11 +978,11 @@ def generate_news_summary():
         return "抱歉，目前無法取得新聞資訊。請稍後再試！"
     
     # 使用 Gemini 摘要新聞
-    # 使用 Gemini 摘要新聞
     try:
+        # 使用更多的新聞項目 (前 30 則) 給 AI 挑選
         news_text = "\n\n".join([
             f"標題: {item['title']}\n內容: {item['summary']}\n連結: {item['link']}"
-            for item in news_items[:15]
+            for item in news_items[:30] 
         ])
         
         prompt = f"""
@@ -991,21 +991,27 @@ def generate_news_summary():
 
 {news_text}
 
-格式：
+輸出格式（嚴格遵守）：
 📰 今日新聞摘要
 
-1️⃣ 【分類】標題
-   摘要內容...
+1️⃣ 【標題】
+   摘要內容（80-100字，包含重要細節）
+   🔗 來源：[連結]
 
-2️⃣ 【分類】標題
-   摘要內容...
+... (請列出完整 7 則) ...
 
-3️⃣ 【分類】標題
-   摘要內容...
+7️⃣ 【標題】
+   摘要內容（80-100字，包含重要細節）
+   🔗 來源：[連結]
 """
+        response = model_functional.generate_content(prompt)
         
-        response = model.generate_content(prompt)
-        return response.text + "\n\n🔊 要我用語音播報給你聽嗎？"
+        final_text = response.text.strip()
+        # 強制附加語音引導 (如果 AI 沒加)
+        if "語音" not in final_text[-50:]:
+            final_text += "\n\n💡 想聽語音播報？回覆「語音」即可"
+            
+        return final_text
     except Exception as e:
         print(f"News summary error: {e}")
         return "抱歉，新聞摘要生成失敗。請稍後再試！"
