@@ -2174,8 +2174,8 @@ def message_text(event):
             
             # 移除 emoji 和格式符號（TTS 不需要）
             import re
-            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣【】]', '', news_text)
-            clean_text = clean_text.replace('今日新聞摘要', '').strip()
+            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣0️⃣【】💡]', '', news_text)
+            clean_text = clean_text.replace('今日新聞摘要', '').replace('想聽語音播報？回覆「語音」即可', '').strip()
             
             audio_path = generate_news_audio(clean_text, user_id)
             
