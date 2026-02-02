@@ -154,7 +154,7 @@ llm_role_description = """
 # Use the model
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 model = genai.GenerativeModel(
-    model_name="gemini-3-flash-preview",
+    model_name="gemini-2.5-flash",
     safety_settings={
         HarmCategory.HARM_CATEGORY_HARASSMENT:HarmBlockThreshold.BLOCK_NONE,
         HarmCategory.HARM_CATEGORY_HATE_SPEECH:HarmBlockThreshold.BLOCK_NONE,
@@ -172,7 +172,7 @@ model = genai.GenerativeModel(
 
 # 建立一個「功能性」模型 (不帶激勵大師人設，專門處理邏輯/JSON)
 model_functional = genai.GenerativeModel(
-    model_name="gemini-3-flash-preview",
+    model_name="gemini-2.5-flash",
     generation_config={
         "temperature": 0.2, # 低溫度，更精確
         "top_p": 0.95,
