@@ -795,22 +795,20 @@ def quick_safety_check(url):
         elif domain_age < 180:  # 少於 6 個月
             risks.append(f"網域較新 ({domain_age} 天)")
     
-    # 檢查 3: 不在白名單
-    if not is_trusted:
-        risks.append("不在台灣合法新聞媒體清單")
+    # 檢查 3: 不在白名單 (僅做標記，不列為風險)
+    # if not is_trusted:
+    #     risks.append("不在台灣合法新聞媒體清單")
     
     # 檢查 4: 可疑關鍵字
-    suspicious_keywords = ['震驚', '必看', '不看後悔', '驚爆', '獨家爆料', '絕密']
+    suspicious_keywords = ['震驚', '必看', '不看後悔', '驚爆', '獨家爆料', '絕密', '免費送', '限時領取']
     if any(kw in url for kw in suspicious_keywords):
         risks.append("網址包含聳動用詞")
     
     # 決定風險等級
-    if len(risks) >= 3:
-        level = 'danger'
-    elif len(risks) >= 1:
-        level = 'warning'
+    if len(risks) >= 1:
+        level = 'warning'  # 只要有任何風險（如網域太新、有關鍵字）就警告
     else:
-        level = 'safe'
+        level = 'safe'     # 否則視為一般連結
     
     return {
         'level': level,
@@ -846,27 +844,19 @@ def format_verification_result(safety_check, url):
 請告訴我你的需求！"""
     
     else:
-        if safety_check['is_trusted']:
-            return f"""✅ 查證通過
+        # 安全或未知連結，直接提供選項
+        return f"""收到連結！
+🔗 {domain}
 
-📰 網站: {domain}
-🏆 信譽: 台灣認證新聞媒體
+請問您想要：
 
-💡 這是可信賴的新聞來源！
+1️⃣ 📖 【閱讀內容】
+   👉 幫您摘要網頁重點
 
-你是想：
-1️⃣ 📖 讓我讀內容並摘要給你聽
-2️⃣ 🔍 查證這則新聞的詳細資訊
+2️⃣ 🔍 【查證內容】
+   👉 檢查是否可信、有無詐騙疑慮
 
-請告訴我你的需求！"""
-        else:
-            return f"""收到連結！我可以幫你：
-
-1️⃣ 📖 閱讀內容並摘要給你聽
-2️⃣ 🔍 查證這則新聞的真實性
-
-請問你需要哪一種服務呢？
-(直接說「閱讀」或「查證」就可以囉！)"""
+請回覆「1」或「2」，也可以說「閱讀」或「查證」喔！"""
 
 def fetch_webpage_content(url):
     """
@@ -988,15 +978,16 @@ def generate_news_summary():
         return "抱歉，目前無法取得新聞資訊。請稍後再試！"
     
     # 使用 Gemini 摘要新聞
+    # 使用 Gemini 摘要新聞
     try:
         news_text = "\n\n".join([
-            f"標題: {item['title']}\n內容: {item['summary']}"
-            for item in news_items[:6]
+            f"標題: {item['title']}\n內容: {item['summary']}\n連結: {item['link']}"
+            for item in news_items[:15]
         ])
         
         prompt = f"""
-以下是今天的新聞，請挑選最重要的 3 則，
-用長輩容易理解的方式摘要，每則 50 字內：
+以下是今天的新聞，請挑選最重要的 7 則，
+用長輩容易理解的方式摘要，每則 80 字內：
 
 {news_text}
 
@@ -1539,11 +1530,14 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                     deco_draw = ImageDraw.Draw(deco_layer)
                     
                     # 繪製emoji（帶陰影）
-                    deco_draw.text((5, 5), char, font=emoji_font, fill='#00000044')  # 陰影
-                    deco_draw.text((3, 3), char, font=emoji_font, fill='white')  # 主體
+                    # deco_draw.text((5, 5), char, font=emoji_font, fill='#00000044')  # 陰影
+                    # deco_draw.text((3, 3), char, font=emoji_font, fill='white')  # 主體
+                    
+                    # 暫時移除裝飾繪製，避免出現不明符號 (方框/亂碼)
+                    pass
                     
                     # 貼上裝飾
-                    txt_layer.paste(deco_layer, (int(x), int(y)), deco_layer)
+                    # txt_layer.paste(deco_layer, (int(x), int(y)), deco_layer)
                 except Exception as de:
                     print(f"[DECORATION ERROR] {de}")
                     continue
