@@ -292,6 +292,22 @@ def check_trusted_media(domain):
     ]
     return any(td in domain.lower() for td in trusted_domains)
 
+def check_safe_domain(domain):
+    """檢查是否為常見安全網域"""
+    safe_domains = [
+        # 搜尋引擎與平台
+        'google.com', 'youtube.com', 'facebook.com', 'instagram.com',
+        'twitter.com', 'x.com', 'linkedin.com',
+        # 政府機關
+        'gov.tw', 'edu.tw', 'org.tw',
+        # 常見服務
+        'yahoo.com', 'microsoft.com', 'apple.com', 'line.me',
+        'shopee.tw', 'pchome.com.tw', 'momo.com', 'books.com.tw',
+        # 銀行金融
+        'cathaybc.com.tw', 'esunbank.com', 'bot.com.tw', 'chinatrust.com.tw',
+    ]
+    return any(sd in domain.lower() for sd in safe_domains)
+
 def get_domain_age(url):
     """查詢網域年齡（天數）"""
     try:
@@ -324,26 +340,37 @@ def quick_safety_check(url):
         return {'level': 'warning', 'risks': ['無法解析網域'], 'is_trusted': False, 'is_scam_like': False}
     
     is_trusted = check_trusted_media(domain)
+    is_safe = check_safe_domain(domain)
     
+    # 如果是可信媒體或安全網域，直接標記為安全
+    if is_trusted or is_safe:
+        return {
+            'level': 'safe',
+            'risks': [],
+            'is_trusted': is_trusted,
+            'is_scam_like': False
+        }
+    
+    # 對於其他網域，進行風險評估
     domain_age = get_domain_age(url)
     is_new_domain = False
     if domain_age is not None:
-        if domain_age < 90:
-            risks.append(f"網域註冊不久 ({domain_age} 天)")
+        if domain_age < 30:  # 改為 30 天（原本 90 天太嚴格）
+            risks.append(f"網域很新 ({domain_age} 天)")
             is_new_domain = True
-        elif domain_age < 180:
+        elif domain_age < 90:
             risks.append(f"網域較新 ({domain_age} 天)")
     
-    scam_keywords = ['震驚', '必看', '不可思議', '驚人', '免費送', '限時']
+    scam_keywords = ['震驚', '必看', '不可思議', '驚人', '免費送', '限時', '賺錢', '投資必看']
     has_scam_keywords = any(kw in url for kw in scam_keywords)
     if has_scam_keywords:
         risks.append("網址包含可疑關鍵字")
     
     is_scam_like = is_new_domain and has_scam_keywords
     
-    if is_scam_like or len(risks) >= 3:
+    if is_scam_like or len(risks) >= 2:
         level = 'danger'
-    elif is_new_domain:
+    elif len(risks) > 0:
         level = 'warning'
     else:
         level = 'safe'
@@ -361,36 +388,37 @@ def format_verification_result(safety_check, url):
     
     if safety_check['level'] == 'danger':
         risks_text = '\n'.join(['• ' + risk for risk in safety_check['risks']])
-        return f"""🚨 等等！我發現這個連結有點可疑：
+        return f"""🚨 等等！這個連結看起來有點可疑：
 
 ⚠️ 風險提示：
 {risks_text}
 
-💡 建議先不要點開！
+💡 建議：
+1️⃣ 🔍 查證 - 深度分析內容是否為詐騙
+2️⃣ 📖 閱讀 - 我幫你摘要內容（謹慎使用）
 
-如果您想了解更多，請告訴我您的需求！"""
+請回覆「查證」或「閱讀」"""
     
     elif safety_check['level'] == 'warning':
         risks_text = '\n'.join(['• ' + risk for risk in safety_check['risks']])
-        return f"""⚠️ 提醒！這個網站比較新：
+        return f"""⚠️ 提醒！這個網站有以下特徵：
 {risks_text}
 
-💡 請謹慎查看。
+💡 您想要：
+1️⃣ 🔍 查證 - 檢查是否為詐騙
+2️⃣ 📖 閱讀 - 摘要內容
 
-您是想：
-1️⃣ 🔍 查證這個連結是否為詐騙
-2️⃣ 📖 讓我幫你讀內容
-
-請告訴我「閱讀」或「查證」！"""
+請回覆「查證」或「閱讀」"""
     
     else:
+        # 安全連結，直接提供選項
         return """收到連結！
 
-您是想：
-1️⃣ 📖 讓我讀給你聽（摘要內容）
-2️⃣ 🔍 查證這個連結
+您想要：
+1️⃣ 📖 閱讀 - 幫您摘要內容
+2️⃣ 🔍 查證 - 檢查內容可信度
 
-請告訴我「閱讀」或「查證」！"""
+請回覆「閱讀」或「查證」"""
 
 def fetch_webpage_content(url):
     """抓取網頁內容"""
@@ -502,14 +530,15 @@ def generate_news_summary():
         return "抱歉，目前無法取得新聞資訊，請稍後再試！"
     
     try:
+        # 格式化新聞內容，包含網址
         news_text = "\n\n".join([
-            f"標題: {item['title']}\n內容: {item['summary']}"
-            for item in news_items[:6]
+            f"標題: {item['title']}\n內容: {item['summary']}\n連結: {item['link']}"
+            for item in news_items[:10]
         ])
         
         prompt = f"""
-請從這些新聞中，挑選最重要的 3 則
-每則摘要控制在50字以內：
+請從這些新聞中，挑選最重要的 7 則
+每則摘要控制在50字以內，並附上來源連結：
 
 {news_text}
 
@@ -518,15 +547,34 @@ def generate_news_summary():
 
 1️⃣ 【標題】
    （摘要內容...）
+   🔗 來源：[完整連結]
 
 2️⃣ 【標題】
    （摘要內容...）
+   🔗 來源：[完整連結]
 
 3️⃣ 【標題】
    （摘要內容...）
+   🔗 來源：[完整連結]
+
+4️⃣ 【標題】
+   （摘要內容...）
+   🔗 來源：[完整連結]
+
+5️⃣ 【標題】
+   （摘要內容...）
+   🔗 來源：[完整連結]
+
+6️⃣ 【標題】
+   （摘要內容...）
+   🔗 來源：[完整連結]
+
+7️⃣ 【標題】
+   （摘要內容...）
+   🔗 來源：[完整連結]
 """
-        response = model.generate_content(prompt)
-        return response.text + "\n\n🔊 要語音播報嗎？說「要語音」！"
+        response = model_functional.generate_content(prompt)  # 使用功能性模型，避免講笑話
+        return response.text + "\n\n💡 想聽語音播報？回覆「語音」即可"
     except Exception as e:
         print(f"News summary error: {e}")
         return "抱歉，無法整理新聞資訊，請稍後再試！"
