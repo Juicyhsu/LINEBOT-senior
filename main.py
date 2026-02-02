@@ -1224,8 +1224,8 @@ def get_font_path(font_type):
         print(f"[FONT] Download exception: {e}")
         return None
 
-def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=0, stroke_color=None):
-    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果）"""
+def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=0, stroke_color=None, decorations=None):
+    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果 + 裝飾元素）"""
     try:
         import random
         import math
@@ -1496,6 +1496,57 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         # 如果有整體旋轉角度
         if angle != 0:
             txt_layer = txt_layer.rotate(angle, expand=False, resample=Image.Resampling.BICUBIC)
+        
+        # 添加裝飾元素（emoji等）
+        if decorations and isinstance(decorations, list):
+            for deco in decorations:
+                try:
+                    char = deco.get('char', '❤️')
+                    deco_pos = deco.get('position', 'top-right')
+                    deco_size = deco.get('size', 60)
+                    
+                    # 計算裝飾位置
+                    padding = 40
+                    if deco_pos == 'top-right':
+                        x = img.width - deco_size - padding
+                        y = padding
+                    elif deco_pos == 'top-left':
+                        x = padding
+                        y = padding
+                    elif deco_pos == 'bottom-right':
+                        x = img.width - deco_size - padding
+                        y = img.height - deco_size - padding
+                    elif deco_pos == 'bottom-left':
+                        x = padding
+                        y = img.height - deco_size - padding
+                    else:
+                        x = img.width // 2
+                        y = img.height //2
+                    
+                    # 使用支援emoji的字體繪製裝飾
+                    try:
+                        # 嘗試找emoji字體（Noto Color Emoji或系統emoji字體）
+                        emoji_font_path = get_font_path('heiti')  # 使用heiti作為備選
+                        if emoji_font_path:
+                            emoji_font = ImageFont.truetype(emoji_font_path, deco_size)
+                        else:
+                            emoji_font = ImageFont.load_default()
+                    except:
+                        emoji_font = ImageFont.load_default()
+                    
+                    # 創建裝飾圖層
+                    deco_layer = Image.new('RGBA', (deco_size*2, deco_size*2), (255,255,255,0))
+                    deco_draw = ImageDraw.Draw(deco_layer)
+                    
+                    # 繪製emoji（帶陰影）
+                    deco_draw.text((5, 5), char, font=emoji_font, fill='#00000044')  # 陰影
+                    deco_draw.text((3, 3), char, font=emoji_font, fill='white')  # 主體
+                    
+                    # 貼上裝飾
+                    txt_layer.paste(deco_layer, (int(x), int(y)), deco_layer)
+                except Exception as de:
+                    print(f"[DECORATION ERROR] {de}")
+                    continue
         
         # 合併圖層
         img = Image.alpha_composite(img, txt_layer)
@@ -2832,43 +2883,75 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 
                 # AI 視覺分析 - 強調避開主體、選擇對比色
                 # AI 視覺分析 - 強調避開主體、選擇對比色
-                vision_prompt = f"""你是長輩圖排版設計總監。請分析這張圖片，為文字「{text}」設計最佳的視覺效果。
+                vision_prompt = f"""你是專業的長輩圖設計師，擁有完全的創作自由。請分析這張圖片並為文字「{text}」設計最佳排版。
 
-**設計目標：**
-1. **字體與空間權衡 (Critical Balance)**：
-   - **易讀性第一**：字體大小盡量維持在 **50-90** 之間。
-   - **允許覆蓋**：為了維持字體夠大，**可以覆蓋**圖片中不重要的部分（如肩膀、衣服、角落雜物、模糊背景）。
-   - **絕對避開**：只有「人臉」和「核心主體特徵」是絕對不能擋到的。
-2. **高對比度**：確保文字在背景上清晰可見。
-3. **設計感**：根據圖片氛圍決定是否需要描邊 (Stroke)。
-   - 活潑/複雜背景 -> 建議加粗描邊 (stroke_width: 3-5)
-   - 唯美/乾淨背景 -> 可無描邊或細描邊 (stroke_width: 0-2)
-4. **拒絕千篇一律**：
-   - 請根據圖片的色調，**大膽嘗試**不同的顏色組合 (如霓虹色、粉彩、撞色)。
-   - 不要總是選金色 (#FFD700) 或白色。
-5. **字體偏好**：
-   - **預設請使用粗體 (bold/heiti)**：長輩圖通常需要字體夠粗才看得清楚。
-   - 除非圖片非常唯美、氣質，才使用楷體 (kaiti)。
+**🎨 風格選擇指南（請根據圖片特徵自由選擇）**：
 
-**請回傳一行 JSON 格式：**
+1. **classic（經典長輩圖）** - 萬用安全選擇
+   • 白色粗體文字 + 黑色粗描邊（8-12px）
+   • 適合：所有場景的保底方案
+   • 特點：清晰醒目，永不出錯
+
+2. **calligraphy（溫馨書法）** - 文藝優雅
+   • 黑色或深色大字，細描邊或無描邊
+   • 適合：花卉、風景、文藝場景
+   • 特點：有質感，像書法作品
+
+3. **colorful（彩色繽紛）** - 活潑歡樂
+   • 多種鮮豔顏色組合（藍+紅+綠等）
+   • 適合：明亮、歡樂、兒童場景
+   • 特點：充滿活力，色彩豐富
+
+4. **gradient（漸層夢幻）** - 柔和浪漫
+   • 漸層或半透明效果
+   • 適合：柔和、浪漫、唯美場景
+   • 特點：柔和夢幻，優雅溫馨
+
+5. **neon（霓虹發光）** - 炫目搶眼
+   • 亮黃/橙/粉色 + 發光效果
+   • 適合：深色背景、夜景
+   • 特點：發光炫目，引人注目
+
+**🎯 智能定位要求**：
+1. 識別圖片中的重要物件（人物臉部、動物、花朵、食物等主體）
+2. 找出空白或次要區域（天空、牆壁、地板、模糊背景）
+3. ✅ 可以遮擋：邊角、背景雜物、次要元素
+4. ❌ 絕對避開：臉部、主要物件的關鍵特徵
+5. 確保文字完全在圖片範圍內，不要超出或被截切
+
+**✨ 裝飾元素（可選，根據場景自由發揮）**：
+• 早安/問候圖：可加 🌸 🌺 ☀️ ❤️
+• 勵志/加油：可加 💪 ✨ 🌟 ⭐
+• 溫馨/愛心：可加 ❤️ 💕 💖 🌹
+• 可愛/歡樂：可加 🎉 🎊 🎈 😊
+
+**📐 排版彈性**：
+• 可以選擇水平或垂直排列（根據圖片構圖）
+• 字體大小：60-120（根據文字長度和空間調整）
+• 可以微旋轉（-10 到 10 度）增加動感
+
+**請以 JSON 格式輸出**：
 {{
-    "position": "top-left", 
-    "color": "#FFD700", 
-    "font": "kaiti", 
-    "font_size": 60,
-    "angle": 5,
-    "stroke_width": 3,
-    "stroke_color": "#000000"
+  "style": "classic/calligraphy/colorful/gradient/neon",
+  "position": "top-left/top-right/bottom-left/bottom-right/top/bottom/center",
+  "color": "#FFFFFF",
+  "font": "bold/heiti/kaiti",
+  "font_size": 80,
+  "stroke_width": 10,
+  "stroke_color": "#000000",
+  "angle": 0,
+  "decorations": [
+    {{"char": "❤️", "position": "top-right", "size": 60}}
+  ]
 }}
 
-**參數說明：**
-- position: top-left, top-right, bottom-left, bottom-right, top, bottom
-- color: 文字顏色 (Hex 或 rainbow)
-- font: heiti (推薦/粗體), bold (特粗), kaiti (僅用於優雅風格)
-- font_size: 盡量維持 50-90，除非真的沒位置才用到 40
-- angle: -10 到 10 (微旋轉增加動感)
-- stroke_width: 0 (無) 到 5 (極粗)
-- stroke_color: 描邊顏色
+**範例參考**：
+• 花朵照片 → calligraphy style，黑色字放上方空白處，加 🌸
+• 人物照片 → classic style，白字黑邊放在不擋臉的角落
+• 食物照片 → colorful style，彩色字放旁邊，活潑可愛
+• 夜景照片 → neon style，亮黃色發光字
+
+現在請為這張圖片和文字「{text}」設計最佳方案：
 """
 
                 # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
@@ -2908,11 +2991,13 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                         stroke_width = int(data.get('stroke_width', 0))
                         stroke_color = data.get('stroke_color', '#000000')
                         size = int(data.get('font_size', 60))
+                        decorations = data.get('decorations', [])  # 新增：解析裝飾元素
                     else:
                         raise ValueError("No JSON found")
                         
                 except Exception as parse_e:
                     print(f"[AI PARSE ERROR] {parse_e}, trying fallback regex")
+                    decorations = []  # 如果解析失敗，裝飾為空
                     pass
                 
                 # 確保 color 是 hex 或 rainbow
@@ -2921,9 +3006,10 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                      color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
                      color = color_map.get(color.lower(), '#FFFFFF')
 
-                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, {angle}度, stroke={stroke_width}")
+                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, {angle}度, stroke={stroke_width}, decorations={len(decorations)}")
                 
-                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color)
+                # 傳遞 decorations 參數
+                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations)
                 
                 # Send - 使用 reply_token 免費發送
                 if final_path:
