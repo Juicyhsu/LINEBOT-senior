@@ -491,28 +491,52 @@ def fetch_latest_news():
                 return news_cache['data']
         
         feeds = [
-            'https://www.cna.com.tw/rss/headline.xml',
+            'https://www.cna.com.tw/rss/newstop.xml',    # CNA Real-time News (Works with UA)
+            'https://news.pts.org.tw/xml/newsfeed.xml',   # PTS News (Backup)
         ]
         
         news_items = []
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
         for feed_url in feeds:
             try:
-                feed = feedparser.parse(feed_url)
-                for entry in feed.entries[:15]:  # 增加到 15 則，確保有足夠新聞供挑選
-                    news_items.append({
-                        'title': entry.title,
-                        'summary': entry.get('summary', ''),
-                        'link': entry.link,
-                        'published': entry.get('published', '')
-                    })
+                # 使用 requests 加上 User-Agent 避免被擋
+                # 設定 timeout 避免卡住
+                response = requests.get(feed_url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    feed = feedparser.parse(response.content)
+                    
+                    # 如果解析成功且有內容
+                    if feed.entries:
+                        for entry in feed.entries[:10]: # 每來源取 10 則
+                            news_items.append({
+                                'title': entry.title,
+                                'summary': entry.get('summary', ''),
+                                'link': entry.link,
+                                'published': entry.get('published', '')
+                            })
+                        print(f"Successfully fetched {len(feed.entries)} items from {feed_url}")
+                    else:
+                        print(f"Feed parsed but empty: {feed_url}")
+                else:
+                    print(f"Failed to fetch feed {feed_url}: Status {response.status_code}")
+                    
             except Exception as e:
                 print(f"Feed parse error for {feed_url}: {e}")
                 continue
+                
+        # Shuffle or Just keep latest? 
+        # 其實不用太複雜，有抓到就好
         
-        news_cache['data'] = news_items
-        news_cache['timestamp'] = datetime.now()
-        
-        return news_items
+        if news_items:
+            news_cache['data'] = news_items
+            news_cache['timestamp'] = datetime.now()
+            return news_items
+        else:
+            return []
     except Exception as e:
         print(f"Fetch news error: {e}")
         return []
@@ -2244,7 +2268,7 @@ def message_text(event):
             line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[TextMessage(text="請貼上您想查證的文字或連結 \n(我們將協助您分析內容真實性)")]
+                    messages=[TextMessage(text="請貼上您想查證的文字或連結，將協助您分析內容真實性)")]
                 )
             )
         return
