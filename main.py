@@ -178,8 +178,8 @@ model_functional = genai.GenerativeModel(
         "top_p": 0.95,
         "max_output_tokens": 8192,
     },
-    # 不設定 system_instruction 或設定為純粹的助理
-    system_instruction="You are a helpful AI assistant focused on data processing and JSON generation. Do not include any conversational filler. Output strict structured data.",
+    # 設定為精確、客觀的助理 (可處理 JSON 和 嚴肅文字)
+    system_instruction="You are a precise, objective AI assistant. When asked for JSON, output strict valid JSON. When asked for text, be concise, serious, and professional. Do not joke.",
 )
 
 # ======================
@@ -551,24 +551,25 @@ def summarize_content(content, user_id):
     try:
         # 使用 functional model 以確保客觀嚴肅，不講笑話
         prompt = f"""
-以下是一則網頁內容，請進行「精簡但深入」的閱讀整理，
-目標是讓長輩能快速掌握重點，但內容要有價值，不要只寫空泛的廢話。
-
-內容：
-{content[:4000]}
-
-請用以下格式回答（語氣保持專業、親切但嚴肅，絕對不要講笑話）：
-📰 深度閱讀整理
-
-【核心重點】
-(請列出 3 點真正的內容精華，言之有物)
-
-【詳細內容】
-(針對內容進行精簡扼要的解說，保留重要數據或建議，但不要太長)
-
-【貼心提醒】
-(針對內容給予實際建議或注意事項)
-"""
+        [SYSTEM: STRICT CONCISE SUMMARY]
+        Please summarize the following content for an elderly user.
+        
+        Content:
+        {content[:4000]}
+        
+        Rules:
+        1. **Objective & Serious**: NO jokes, NO "Hello elders", NO emoji spam.
+        2. **Ultra-Concise**: Total length under 250 words.
+        3. **Format**: Human-readable text (NOT JSON).
+        
+        Output Format:
+        
+        📖 **內容重點**
+        (3 bullet points, concise)
+        
+        💡 **結論/建議**
+        (1-2 sentences)
+        """
         
         response = model_functional.generate_content(prompt)
         return response.text
@@ -599,14 +600,19 @@ def fetch_latest_news():
         news_items = []
         for feed_url in feeds:
             try:
-                feed = feedparser.parse(feed_url)
-                for entry in feed.entries[:10]:  # 增加到 10 則，確保有足夠新聞供挑選
-                    news_items.append({
-                        'title': entry.title,
-                        'summary': entry.get('summary', ''),
-                        'link': entry.link,
-                        'published': entry.get('published', '')
-                    })
+                # [FIX] 使用 requests 加上 User-Agent 避免被阻擋
+                response = requests.get(feed_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=10)
+                if response.status_code == 200:
+                    feed = feedparser.parse(response.content)
+                    for entry in feed.entries[:10]:  # 增加到 10 則，確保有足夠新聞供挑選
+                        news_items.append({
+                            'title': entry.title,
+                            'summary': entry.get('summary', ''),
+                            'link': entry.link,
+                            'published': entry.get('published', '')
+                        })
+                else:
+                    print(f"Feed error {feed_url}: {response.status_code}")
             except Exception as e:
                 print(f"Feed parse error for {feed_url}: {e}")
                 continue
@@ -1912,7 +1918,7 @@ def message_text(event):
             line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[TextMessage(text="請貼上您想查證的連結\n(將協助您分析內容真實性)")]
+                    messages=[TextMessage(text="請貼上您想查證的🔗連結\n(將協助您分析內容真實性)")]
                 )
             )
         return
