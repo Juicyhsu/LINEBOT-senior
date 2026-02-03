@@ -2541,6 +2541,10 @@ def handle_follow(event):
     # 本地備用路徑
     menu_image_path = os.path.join("static", "welcome_menu.jpg")
     
+    # [FIX] 增加延遲，確保圖片訊息晚於 LINE 官方後台設定的「加入好友歡迎詞」送達
+    # 避免發生「圖片比歡迎詞先跳出來」的順序錯誤
+    time.sleep(1.5)
+
     # 準備歡迎文字 (從統一選單獲取)
     welcome_text = "🎉 歡迎加入！我是您的長輩好朋友！\n\n" + get_function_menu()
     
