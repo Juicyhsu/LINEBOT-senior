@@ -182,6 +182,11 @@ model_functional = genai.GenerativeModel(
     system_instruction="You are a helpful AI assistant focused on data processing and JSON generation. Do not include any conversational filler. Output strict structured data.",
 )
 
+# ======================
+# Global Optimization (Lazy Init)
+# ======================
+tts_client = None
+
 UPLOAD_FOLDER = "static"
 
 app = Flask(__name__)
@@ -715,7 +720,10 @@ def generate_news_audio(text, user_id):
         # 使用 Google Cloud TTS (免費額度)
         from google.cloud import texttospeech
         
-        client = texttospeech.TextToSpeechClient()
+        global tts_client
+        if tts_client is None:
+            tts_client = texttospeech.TextToSpeechClient()
+        client = tts_client
         
         synthesis_input = texttospeech.SynthesisInput(text=text)
         voice = texttospeech.VoiceSelectionParams(
@@ -1339,7 +1347,10 @@ def transcribe_audio_with_gemini(audio_path, model_to_use=None):
 def text_to_speech(text, user_id):
     """文字轉語音"""
     try:
-        client = texttospeech.TextToSpeechClient()
+        global tts_client
+        if tts_client is None:
+            tts_client = texttospeech.TextToSpeechClient()
+        client = tts_client
         
         synthesis_input = texttospeech.SynthesisInput(text=text)
         
