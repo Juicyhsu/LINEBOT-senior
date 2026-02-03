@@ -17,7 +17,6 @@ try:
     if hasattr(time, 'tzset'):
         time.tzset()
     print(f"Timezone set to: {os.environ.get('TZ')}, Current time: {datetime.now()}")
-    print("=== DEPLOYMENT VERSION: 2026-02-03 Force Update ===")
 except Exception as e:
     print(f"Failed to set timezone: {e}")
 
