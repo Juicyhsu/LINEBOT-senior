@@ -152,7 +152,7 @@ llm_role_description = """
 """
 
 # Use the model
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, Content, Part
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 model = genai.GenerativeModel(
     model_name="gemini-2.5-flash",
     safety_settings={
@@ -2142,8 +2142,8 @@ def message_text(event):
                 # [NEW] 將查證結果存入記憶，讓用戶可以追問
                 if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
                 chat = chat_sessions[user_id]
-                chat.history.append(Content(role='user', parts=[Part(text=f"請幫我閱讀這個連結：{pending_url}")]))
-                chat.history.append(Content(role='model', parts=[Part(text=reply_text)]))
+                chat.history.append({'role': 'user', 'parts': [f"請幫我閱讀這個連結：{pending_url}"]})
+                chat.history.append({'role': 'model', 'parts': [reply_text]})
 
                 # 清除待處理狀態
                 del user_link_pending[user_id]
@@ -2183,8 +2183,8 @@ def message_text(event):
                 # [NEW] 將查證結果存入記憶，讓用戶可以追問
                 if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
                 chat = chat_sessions[user_id]
-                chat.history.append(Content(role='user', parts=[Part(text=f"請幫我查證這個連結：{pending_url}")]))
-                chat.history.append(Content(role='model', parts=[Part(text=reply_text)]))
+                chat.history.append({'role': 'user', 'parts': [f"請幫我查證這個連結：{pending_url}"]})
+                chat.history.append({'role': 'model', 'parts': [reply_text]})
 
                 # 清除待處理狀態
                 del user_link_pending[user_id]
