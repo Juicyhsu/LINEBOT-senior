@@ -454,22 +454,28 @@ def fetch_webpage_content(url):
 def summarize_content(content, user_id):
     """使用 Gemini 摘要網頁內容"""
     try:
+        # 使用直球對決的 Prompt，避免廢話
         prompt = f"""
-請幫我這位長輩讀懂這個網頁，用溫暖的口吻告訴他：
-
-{content}
-
-請用這樣的格式回應：
-
-📖 **內容摘要**
-
-（用3-5句話解釋重點）
-
-💡 **我的建議**
-
-（告訴長輩這內容是否可信，有什麼要注意的）
-"""
-        response = model.generate_content(prompt)
+        [SYSTEM: CONCISE READING ASSISTANT]
+        Please summarize the following webpage content.
+        
+        Content:
+        {content[:3000]}
+        
+        Rules:
+        1. **Objective**: Summarize the key points clearly.
+        2. **Concise**: KEEP IT SHORT. No more than 200 words.
+        3. **No Fluff**: Do NOT use "Warm tone", "Hello elders", or emojis.
+        4. **Format**:
+        
+        📖 **內容摘要**
+        (3-4 bullet points of key facts)
+        
+        💡 **重點整理**
+        (1 sentence takeaway)
+        """
+        # 使用 model_functional 確保精簡
+        response = model_functional.generate_content(prompt)
         return response.text
     except Exception as e:
         print(f"Summarize error: {e}")
@@ -2200,21 +2206,34 @@ def message_text(event):
                 # 用戶想要查證
                 content = fetch_webpage_content(pending_url)
                 if content:
-                    # 使用 Gemini 深度分析內容
+                    # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
                     analysis_prompt = f"""
-請分析以下網頁內容是否可信：
+                    [SYSTEM: STRICT FACT-CHECKING MODE]
+                    You are a professional fact-checker.
+                    Analyze the following webpage content.
 
-{content[:3000]}
+                    Content:
+                    {content[:3000]}
 
-請從以下角度分析：
-1. 內容是否合理？有無明顯誇大或矛盾？
-2. 是否包含常見詐騙關鍵字？
-3. 整體可信度評估
+                    CRITICAL RULES:
+                    1. **NO JOKES**: Do not make any jokes, puns, or humorous remarks.
+                    2. **Professional Tone**: Be objective, serious, and concise.
+                    3. **Concise**: Keep the total response under 300 words.
+                    4. **Format**: Use the following structure strictly.
 
-請用長輩容易理解的方式回答。
-"""
+                    Output Structure (Traditional Chinese):
+                    
+                    🔍 **查證分析**
+                    
+                    1. **內容真實性**：(Directly state if it is credible, suspicious, or contains misinformation)
+                    2. **風險評估**：(Is there a scam risk? e.g. Phishing, fake investment, health rumors)
+                    3. **專家建議**：(What should the user do? 1-2 practical steps)
+
+                    Input Content -> Fact Check Analysis
+                    """
+                    # 使用 model_functional (Temp 0.2)
                     analysis = model_functional.generate_content(analysis_prompt)
-                    reply_text = f"🔍 深度查證結果 (嚴肅模式)\n\n{analysis.text}"
+                    reply_text = f"{analysis.text}"
                 else:
                     reply_text = "抱歉，我無法讀取這個網頁的內容進行深度查證。"
                 
