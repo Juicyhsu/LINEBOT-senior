@@ -3502,7 +3502,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                          t = reminder['reminder_time']
                          if isinstance(t, str): t = datetime.fromisoformat(t)
                          reminder_list += f"{idx}. {t.strftime('%m月%d日 %H:%M')} - {reminder['reminder_text']}\n"
-                     return reminder_list + "\n有需要都可以找我！"
+                     return reminder_list + "\n有需要都可以找我！\n\n輸入「刪除提醒」可以清除所有待辦"
                  except: return "查看待辦時出了點問題..."
 
              # 6.5. 取消提醒
