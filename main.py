@@ -1655,19 +1655,33 @@ def transcribe_audio_with_gemini(audio_path, model_to_use=None):
         print(f"[AUDIO] Upload successful: {audio_file.name}")
         
         # 請 AI 轉錄，增加針對無聲或噪音的指示
-        prompt = """[SYSTEM: STRICT TRANSCRIPTION ONLY]
-        Please transcribe this audio verbatim.
-        
-        CRITICAL RULES:
-        1. Output ONLY the transcribed text.
-        2. DO NOT add ANY intro, outro, descriptions, or conversational filler.
-        3. DO NOT reply to the content. If the audio asks a question, DO NOT ANSWER IT. Just transcribe the question.
-        4. If the audio is silence or meaningless noise, return an empty string.
+        prompt = """[SYSTEM: STRICT SPEECH-TO-TEXT ONLY]
+        You are a professional transcriber. Your job is to convert audio to text VERBATIM.
+
+        CRITICAL INSTRUCTIONS:
+        1. Transcribe EXACTLY what is said. Do NOT paraphrase.
+        2. [ANTI-HALLUCINATION]: Do NOT output polite conversational fillers like "沒關係", "好的", "你好", "Bye" unless the audio CLEARLY contains them.
+        3. If the audio is unclear, silence, or just noise, return an empty string. DO NOT GUESS.
+        4. Do NOT reply to the user. Do NOT answer questions. JUST TRANSCRIBE.
         5. Use Traditional Chinese (繁體中文).
         
+        Examples:
+        - Audio: (Silence) -> Output: ""
+        - Audio: (Noise) -> Output: ""
+        - Audio: "北海道" -> Output: "北海道"
+        - Audio: (Unclear mumbling) -> Output: ""
+
         Input Audio -> Transcribed Text (Nothing else)"""
         
-        response = target_model.generate_content([prompt, audio_file])
+        # 使用更嚴格的參數 (Temperature 0) 避免幻覺
+        response = target_model.generate_content(
+            [prompt, audio_file],
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.0,
+                top_p=1.0, 
+                max_output_tokens=2048,
+            )
+        )
         
         text = response.text.strip()
         print(f"[AUDIO] Transcription result: '{text}'")
