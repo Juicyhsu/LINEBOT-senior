@@ -3320,7 +3320,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  current_intent = 'image_generation'
              elif any(k in user_input for k in ["生成影片", "製作影片", "做影片"]):
                  current_intent = 'video_generation'
-             elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項"]):
+             elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項", "提醒通知"]):
                  current_intent = 'show_reminders'
              
              # 如果關鍵字沒抓到，才用 AI (處理自然語言，如 "我想去宜蘭")
