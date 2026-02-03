@@ -9,19 +9,27 @@ try:
         img = Image.open(target_path)
         img = img.convert('RGB') # Remove alpha to save as JPG
         
-        # Save as high quality JPG first, check size
-        img.save(temp_jpg, "JPEG", quality=85)
+        # Save as optimized PNG
+        temp_png = r"c:\Users\user\Desktop\LINEBOT\長輩版機器人\static\rich_menu_new.png"
         
-        size = os.path.getsize(temp_jpg)
-        print(f"Original PNG size: {os.path.getsize(target_path)}")
-        print(f"Compressed JPG size: {size}")
+        # Resize if needed (already done, but ensured)
+        # Quantize to 256 colors to significantly reduce PNG size while keeping structure usable for menu
+        # or just use maximize optimization
+        img = img.resize((2500, 1686), Image.Resampling.LANCZOS)
+        
+        # Optimize PNG
+        img.save(temp_png, "PNG", optimize=True)
+        
+        size = os.path.getsize(temp_png)
+        print(f"Optimized PNG size: {size}")
         
         if size > 1000000:
-            # Further compress if needed
-            img.save(temp_jpg, "JPEG", quality=70)
-            print(f"Re-compressed JPG size: {os.path.getsize(temp_jpg)}")
-            
-        print(f"Saved optimized image to {temp_jpg}")
+             print("Warning: Still > 1MB. Trying quantization (P mode)...")
+             img_p = img.quantize(colors=256)
+             img_p.save(temp_png, "PNG", optimize=True)
+             print(f"Quantized PNG size: {os.path.getsize(temp_png)}")
+
+        print(f"Saved optimized image to {temp_png}")
     else:
         print("Source file not found")
 except Exception as e:

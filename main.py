@@ -850,13 +850,13 @@ def format_verification_result(safety_check, url):
 
 請問您想要：
 
-1️⃣ 📖 【深度閱讀】
+1️⃣ 📖 【閱讀內容】
    👉 幫您詳細整理網頁重點與細節
 
 2️⃣ 🔍 【查證內容】
    👉 檢查內容真實性與詐騙風險
 
-請貼上連結，或直接回覆「閱讀」或「查證」！"""
+請回覆「1」或「2」，也可以說「閱讀」或「查證」喔！"""
 
 def fetch_webpage_content(url):
     """
@@ -902,8 +902,8 @@ def summarize_content(content, user_id):
     try:
         # 使用 functional model 以確保客觀嚴肅，不講笑話
         prompt = f"""
-以下是一則網頁內容，請進行深度閱讀與整理，
-目標是讓長輩能獲得有價值的資訊，不要只給淺顯的摘要（廢話）。
+以下是一則網頁內容，請進行「精簡但深入」的閱讀整理，
+目標是讓長輩能快速掌握重點，但內容要有價值，不要只寫空泛的廢話。
 
 內容：
 {content[:4000]}
@@ -912,10 +912,10 @@ def summarize_content(content, user_id):
 📰 深度閱讀整理
 
 【核心重點】
-(請列出 3-5 點真正的內容精華，不要只寫表面)
+(請列出 3 點真正的內容精華，言之有物)
 
 【詳細內容】
-(針對內容進行分段解說，保留重要細節、數據或建議)
+(針對內容進行精簡扼要的解說，保留重要數據或建議，但不要太長)
 
 【貼心提醒】
 (針對內容給予實際建議或注意事項)
@@ -986,10 +986,12 @@ def generate_news_summary():
     # 使用 Gemini 摘要新聞
     try:
         # 使用更多的新聞項目 (前 30 則) 給 AI 挑選
-        news_text = "\n\n".join([
-            f"標題: {item['title']}\n內容: {item['summary']}\n連結: {item['link']}"
-            for item in news_items[:30] 
-        ])
+        # 為了確保連結正確，我們建立索引映射
+        indexed_news = []
+        for i, item in enumerate(news_items[:30], 1):
+             indexed_news.append(f"[{i}] 標題: {item['title']}\n內容: {item['summary']}")
+        
+        news_text = "\n\n".join(indexed_news)
         
         prompt = f"""
 以下是今天的新聞，請挑選最重要的 7 則，
@@ -998,25 +1000,59 @@ def generate_news_summary():
 {news_text}
 
 CRITICAL INSTRUCTION:
-必須直接使用原本提供的連結 (link)，絕對不可以自己編造或修改連結！
-如果原本沒有連結，就留空。
+請直接回傳你選擇的新聞 ID，以及摘要。
+絕對不要自己編造連結。
 
 輸出格式（嚴格遵守）：
 📰 今日新聞摘要
 
-1️⃣ 【標題】
+1️⃣ [ID] 【標題】
    摘要內容（80-100字，包含重要細節）
-   🔗 來源：[請填入真實連結]
 
 ... (請列出完整 7 則) ...
 
-7️⃣ 【標題】
+7️⃣ [ID] 【標題】
    摘要內容（80-100字，包含重要細節）
-   🔗 來源：[請填入真實連結]
 """
         response = model_functional.generate_content(prompt)
         
         final_text = response.text.strip()
+        
+        # Post-process: Replace [ID] with actual links
+        import re
+        lines = final_text.split('\n')
+        processed_lines = []
+        
+        current_link = ""
+        
+        for line in lines:
+            # Check for ID pattern like "1️⃣ [5] 【標題】" or just "[5]"
+            # Regex to find [ID]
+            match = re.search(r'\[(\d+)\]', line)
+            if match:
+                try:
+                    idx = int(match.group(1)) - 1 # 0-indexed
+                    if 0 <= idx < len(news_items):
+                        current_link = news_items[idx]['link']
+                        # Remove the [ID] tag from the display text
+                        line = line.replace(f"[{match.group(1)}]", "")
+                    else:
+                        current_link = ""
+                except:
+                    current_link = ""
+            
+            processed_lines.append(line)
+            
+            # append link after summary block (usually detecting empty line or next number?)
+            # strategy: simply append link immediately after the title line? 
+            # Or better: The format implies title line, then summary.
+            # Let's simplify: Just append the link to the NEXT line if we found an ID.
+            if current_link and "【" in line:
+                 processed_lines.append(f"   🔗 來源：{current_link}")
+                 current_link = "" # reset
+        
+        final_text = "\n".join(processed_lines)
+
         # 強制附加語音引導 (如果 AI 沒加)
         if "語音" not in final_text[-50:]:
             final_text += "\n\n💡 想聽語音播報？回覆「語音」即可"

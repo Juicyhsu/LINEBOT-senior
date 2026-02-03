@@ -86,8 +86,8 @@ def create_rich_menu():
 
             # Upload Image (Use requests to avoid SDK serialization issues with bytes)
             import requests
-            # Use compressed JPG to avoid 413 Entity Too Large
-            image_path = os.path.join("static", "rich_menu_new.jpg")
+            # Use optimized PNG (now guaranteed < 1MB)
+            image_path = os.path.join("static", "rich_menu_new.png")
             if not os.path.exists(image_path):
                 print(f"Image not found: {image_path}")
                 return
@@ -97,7 +97,7 @@ def create_rich_menu():
                 
             headers = {
                 "Authorization": f"Bearer {channel_access_token}",
-                "Content-Type": "image/jpeg"
+                "Content-Type": "image/png"
             }
             # Upload endpoint
             upload_url = f"https://api-data.line.me/v2/bot/richmenu/{rich_menu_id}/content"
