@@ -2498,8 +2498,8 @@ def handle_follow(event):
     
     messages = []
     
-    # 1. 先加入文字訊息 (Text First)
-    messages.append(TextMessage(text=welcome_text))
+    # 1. 先加入文字訊息 (Text First) - 用戶要求移除文字，只保留系統預設歡迎詞+功能圖片
+    # messages.append(TextMessage(text=welcome_text))
     
     # 2. 再加入圖片訊息 (Image Second)
     image_url_to_send = None
