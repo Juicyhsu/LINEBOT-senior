@@ -2360,14 +2360,15 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
             1. Output ONLY the destination name.
             2. Do NOT format as JSON, Markdown, or Code Block.
             3. Do NOT add labels like "Destination:".
-            4. If the user says "I want to go to Green Island", output "Green Island".
+            4. **MUST Output in Traditional Chinese (繁體中文)**. 
+               - If input is "Green Island", output "綠島".
+               - If input is "Japan", output "日本".
             5. If no location found, output the original input.'''.format(user_input)
             
             try:
                 extracted_dest = model_functional.generate_content(extract_prompt).text.strip()
-                # Post-processing cleanup (just in case model disobeys)
+                # Post-processing cleanup
                 import re
-                # Ensure we strip code blocks if present
                 extracted_dest = re.sub(r'```json\s*', '', extracted_dest)
                 extracted_dest = re.sub(r'```\s*', '', extracted_dest)
                 extracted_dest = extracted_dest.replace('"', '').replace("'", "").strip()
@@ -2434,7 +2435,7 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 1. **ZERO JOKES** - Do NOT make ANY jokes, puns, or humorous remarks
 2. **ZERO EMOJIS** - Do NOT use any emojis or emoticons  
 3. **ZERO CASUAL LANGUAGE** - Maintain professional tone throughout
-4. **ZERO EXCLAMATIONS** - Avoid overly enthusiastic language like "Super!" "Wow!" "Go!" "Cheer up!"
+4. **ZERO EXCLAMATIONS** - Avoid overly enthusiastic language
 
 **Language Requirement:**
 - MUST respond in Traditional Chinese (繁體中文)
@@ -2447,13 +2448,13 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 
 **Format Requirements:**
 1. Use clear Markdown structure
-2. Organize by day: ## Day 1, ## Day 2, etc.
+2. Organize by day: ## Day 1, ## Day 2, etc. (Keep "Day X" in English is fine, or use "第X天")
 3. For each day, include:
-   - Morning activities with specific locations and times
-   - Afternoon activities with specific locations and times  
-   - Evening activities with specific locations and times
+   - **Morning (上午)** activities with specific locations and times
+   - **Afternoon (下午)** activities with specific locations and times  
+   - **Evening (晚上)** activities with specific locations and times
    - Practical tips (transportation, costs, reservations)
-4. Include specific spot names, but Do NOT include full addresses to keep it clean
+4. Include specific spot names.
 5. Provide realistic time estimates
 6. Add practical travel tips at the end
 7. **NO ADDRESSES** - Just the location name is enough
@@ -2462,22 +2463,21 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 ## {dest} {purp}之旅
 
 ### Day 1
-**Morning (9:00-12:00)**
-- Spot: [Spot Name]
-- Duration: [Time]
+**上午 (09:00-12:00)**
+- 景點：[Spot Name]
+- 停留時間：[Time]
 
-**Afternoon (13:00-17:00)**
+**下午 (13:00-17:00)**
 - ...
 
-### Travel Tips
-- Transport: ...
-- Budget: ...
-- Note: ...
+### 旅遊小提示
+- 交通：...
+- 預算：...
+- 備註：...
 
-Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS.
-CRITICAL: Do NOT output as JSON. Do NOT output as a code block. Output pure Markdown text.
-
-Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
+Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE.
+CRITICAL: Do NOT output as JSON. Output pure Markdown text.
+"""
             
             try:
                 # 使用功能性模型生成行程 (避免 Motivational Speaker 人設干擾)
