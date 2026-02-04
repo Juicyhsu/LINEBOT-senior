@@ -76,6 +76,16 @@ class Database:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            # [NEW] 待發送通知表格 (Passive Notifications)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pending_notifications (
+                    id SERIAL PRIMARY KEY,
+                    user_id VARCHAR(255) NOT NULL,
+                    message_text TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
             # 建立索引
             cursor.execute("""
@@ -109,6 +119,16 @@ class Database:
                     start_date TEXT,
                     end_date TEXT,
                     plan_data TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # [NEW] 待發送通知表格 (Passive Notifications)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS pending_notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    message_text TEXT NOT NULL,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -432,6 +452,59 @@ class Database:
         
         conn.close()
         return plan
+
+    # ==================
+    # 被動通知功能 (Pending Notifications)
+    # ==================
+
+    def add_pending_notification(self, user_id: str, message_text: str):
+        """新增待讀取通知"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        if self.db_type == "postgres":
+            cursor.execute("""
+                INSERT INTO pending_notifications (user_id, message_text)
+                VALUES (%s, %s)
+            """, (user_id, message_text))
+        else:
+            cursor.execute("""
+                INSERT INTO pending_notifications (user_id, message_text)
+                VALUES (?, ?)
+            """, (user_id, message_text))
+        
+        conn.commit()
+        conn.close()
+
+    def get_and_clear_pending_notifications(self, user_id: str) -> List[str]:
+        """取得並清除用戶的所有待讀取通知"""
+        conn = self._get_connection()
+        
+        # Get notifications
+        if self.db_type == "postgres":
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("""
+                SELECT message_text FROM pending_notifications WHERE user_id = %s ORDER BY created_at
+            """, (user_id,))
+            rows = cursor.fetchall()
+            messages = [row['message_text'] for row in rows]
+        else:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT message_text FROM pending_notifications WHERE user_id = ? ORDER BY created_at
+            """, (user_id,))
+            messages = [row[0] for row in cursor.fetchall()]
+        
+        # Delete them
+        if messages:
+            if self.db_type == "postgres":
+                cursor.execute("DELETE FROM pending_notifications WHERE user_id = %s", (user_id,))
+            else:
+                cursor.execute("DELETE FROM pending_notifications WHERE user_id = ?", (user_id,))
+            conn.commit()
+            
+        conn.close()
+        return messages
 
 # 全域資料庫實例
 db = Database()

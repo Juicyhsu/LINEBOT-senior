@@ -621,6 +621,7 @@ def fetch_latest_news():
                             clean_summary = entry.get('title', '')
                             print(f"[DEBUG] News Summary Empty. Fallback to Title: {clean_summary[:20]}...")
                             
+                        # If still empty, skip
                         if not clean_summary:
                             print(f"[DEBUG] News Skipped (No Content): {entry.get('title', 'Unknown')}")
                             continue
@@ -1452,6 +1453,31 @@ def upload_image_to_external_host(image_path):
 
 def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
     """傳送圖片到 LINE(優先使用 reply_message 節省額度, 沒有 token 時用 push_message)"""
+    # ============================================
+    # GLOBAL: Passive Notification Check
+    # ============================================
+    # 每次用戶傳訊息來，順便檢查有沒有待接收的提醒
+    # (只有在非 Audio Confirmation 狀態下才做，避免打斷語音確認流程)
+    pending_notes = []
+    if db and user_id not in user_audio_confirmation_pending:
+        try:
+            notes = db.get_and_clear_pending_notifications(user_id)
+            if notes:
+                pending_notes = notes
+        except Exception as e:
+            print(f"Error checking pending notes: {e}")
+            
+    # 定義一個 helper function 來附加提醒
+    def append_pending_notes(reply_msg):
+        if not pending_notes: return reply_msg
+        
+        note_text = "\n\n📝 【未讀提醒】\n" + "\n".join(pending_notes)
+        if isinstance(reply_msg, str):
+            return reply_msg + note_text
+        elif isinstance(reply_msg, TextMessage):
+            return TextMessage(text=reply_msg.text + note_text)
+        return reply_msg
+
     try:
         print(f"[SEND IMAGE] Starting for user {user_id}, image: {image_path}")
         
@@ -1858,33 +1884,28 @@ def message_text(event):
                 if content:
                     # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
                     analysis_prompt = f"""
-                    [SYSTEM: SECURITY & SCAM ANALYST]
-                    You are a Senior Cyber Security Analyst helping elderly users.
-                    Task: Deeply investigate the following text/Link content for FRAUD, SCAM, or MISINFORMATION.
-
+                    [SYSTEM: STRICT FACT CHECKER]
+                    Task: Objective analysis of content for SCAM/FRAUD/MISINFORMATION.
+                    
                     Content:
-                    {content[:3000]}
+                    {content[:2500]}
 
                     CRITICAL RULES:
-                    1. **STRICTLY NO JOKES**: Zero humor. Be extremely serious and professional.
-                    2. **DEPTH**: Look for hidden scam triggers (Urgency, Greed, Fear, Fake Authority, Phishing).
-                    3. **Length**: Provide a detailed analysis (approx 350-450 words) but stay readable.
-                    4. **Format**: Use the following structure.
-
-                    Output Structure (Traditional Chinese):
+                    1. **NO JOKES**: Absolute serious tone.
+                    2. **LENGTH**: Max 200 words. Be extremely concise.
+                    3. **FORMAT**: Bullet points only.
                     
-                    🔍 **深度查證分析**
-                    
-                    1. **真實性判讀**: (Directly state: SCAM / SUSPICIOUS / LEGIT / UNVERIFIED)
-                    2. **詐騙特徵掃描**: 
-                       - (List detected triggers, e.g., "Ask for bank info", "Too good to be true", "Unknown URL")
-                       - (Explain WHY it is dangerous)
-                    3. **專家給長輩的建議**: (Concrete actions: "Block", "Call 165", "Do not click")
-
-                    Input Content -> Security Analysis
+                    Output (Traditional Chinese):
+                    🔍 **查證分析**
+                    * **真實性**: (SCAM / SUSPICIOUS / LEGIT)
+                    * **風險**: (List specific risks)
+                    * **建議**: (Block / Ignore / Delete)
                     """
-                    # 使用 model_functional (Temp 0.2)
-                    analysis = model_functional.generate_content(analysis_prompt)
+                    # 使用 model_functional (Temp 0.0 for strictness)
+                    generation_config = genai.types.GenerationConfig(
+                        temperature=0.0
+                    )
+                    analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
                     reply_text = f"{analysis.text}"
                 else:
                     reply_text = "抱歉，我無法讀取這個網頁的內容進行深度查證。"

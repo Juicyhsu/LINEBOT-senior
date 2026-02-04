@@ -85,6 +85,18 @@ class ReminderScheduler:
             with ApiClient(self.configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 
+                # Check Quota First
+                try:
+                    quota = line_bot_api.get_message_quota_consumption()
+                    # 假設免費額度 500，保留 50 緩衝
+                    if quota.total_usage > 450:
+                        print(f"Quota exceeded ({quota.total_usage}), switching to passive mode for {user_id}")
+                        if db:
+                            db.add_pending_notification(user_id, f"⏰ {reminder_text}")
+                        return 1 # Treat as success (handled passively)
+                except Exception as qe:
+                    print(f"Quota check failed, proceeding with caution: {qe}")
+                
                 message_text = f"⏰ **提醒通知** ⏰\n\n{reminder_text}\n\n時間到囉！"
                 
                 line_bot_api.push_message(
@@ -97,7 +109,12 @@ class ReminderScheduler:
         except Exception as e:
             error_str = str(e)
             print(f"Error sending reminder: {e}")
+            
+            # If failed due to quota, save as pending
             if "429" in error_str or "monthly limit" in error_str or "quota" in error_str.lower():
+                print(f"Push failed due to quota, saving as pending for {user_id}")
+                if db:
+                     db.add_pending_notification(user_id, f"⏰ {reminder_text} (補)")
                 return 2 # Quota Limit
             return 0 # Generic Fail
 

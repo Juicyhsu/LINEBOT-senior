@@ -118,34 +118,21 @@ def validate_and_fix_trip_plan(plan, model):
         str: 修正後的行程 (若無錯誤則回傳原行程)
     """
     validation_prompt = f"""
-[SYSTEM: STRICT LOGIC CHECKER]
-You are a RUTHLESS Quality Control Expert for travel itineraries.
-Review the following trip plan for FLAGRANT LOGICAL ERRORS.
-
-**CRITICAL CHECKLIST:**
-1. **Transport Feasibility (MOST IMPORTANT)**:
-   - **NO HSR (High Speed Rail) to East Coast (Hualien, Taitung) or Islands (Green Island, Penghu, Orchid Island).** HSR only runs on West Coast (Taipei-Kaohsiung).
-   - **Transportation Rules (STRICT):**
-     * **Green Island (綠島) / Orchid Island (蘭嶼)**: MUST take Boat from Taitung Fugang Harbor (富岡漁港) OR Plane from Taitung Airport. **NO TRAIN/HSR directly to the island.**
-     * **Penghu (澎湖)**: MUST take Plane (from Taipei/Taichung/Kaohsiung) OR Boat (from Chiayi/Kaohsiung).
-     * **Xiao Liuqiu (小琉球)**: MUST take Boat from Donggang (東港).
-     * **Hualien/Taitung (花蓮/台東)**: MUST take TRA Train (台鐵/普悠瑪/太魯閣) or Drive. **NO HSR**.
-   - If user says "HSR to Green Island", **CORRECT IT** to "Train to Taitung then Boat".
-   - If user says "Drive to Green Island", **CORRECT IT** to "Drive to Taitung then Boat".
-2. **Time Continuity**: Do activities overlap? (e.g., Lunch at 12:00, but next activity starts at 11:30)
-3. **Geographical Logic**: Are locations too far apart? (e.g., Taipei to Kaohsiung in 1 hour by car is impossible)
-4. **Opening Hours**: Are spots likely closed? (Night market in the morning)
-
-**Input Plan:**
-{plan}
-
-**Instruction:**
-- If the plan is logically sound, reply EXACTLY: "PASS"
-- If there are errors (especially HSR to places without HSR), **REWRITE the problematic parts to fix them**.
-- **Keep the rest of the plan unchanged.**
-- Output the **FULL, COMPLETE, FIXED PLAN**. Do NOT output only the corrected parts. The user needs the entire itinerary.
-- Output ONLY the fixed plan (in Traditional Chinese markdown).
-"""
+    [SYSTEM: FAST LOGIC CHECK]
+    Task: Check for CRITICAL transport errors in the trip plan. Return 'PASS' if safe.
+    
+    CRITICAL RULES:
+    1. GREEN ISLAND / ORCHID ISLAND: Must take Boat from Taitung Fugang. (No Train/HSR directly to island).
+    2. PENGHU: Must take Plane or Boat.
+    3. HUALIEN / TAITUNG: No HSR (High Speed Rail). Only TRA Train.
+    
+    Current Plan:
+    {plan[:3000]}
+    
+    Output:
+    - If safe: 'PASS'
+    - If errors: Rewrite the problematic activity part ONLY (in Traditional Chinese).
+    """
     try:
         print("[DEBUG] Running Trip Validation...")
         response = model.generate_content(validation_prompt)
