@@ -1,4 +1,5 @@
-﻿import sys
+﻿# -*- coding: utf-8 -*-
+import sys
 import configparser
 import os, tempfile
 from datetime import datetime, timedelta
@@ -605,9 +606,23 @@ def fetch_latest_news():
                 if response.status_code == 200:
                     feed = feedparser.parse(response.content)
                     for entry in feed.entries[:10]:  # 增加到 10 則，確保有足夠新聞供挑選
+                        # [FIX] 增強內容抓取邏輯 (避免 News ID 錯誤或空白)
+                        raw_summary = entry.get('summary', '') or entry.get('description', '')
+                        # 如果 summary 還是空的，嘗試 content
+                        if not raw_summary and 'content' in entry:
+                             raw_summary = entry.get('content', [{'value': ''}])[0]['value']
+                        
+                        # 清理 HTML 標籤
+                        import re
+                        clean_summary = re.sub('<[^<]+?>', '', raw_summary).strip()
+                        
+                        # [FIX] 如果真的都沒內容，使用標題作為摘要 (Fallback to Title)
+                        if not clean_summary or len(clean_summary) < 5:
+                            clean_summary = entry.title
+
                         news_items.append({
                             'title': entry.title,
-                            'summary': entry.get('summary', ''),
+                            'summary': clean_summary[:100] + "..." if len(clean_summary) > 100 else clean_summary,
                             'link': entry.link,
                             'published': entry.get('published', '')
                         })
@@ -1313,17 +1328,15 @@ def transcribe_audio_with_gemini(audio_path, model_to_use=None):
         print(f"[AUDIO] Upload successful: {audio_file.name}")
         
         # 請 AI 轉錄，增加針對無聲或噪音的指示
-        prompt = """[SYSTEM: STRICT SPEECH-TO-TEXT ONLY]
-        You are a professional transcriber. Your job is to convert audio to text VERBATIM.
-
-        CRITICAL INSTRUCTIONS:
-        1. Transcribe EXACTLY what is said. Do NOT paraphrase.
-        2. [ANTI-HALLUCINATION]: Do NOT output polite conversational fillers like "沒關係", "好的", "你好", "Bye" unless the audio CLEARLY contains them.
-        3. If the audio is unclear, silence, or just noise, return an empty string. DO NOT GUESS.
-        4. Do NOT reply to the user. Do NOT answer questions. JUST TRANSCRIBE.
-        5. Use Traditional Chinese (繁體中文).
+        # 請 AI 轉錄 (Simplified Prompt for Speed)
+        prompt = """[SYSTEM: STT]
+        Transcribe audio verbatim to Traditional Chinese (繁體中文).
+        Rules:
+        1. Exact words only. No paraphrasing.
+        2. No conversational fillers (e.g., "好的", "沒關係") unless clearly spoken.
+        3. Return empty string if silence/noise.
+        4. NO additional commentary.
         
-        Examples:
         - Audio: (Silence) -> Output: ""
         - Audio: (Noise) -> Output: ""
         - Audio: "北海道" -> Output: "北海道"
@@ -1387,7 +1400,7 @@ def text_to_speech(text, user_id):
 
 def upload_image_to_external_host(image_path):
     """
-    上傳圖片到外部主機（如 Imgur 或 imgbb）並取得公開 URL
+    上傳圖片到外部主機(如 Imgur 或 imgbb)並取得公開 URL
     LINE 要求圖片必須是 HTTPS URL
     """
     try:
@@ -1432,7 +1445,7 @@ def upload_image_to_external_host(image_path):
         return None
 
 def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
-    """傳送圖片到 LINE（優先使用 reply_message 節省額度，沒有 token 時用 push_message）"""
+    """傳送圖片到 LINE(優先使用 reply_message 節省額度, 沒有 token 時用 push_message)"""
     try:
         print(f"[SEND IMAGE] Starting for user {user_id}, image: {image_path}")
         
@@ -1513,14 +1526,14 @@ def send_image_to_line(user_id, image_path, message_text="", reply_token=None):
 
 
 def send_status_notification(reply_token, status_text):
-    """使用 reply_message 發送狀態通知（免費）
+    """使用 reply_message 發送狀態通知(免費)
     
     Args:
-        reply_token: LINE 的 reply_token，如果為 None 則跳過
+        reply_token: LINE 的 reply_token, 如果為 None 則跳過
         status_text: 狀態訊息文字
     
     Returns:
-        True 如果成功發送，False 如果失敗或無 token
+        True 如果成功發送, False 如果失敗或無 token
     """
     if not reply_token:
         print(f"[STATUS] No reply_token, skipping status: {status_text[:30]}...")
@@ -1742,16 +1755,16 @@ def message_text(event):
             content = fetch_webpage_content(pending_url)
             if content:
                 analysis_prompt = f"""
-請分析以下網頁內容是否可信：
+請分析以下網頁內容是否可信:
 
 {content[:3000]}
 
-請從以下角度分析：
-1. 內容是否合理？有無明顯誇大或矛盾？
-2. 是否包含常見詐騙關鍵字？
+請從以下角度分析:
+1. 內容是否合理? 有無明顯誇大或矛盾?
+2. 是否包含常見詐騙關鍵字?
 3. 整體可信度評估
 
-請用長輩容易理解的方式回答。
+請用長輩容易理解的方式回答.
 """
                 analysis = model.generate_content(analysis_prompt)
                 reply_text = f"🔍 深度查證結果\n\n{analysis.text}"
@@ -1772,17 +1785,17 @@ def message_text(event):
         
         # 用戶輸入不明確，重新提示
         elif not extract_url(user_input):  # 確保不是發送新連結
-            reply_text = f"""收到您的訊息！
+            reply_text = f"""收到您的訊息!
 
-您之前發送的連結還沒處理完喔：
-🔗 {pending_url[:50]}...
+您之前發送的連結還沒處理完喔:
+[Link] {pending_url[:50]}...
 
-請告訴我您想要：
-1️⃣ 📖 閱讀 - 幫您摘要內容
-2️⃣ 🔍 查證 - 檢查是否可信
+請告訴我您想要:
+[1] 閱讀 - 幫您摘要內容
+[2] 查證 - 檢查是否可信
 
-回覆「閱讀」或「查證」即可！
-（或輸入「取消」放棄）"""
+回覆 (閱讀) 或 (查證) 即可!
+(或輸入 (取消) 放棄)"""
             
             with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
@@ -1854,11 +1867,11 @@ def message_text(event):
 
                     Output Structure (Traditional Chinese):
                     
-                    🔍 **查證分析**
+                    [Fact Check Analysis]
                     
-                    1. **內容真實性**：(Directly state if it is credible, suspicious, or contains misinformation)
-                    2. **風險評估**：(Is there a scam risk? e.g. Phishing, fake investment, health rumors)
-                    3. **專家建議**：(What should the user do? 1-2 practical steps)
+                    1. **內容真實性**: (Directly state if it is credible, suspicious, or contains misinformation)
+                    2. **風險評估**: (Is there a scam risk? e.g. Phishing, fake investment, health rumors)
+                    3. **專家建議**: (What should the user do? 1-2 practical steps)
 
                     Input Content -> Fact Check Analysis
                     """
@@ -2183,7 +2196,7 @@ def message_audio(event):
 
 @handler.add(MessageEvent, message=StickerMessageContent)
 def message_sticker(event):
-    """處理貼圖訊息 - 不觸發任何服務，只回應表情"""
+    """處理貼圖訊息 - 不觸發任何服務, 只回應表情"""
     user_id = event.source.user_id
     
     # 檢查是否在圖片生成或長輩圖製作狀態中
@@ -2279,16 +2292,16 @@ def handle_follow(event):
 # ======================
 
 def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=None):
-    """處理行程規劃，reply_token 用於發送狀態通知"""
+    """處理行程規劃, reply_token 用於發送狀態通知"""
     global user_trip_plans
     
     # Initialize state if new session
     if is_new_session or user_id not in user_trip_plans:
         user_trip_plans[user_id] = {'stage': 'collecting_info', 'info': {}}
-        return """好的，我們來規劃行程。
+        return """好的, 我們來規劃行程.
 
-請問您想去哪裡玩呢？
-(例如：宜蘭、台南、綠島、日本等)"""
+請問您想去哪裡玩呢?
+(例如: 宜蘭, 台南, 綠島, 日本等)"""
 
     state = user_trip_plans[user_id]
     
@@ -2306,20 +2319,20 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 if any(keyword in user_input for keyword in ['都可以', '都行', '隨便', '不挑', '任意', '推薦']):
                     # 直接使用大地區作為目的地
                     state['info']['destination'] = state['info']['large_region']
-                    return f"好的，{state['info']['large_region']}！請問預計去幾天？(例如：3天2夜)\n\n不想規劃了可以說「取消」。"
+                    return f"好的, {state['info']['large_region']}! 請問預計去幾天? (例如: 3天2夜)\n\n不想規劃了可以說 (取消)."
             
             # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
             # 例如用戶說 "我要去綠島" -> 提取 "綠島"
             
-            extract_prompt = f"""Target: Extract the destination name from the user's input.
-            Input: "{user_input}"
+            extract_prompt = '''Target: Extract the destination name from the user's input.
+            Input: "{}"
             
             Rules:
             1. Output ONLY the destination name.
             2. Do NOT format as JSON, Markdown, or Code Block.
             3. Do NOT add labels like "Destination:".
             4. If the user says "I want to go to Green Island", output "Green Island".
-            5. If no location found, output the original input."""
+            5. If no location found, output the original input.'''.format(user_input)
             
             try:
                 extracted_dest = model_functional.generate_content(extract_prompt).text.strip()
@@ -2392,7 +2405,7 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 1. **ZERO JOKES** - Do NOT make ANY jokes, puns, or humorous remarks
 2. **ZERO EMOJIS** - Do NOT use any emojis or emoticons  
 3. **ZERO CASUAL LANGUAGE** - Maintain professional tone throughout
-4. **ZERO EXCLAMATIONS** - Avoid overly enthusiastic language like "超讚！" "哇！" "加油！" "Cheer up！"
+4. **ZERO EXCLAMATIONS** - Avoid overly enthusiastic language like "Super!" "Wow!" "Go!" "Cheer up!"
 
 **Language Requirement:**
 - MUST respond in Traditional Chinese (繁體中文)
@@ -2420,17 +2433,17 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 ## {dest} {purp}之旅
 
 ### Day 1
-**上午 (09:00-12:00)**
-- 景點：[具體景點名稱]
-- 建議停留時間：[時間]
+**Morning (9:00-12:00)**
+- Spot: [Spot Name]
+- Duration: [Time]
 
-**下午 (13:00-17:00)**
+**Afternoon (13:00-17:00)**
 - ...
 
-### 旅遊小提示
-- 交通方式：...
-- 預算建議：...
-- 注意事項：...
+### Travel Tips
+- Transport: ...
+- Budget: ...
+- Note: ...
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS.
 CRITICAL: Do NOT output as JSON. Do NOT output as a code block. Output pure Markdown text.
@@ -2501,7 +2514,7 @@ Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE."""
 
 
 def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_session=False, reply_token=None):
-    """處理長輩圖製作，reply_token 用於發送狀態通知"""
+    """處理長輩圖製作, reply_token 用於發送狀態通知"""
     global user_meme_state, user_images
     
     if is_new_session or user_id not in user_meme_state:
@@ -2515,24 +2528,24 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
             # Remove from pending user_images to avoid reuse confusion later? 
             # (Optional, but keeping it allows reuse. Let's keep it.)
             
-            return """已使用您剛剛上傳的圖片！📸
+            return """已使用您剛剛上傳的圖片! [Photo]
 
-請輸入要在圖片上顯示的文字內容：
-(例如：早安、平安喜樂、認同請分享)
+請輸入要在圖片上顯示的文字內容:
+(例如: 早安, 平安喜樂, 認同請分享)
 
-⚠️ 製作期間約15秒，請勿發送其他訊息！"""
+[Warning] 製作期間約15秒, 請勿發送其他訊息!"""
         
         # No image found, ask for one
         user_meme_state[user_id] = {'stage': 'waiting_bg', 'bg_image': None, 'text': None}
-        return """好的！我們來製作長輩圖。
+        return """好的! 我們來製作長輩圖.
 
-請選擇背景方式：
-📷 上傳一張圖片作為背景
-🎨 告訴我想要什麼樣的背景（例如：蓮花、夕陽、風景）
+請選擇背景方式:
+[Camera] 上傳一張圖片作為背景
+[Paint] 告訴我想要什麼樣的背景 (例如: 蓮花, 夕陽, 風景)
 
-請直接上傳圖片或輸入背景描述。
-⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！
-＊不想製作了隨時說「取消」"""
+請直接上傳圖片或輸入背景描述.
+[Warning] 製作期間約15秒, 請勿再次發送訊息, 以免錯誤!
+* 不想製作了隨時說 (取消)"""
 
     state = user_meme_state[user_id]
     
@@ -2563,22 +2576,22 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
              
              # 使用 Gemini 將用戶的中文描述轉換成詳細的英文 prompt
              # 因為 Imagen 3 對英文效果更好
-             translation_prompt = f"""用戶想要生成長輩圖的背景圖片，他們的描述是：「{user_input}」
+             translation_prompt = f"""User wants to generate a "Elderly Greetings" style background image. Their description is: "{user_input}"
 
-請將這個描述轉換成適合 Imagen 3 生成圖片的詳細英文 prompt。
+Please convert this description into a detailed English prompt for Imagen 3.
 
-要求：
-1. 必須準確反映用戶的描述「{user_input}」
-2. 添加適合長輩圖背景的風格描述（明亮、正向、清晰）
-3. 如果是自然風景（如山林、水、花、夕陽），要特別強調風景元素
-4. 如果是物品（如蓮花、玫瑰），要強調該物品
-5. 使用英文，詳細且具體
-6. 只回傳英文 prompt，不要有其他說明
+Requirements:
+1. Must accurately reflect the input description "{user_input}"
+2. Add style descriptors suitable for Elderly Greetings (Bright, Positive, Clear, Vibrant)
+3. If it is a landscape (mountain, water, flower, sunset), emphasize the scenery
+4. If it is an object (lotus, rose), emphasize the object
+5. Use English, detailed and specific
+6. Return ONLY the English prompt, no other text
 
-範例：
-用戶說「山林好水」→ "A beautiful natural landscape with lush green mountains and clear flowing water, bright and peaceful scenery, suitable for traditional Chinese meme card background, vibrant colors, photorealistic"
+Example:
+Input "Mountain and Water" -> "A beautiful natural landscape with lush green mountains and clear flowing water, bright and peaceful scenery, suitable for traditional Chinese meme card background, vibrant colors, photorealistic"
 
-現在請為「{user_input}」生成英文 prompt："""
+Now generate English prompt for: "{user_input}" """
              
              try:
                  # 使用 Gemini 翻譯 (使用功能性模型，避免廢話)
@@ -2645,54 +2658,54 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
                 
                 # AI 視覺分析 - 強調避開主體、選擇對比色
                 # AI 視覺分析 - 強調避開主體、選擇對比色
-                vision_prompt = f"""你是專業的長輩圖設計師，擁有完全的創作自由。請分析這張圖片並為文字「{text}」設計最佳排版。
+                vision_prompt = f"""You are a professional Elderly Greetings Designer. Analyze this image and design the best layout for the text: "{text}".
 
-**🎨 風格選擇指南（請根據圖片特徵自由選擇）**：
+**Style Guide (Choose based on image features):**
 
-1. **classic（經典長輩圖）** - 萬用安全選擇
-   • 白色粗體文字 + 黑色粗描邊（8-12px）
-   • 適合：所有場景的保底方案
-   • 特點：清晰醒目，永不出錯
+1. **classic** - Safe choice
+   - White bold text + Black stroke (8 to 12 px)
+   - Suitable for: Any scene
+   - Features: Clear, Legible, Mistake-proof
 
-2. **calligraphy（溫馨書法）** - 文藝優雅
-   • 黑色或深色大字，細描邊或無描邊
-   • 適合：花卉、風景、文藝場景
-   • 特點：有質感，像書法作品
+2. **calligraphy** - Elegant
+   - Black/Dark large font, thin or no stroke
+   - Suitable for: Flowers, Scenery, Artistic
+   - Features: Texture, Artistic, Traditional
 
-3. **colorful（彩色繽紛）** - 活潑歡樂
-   • 多種鮮豔顏色組合（藍+紅+綠等）
-   • 適合：明亮、歡樂、兒童場景
-   • 特點：充滿活力，色彩豐富
+3. **colorful** - Vibrant
+   - Multiple bright colors (Blue+Red+Green etc)
+   - Suitable for: Bright, Happy, Kids
+   - Features: Energetic, Rich colors
 
-4. **gradient（漸層夢幻）** - 柔和浪漫
-   • 漸層或半透明效果
-   • 適合：柔和、浪漫、唯美場景
-   • 特點：柔和夢幻，優雅溫馨
+4. **gradient** - Soft
+   - Gradient or semi-transparent
+   - Suitable for: Soft, Romantic, Dreamy
+   - Features: Gentle, Elegant
 
-5. **neon（霓虹發光）** - 炫目搶眼
-   • 亮黃/橙/粉色 + 發光效果
-   • 適合：深色背景、夜景
-   • 特點：發光炫目，引人注目
+5. **neon** - Eye-catching
+   - Bright Yellow/Orange/Pink + Glow effect
+   - Suitable for: Dark background, Night scene
+   - Features: Glowing, Stand out
 
-**🎯 智能定位要求**：
-1. 識別圖片中的重要物件（人物臉部、動物、花朵、食物等主體）
-2. 找出空白或次要區域（天空、牆壁、地板、模糊背景）
-3. ✅ 可以遮擋：邊角、背景雜物、次要元素
-4. ❌ 絕對避開：臉部、主要物件的關鍵特徵
-5. 確保文字完全在圖片範圍內，不要超出或被截切
+**Smart Positioning Requirements:**
+1. Identify key subjects (Faces, Animals, Flowers, Food)
+2. Find empty or secondary areas (Sky, Wall, Floor, Blur)
+3. OK to cover: Corners, Clutter, Secondary elements
+4. AVOID: Faces, Key features of main subject
+5. Ensure text is FULLY inside image boundaries
 
-**✨ 裝飾元素（可選，根據場景自由發揮）**：
-• 早安/問候圖：可加 🌸 🌺 ☀️ ❤️
-• 勵志/加油：可加 💪 ✨ 🌟 ⭐
-• 溫馨/愛心：可加 ❤️ 💕 💖 🌹
-• 可愛/歡樂：可加 🎉 🎊 🎈 😊
+**Decorations (Optional):**
+- Morning/Greeting: Add Flowers, Sun, Heart
+- Motivational: Add Sparkles, Stars
+- Warm/Love: Add Hearts, Roses
+- Happy: Add Balloons, Confetti
 
-**📐 排版彈性**：
-• 可以選擇水平或垂直排列（根據圖片構圖）
-• 字體大小：60-120（根據文字長度和空間調整）
-• 可以微旋轉（-10 到 10 度）增加動感
+**Layout Flexibility:**
+- Horizontal or Vertical (based on composition)
+- Font Size: 60-120 (based on text length)
+- Rotation: -10 to 10 degrees
 
-**請以 JSON 格式輸出**：
+**Output JSON Format ONLY:**
 {{
   "style": "classic/calligraphy/colorful/gradient/neon",
   "position": "top-left/top-right/bottom-left/bottom-right/top/bottom/center",
@@ -2707,13 +2720,13 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
   ]
 }}
 
-**範例參考**：
-• 花朵照片 → calligraphy style，黑色字放上方空白處，加 🌸
-• 人物照片 → classic style，白字黑邊放在不擋臉的角落
-• 食物照片 → colorful style，彩色字放旁邊，活潑可愛
-• 夜景照片 → neon style，亮黃色發光字
+**Examples:**
+- Flower photo -> calligraphy style, black text in empty space, add Flower
+- Person photo -> classic style, white text not covering face
+- Food photo -> colorful style, vibrant text aside
+- Night view -> neon style, bright yellow glow
 
-現在請為這張圖片和文字「{text}」設計最佳方案：
+Now design the best plan for this image and text: "{text}"
 """
 
                 # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
@@ -2846,26 +2859,27 @@ def classify_user_intent(text):
             return "image_generation"
             
         classification_prompt = f"""
-        請分析用戶輸入：「{text}」
+        Analyze user input: "{text}"
         
-        請將其歸類為以下其中一種意圖 (只回傳類別代碼，不要其他文字)：
-        1. video_generation (想製作影片、生成視頻)
-        2. image_generation (想畫圖、生成圖片)
-        3. image_modification (想修改圖片、重新生成、換個顏色、改成XX)
-        4. meme_creation (想做長輩圖、梗圖)
-        5. trip_planning (想去旅遊、規劃行程、帶我去玩、景點推薦)
-        6. set_reminder (設定提醒、叫我...)
-        7. show_reminders (查看提醒、查詢待辦)
-        8. chat (一般聊天、問候、其他不屬於上述的功能)
+        Classify into exactly one intent category (Return ONLY the code, nothing else):
+        1. video_generation (Make video, generate video)
+        2. image_generation (Draw picture, generate image)
+        3. image_modification (Modify image, change color, change X to Y)
+        4. meme_creation (Make meme, elderly greeting card)
+        5. trip_planning (Plan trip, travel, suggest spots)
+        6. set_reminder (Set reminder, remind me to...)
+        7. show_reminders (Check reminders, what to do)
+        8. chat (General chat, greeting, others)
         
-        注意：
-        - "我要去宜蘭" -> trip_planning
-        - "我想去綠島" -> trip_planning
-        - "帶我去玩" -> trip_planning
-        - "把貓改成狗" -> image_modification
-        - "畫一隻貓" -> image_generation
-        - "提醒我吃藥" -> set_reminder
-        """
+        Examples:
+        - "I want to go to Yilan" -> trip_planning
+        - "Bring me to Green Island" -> trip_planning
+        - "Change cat to dog" -> image_modification
+        - "Draw a cat" -> image_generation
+        - "Remind me to eat medicine" -> set_reminder
+        - "Good morning" -> chat
+        
+        Your Answer (Just the code):"""
         # 使用功能性模型進行意圖分類
         response = model_functional.generate_content(classification_prompt)
         intent = response.text.strip().lower()
@@ -2881,7 +2895,7 @@ def classify_user_intent(text):
         return "chat"
 
 def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
-    """主要 LLM 處理函數，reply_token 用於發送狀態通知"""
+    """主要 LLM 處理函數, reply_token 用於發送狀態通知"""
     global chat_sessions, user_image_generation_state, user_meme_state, user_trip_plans, user_images, user_video_state, user_daily_video_count, user_last_image_prompt
     
     try:
@@ -3039,13 +3053,13 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                        last_prompt = user_last_image_prompt.get(user_id, "")
                        
                        optimize_prompt = f"""
-                       系統：用戶想要修改之前的圖片。
-                       舊提示詞：{last_prompt}
-                       用戶修改需求：{user_input}
+                       System: User wants to modify the previous image.
+                       Old Prompt: {last_prompt}
+                       User Modification Request: {user_input}
                        
-                       請產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
-                       回傳 JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
-                       要求：1. 保留舊圖核心。 2. 絕對不要講笑話。
+                       Please generate a new English Prompt. If user asks to add text, put it in text_overlay.
+                       Return JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
+                       Requirements: 1. Keep the core of the old image. 2. NO JOKES.
                        """
                        # ... (Generation Logic)
                        try:
@@ -3067,20 +3081,20 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                                 if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
                                 user_last_image_prompt[user_id] = {'prompt': image_prompt}
                                 # 使用 reply_token 免費發送
-                                msg = "圖片修改完成🎉\n\n如需再次修改，請直接說明調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                                msg = "Image modified! 🎉\n\nTo modify again, tell me the adjustment.\nIf satisfied, say 'OK'.\n[Warning] Wait 15s before sending next message!"
                                 if send_image_to_line(user_id, image_path, msg, reply_token):
                                     user_image_generation_state[user_id] = 'can_modify'
                                     return None # 已回覆
                                 else:
-                                    return "圖片生成成功但發送失敗。"
+                                    return "Image generated but send failed."
                             else:
                                 user_image_generation_state[user_id] = 'can_modify'
-                                return f"修改失敗：{result}"
+                                return f"Modification failed: {result}"
                        except Exception as e:
                             print(e)
-                            return "處理錯誤..."
+                            return "Error processing..."
                   else:
-                       return "咦？你還沒生成過圖片喔！請先說「畫一張...」來試試看！"
+                       return "You haven't generated an image recently! Say 'Generate an image' to start."
 
              # 3. 圖片生成 - 引導式對話
              elif current_intent == 'image_generation':
@@ -3100,19 +3114,19 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
                      user_last_image_prompt[user_id]['pending_description'] = clean_prompt
                      
-                     return f"沒問題！您想要生成的圖片是：\n\n「{clean_prompt}」\n\n請確認是否開始生成？\n(請回答「確定」或「ok」開始，也可說「取消」)"
+                     return f"OK! Generating image for:\n\n'{clean_prompt}'\n\nConfirm?\n(Reply 'OK' to start, or 'Cancel')"
                  else:
                      # 描述太短或沒有描述，才進入詢問模式
                      user_image_generation_state[user_id] = 'waiting_for_prompt'
-                     return """好的，我們來生成圖片。
+                     return """Okay, we will generate an image.
 
-請描述您想要的圖片內容：
-🌄 風景類：山、海、森林、城市等
-👨‍👩‍👧 人物類：什麼樣的人、在做什麼
-🎨 藝術類：水彩、油畫、卡通等
+Please describe what you want:
+[Landscape] Mountain, Sea, Forest...
+[People] What kind of person, doing what...
+[Art] Watercolor, Oil painting...
 
-請盡量描述詳細，或直接說「開始生成」使用預設設定。
-＊不想製作了隨時說「取消」。"""
+Please be specific.
+* Say Cancel to stop."""
 
              # 4. 長輩圖製作
              elif current_intent == 'meme_creation':
@@ -3154,10 +3168,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              elif current_intent == 'set_reminder':
                  if not ADVANCED_FEATURES_ENABLED or not db: return "提醒功能需要資料庫支援喔！"
                  try:
-                     parse_prompt = f"""用戶說：「{user_input}」。解析提醒並重寫溫馨內容。
-                     回傳 JSON: {{ "reminder_text": "...", "reminder_time": "2026-01-17T08:00:00" }}
-                     要求：回應請簡短、順暢，不要廢話。
-                     時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}
+                     parse_prompt = f"""System: User says: "{user_input}". Parse reminder and rewrite warmly.
+                     Return JSON: {{ "reminder_text": "...", "reminder_time": "2026-01-17T08:00:00" }}
+                     Requirement: Keep response short and smooth.
+                     Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
                      """
                      # 使用功能性模型解析
                      resp = model_functional.generate_content(parse_prompt)
@@ -3166,11 +3180,11 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      t = datetime.fromisoformat(data['reminder_time'])
                      db.add_reminder(user_id, data['reminder_text'], t)
                      
-                     reply = f"好的！已設定於 {t.strftime('%m月%d日 %H:%M')} 提醒：「{data['reminder_text']}」。"
+                     reply = f"OK! Reminder set for {t.strftime('%m/%d %H:%M')}: {data['reminder_text']}."
                      
                      # 檢查系統額度狀態，若已滿則主動告知
                      if db.is_system_quota_full():
-                         reply += "\n\n⚠️ 注意：目前系統免費額度已滿，屆時可能無法主動推播！\n請記得若沒收到通知，手動輸入「我的提醒」查看喔！"
+                         reply += "\n\n[Warning] System quota full. Notification might not be sent automatically. Please check your reminders manually!"
                          
                      return reply
                  except Exception as e:

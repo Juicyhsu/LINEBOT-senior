@@ -83,7 +83,7 @@ For example:
 - 注意事項：...
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE.
-AND MOST IMPORTANTLY: OUTPUT THE ENTIRE COMPLETE PLAN. Do NOT just output the diff. The user must see the FULL itinerary with your changes applied."""
+AND MOST IMPORTANTLY: You MUST output the ENTIRE COMPLETE PLAN. Do NOT just output the modified part. The user needs to see the FULL itinerary with your changes integrated. If you only output the change, the system will fail. Output the WHOLE new plan."""
 
     try:
         print(f"[DEBUG] 修改行程 - 用戶: {user_id}, 輸入: {user_input}")
