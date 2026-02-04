@@ -482,16 +482,16 @@ def format_verification_result(safety_check, url):
 如果你想了解更多，我可以幫你查證這個連結的內容。"""
     
     elif safety_check['level'] == 'warning':
-        return f"""⚠️ 等等！我發現這個連結有點可疑：
-
+        return f"""⚠️ [警示] 此連結存在潛在風險
+        
+風險指標：
 {''.join(['• ' + risk + '\\n' for risk in safety_check['risks']])}
-💡 建議先不要點開！
 
-你是想：
-1️⃣ 🔍 查證這個連結是否為詐騙
-2️⃣ 📖 還是要我幫你讀內容
+建議操作：
+1️⃣ 查證 (分析真實性)
+2️⃣ 閱讀 (摘要內容)
 
-請告訴我你的需求！"""
+請回覆「查證」或「閱讀」。"""
     
     else:
         # 安全或未知連結，直接提供選項 (保持嚴肅專業)
@@ -593,16 +593,25 @@ def fetch_latest_news():
                 return news_cache['data']
         
         feeds = [
-            'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FucG9MV1JsWm1GMWJIUUtP?hl=zh-TW&gl=TW&ceid=TW:zh-Hant',  # Google News 台灣
-            'https://www.cna.com.tw/rss/headline.xml',  # 中央社頭條
-            'https://udn.com/rssfeed/news/2/6638?ch=news',  # 聯合新聞網生活
+            'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FucG9MV1JsWm1GMWJIUUtP?hl=zh-TW&gl=TW&ceid=TW:zh-Hant',
+            'https://www.cna.com.tw/rss/headline.xml',
+            'https://udn.com/rssfeed/news/2/6638?ch=news',
+            'https://news.pts.org.tw/xml/newsfeed.xml', # Public TV
         ]
         
         news_items = []
+        import random
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0'
+        ]
+
         for feed_url in feeds:
             try:
-                # [FIX] 使用 requests 加上 User-Agent 避免被阻擋
-                response = requests.get(feed_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=10)
+                # [FIX] Rotate User-Agent
+                headers = {'User-Agent': random.choice(user_agents)}
+                response = requests.get(feed_url, headers=headers, timeout=10)
                 if response.status_code == 200:
                     feed = feedparser.parse(response.content)
                     for entry in feed.entries[:10]:  # 增加到 10 則，確保有足夠新聞供挑選
@@ -1962,7 +1971,7 @@ def message_text(event):
             line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[TextMessage(text="請貼上您想查證的🔗連結\n(將協助您分析內容真實性)")]
+                    messages=[TextMessage(text="請貼上您想查證的連結🔗\n(將協助您分析內容真實性)")]
                 )
             )
         return
@@ -2449,14 +2458,13 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 **Purpose:** {purp}
 
 **Format Requirements:**
-1. **Readable Text Format**: Do NOT use Markdown headers (like ##). Use clean text separators.
+1. **Readable Text Format**: Clean text with bullet points. NO Markdown headers (##).
 2. Structure:
-   【{dest} {purp}之旅】
    
    【Day 1】
    [上午] (09:00-12:00)
     - 景點：XX
-    - 建議停留：XX
+    - 停留時間：XX
    
    [下午] (13:00-17:00)
     ...
@@ -2465,10 +2473,9 @@ ABSOLUTE RULES - NO EXCEPTIONS:
     - 交通：...
    
 3. **NO ADDRESSES** - Just spot names.
-4. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示".
+4. **NO MAIN TITLE** - Do not output the "X days Y trip" title. Just start with Day 1.
 
 **Example Structure:**
-【{dest} {purp}之旅】
 
 【Day 1】
 [上午] (09:00-12:00)
