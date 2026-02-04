@@ -618,6 +618,12 @@ def fetch_latest_news():
                         
                         # [FIX] 如果真的都沒內容，使用標題作為摘要 (Fallback to Title)
                         if not clean_summary or len(clean_summary) < 5:
+                            clean_summary = entry.get('title', '')
+                            print(f"[DEBUG] News Summary Empty. Fallback to Title: {clean_summary[:20]}...")
+                            
+                        if not clean_summary:
+                            print(f"[DEBUG] News Skipped (No Content): {entry.get('title', 'Unknown')}")
+                            continue
                             clean_summary = entry.title
 
                         news_items.append({
@@ -1852,28 +1858,30 @@ def message_text(event):
                 if content:
                     # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
                     analysis_prompt = f"""
-                    [SYSTEM: STRICT FACT-CHECKING MODE]
-                    You are a professional fact-checker.
-                    Analyze the following webpage content.
+                    [SYSTEM: SECURITY & SCAM ANALYST]
+                    You are a Senior Cyber Security Analyst helping elderly users.
+                    Task: Deeply investigate the following text/Link content for FRAUD, SCAM, or MISINFORMATION.
 
                     Content:
                     {content[:3000]}
 
                     CRITICAL RULES:
-                    1. **NO JOKES**: Do not make any jokes, puns, or humorous remarks.
-                    2. **Professional Tone**: Be objective, serious, and concise.
-                    3. **Concise**: Keep the total response under 300 words.
-                    4. **Format**: Use the following structure strictly.
+                    1. **STRICTLY NO JOKES**: Zero humor. Be extremely serious and professional.
+                    2. **DEPTH**: Look for hidden scam triggers (Urgency, Greed, Fear, Fake Authority, Phishing).
+                    3. **Length**: Provide a detailed analysis (approx 350-450 words) but stay readable.
+                    4. **Format**: Use the following structure.
 
                     Output Structure (Traditional Chinese):
                     
-                    [Fact Check Analysis]
+                    🔍 **深度查證分析**
                     
-                    1. **內容真實性**: (Directly state if it is credible, suspicious, or contains misinformation)
-                    2. **風險評估**: (Is there a scam risk? e.g. Phishing, fake investment, health rumors)
-                    3. **專家建議**: (What should the user do? 1-2 practical steps)
+                    1. **真實性判讀**: (Directly state: SCAM / SUSPICIOUS / LEGIT / UNVERIFIED)
+                    2. **詐騙特徵掃描**: 
+                       - (List detected triggers, e.g., "Ask for bank info", "Too good to be true", "Unknown URL")
+                       - (Explain WHY it is dangerous)
+                    3. **專家給長輩的建議**: (Concrete actions: "Block", "Call 165", "Do not click")
 
-                    Input Content -> Fact Check Analysis
+                    Input Content -> Security Analysis
                     """
                     # 使用 model_functional (Temp 0.2)
                     analysis = model_functional.generate_content(analysis_prompt)
@@ -2528,24 +2536,24 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
             # Remove from pending user_images to avoid reuse confusion later? 
             # (Optional, but keeping it allows reuse. Let's keep it.)
             
-            return """已使用您剛剛上傳的圖片! [Photo]
+            return """已使用您剛剛上傳的圖片！📸
 
-請輸入要在圖片上顯示的文字內容:
-(例如: 早安, 平安喜樂, 認同請分享)
+請輸入要在圖片上顯示的文字內容：
+(例如：早安、平安喜樂、認同請分享)
 
-[Warning] 製作期間約15秒, 請勿發送其他訊息!"""
+⚠️ 製作期間約15秒，請勿發送其他訊息！"""
         
         # No image found, ask for one
         user_meme_state[user_id] = {'stage': 'waiting_bg', 'bg_image': None, 'text': None}
-        return """好的! 我們來製作長輩圖.
+        return """好的！我們來製作長輩圖。
 
-請選擇背景方式:
-[Camera] 上傳一張圖片作為背景
-[Paint] 告訴我想要什麼樣的背景 (例如: 蓮花, 夕陽, 風景)
+請選擇背景方式：
+📷 上傳一張圖片作為背景
+🎨 告訴我想要什麼樣的背景（例如：蓮花、夕陽、風景）
 
-請直接上傳圖片或輸入背景描述.
-[Warning] 製作期間約15秒, 請勿再次發送訊息, 以免錯誤!
-* 不想製作了隨時說 (取消)"""
+請直接上傳圖片或輸入背景描述。
+⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！
+＊不想製作了隨時說「取消」"""
 
     state = user_meme_state[user_id]
     
@@ -3081,7 +3089,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                                 if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
                                 user_last_image_prompt[user_id] = {'prompt': image_prompt}
                                 # 使用 reply_token 免費發送
-                                msg = "Image modified! 🎉\n\nTo modify again, tell me the adjustment.\nIf satisfied, say 'OK'.\n[Warning] Wait 15s before sending next message!"
+                                msg = "圖片修改完成🎉\n\n如需再次修改，請直接說明調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
                                 if send_image_to_line(user_id, image_path, msg, reply_token):
                                     user_image_generation_state[user_id] = 'can_modify'
                                     return None # 已回覆
@@ -3114,19 +3122,19 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
                      user_last_image_prompt[user_id]['pending_description'] = clean_prompt
                      
-                     return f"OK! Generating image for:\n\n'{clean_prompt}'\n\nConfirm?\n(Reply 'OK' to start, or 'Cancel')"
+                     return f"沒問題！您想要生成的圖片是：\n\n「{clean_prompt}」\n\n請確認是否開始生成？\n(請回答「確定」或「ok」開始，也可說「取消」)"
                  else:
                      # 描述太短或沒有描述，才進入詢問模式
                      user_image_generation_state[user_id] = 'waiting_for_prompt'
-                     return """Okay, we will generate an image.
+                     return """好的，我們來生成圖片。
 
-Please describe what you want:
-[Landscape] Mountain, Sea, Forest...
-[People] What kind of person, doing what...
-[Art] Watercolor, Oil painting...
+請描述您想要的圖片內容：
+🌄 風景類：山、海、森林、城市等
+👨‍👩‍👧 人物類：什麼樣的人、在做什麼
+🎨 藝術類：水彩、油畫、卡通等
 
-Please be specific.
-* Say Cancel to stop."""
+請盡量描述詳細，或直接說「開始生成」使用預設設定。
+＊不想製作了隨時說「取消」。"""
 
              # 4. 長輩圖製作
              elif current_intent == 'meme_creation':
