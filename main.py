@@ -560,16 +560,16 @@ def summarize_content(content, user_id):
         
         Rules:
         1. **Objective & Serious**: NO jokes, NO "Hello elders", NO emoji spam.
-        2. **Length**: Moderate info (approx 300-500 words).
+        2. **Length**: Concise (approx 150-250 words).
         3. **Format**: Human-readable text (NOT JSON).
         
         Output Format:
         
         📖 **內容摘要**
-        (Detailed summary of the article)
+        (Summary)
         
         💡 **重點整理**
-        (3-5 bullet points)
+        (3 bullet points)
         """
         
         response = model_functional.generate_content(prompt)
@@ -1888,22 +1888,22 @@ def message_text(event):
                 if content:
                     # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
                     analysis_prompt = f"""
-                    [SYSTEM: STRICT FACT CHECKER]
-                    Task: Objective analysis of content for SCAM/FRAUD/MISINFORMATION.
+                    [SYSTEM: SECURITY REPORT GEN]
+                    Task: Generate a security report for the following content.
                     
                     Content:
                     {content[:2500]}
 
-                    CRITICAL RULES:
-                    1. **NO JOKES**: Absolute serious tone.
-                    2. **LENGTH**: Max 200 words. Be extremely concise.
-                    3. **FORMAT**: Bullet points only.
+                    Rules:
+                    1. **Format**: STRICT REPORT FORMAT.
+                    2. **Tone**: Robotic, Objective, Dry. NO JOKES. NO EMOTION.
+                    3. **Length**: Under 200 words.
                     
-                    Output (Traditional Chinese):
-                    🔍 **查證分析**
-                    * **真實性**: (SCAM / SUSPICIOUS / LEGIT)
-                    * **風險**: (List specific risks)
-                    * **建議**: (Block / Ignore / Delete)
+                    Output Template:
+                    🔍 **查證報告**
+                    * **判定**: [SCAM / SUSPICIOUS / LEGIT]
+                    * **風險**: [Risk 1], [Risk 2]
+                    * **操作**: [Block / Ignore / Delete]
                     """
                     # 使用 model_functional (Temp 0.0 for strictness)
                     generation_config = genai.types.GenerationConfig(
@@ -1911,8 +1911,6 @@ def message_text(event):
                     )
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
                     reply_text = f"{analysis.text}"
-                else:
-                    reply_text = "抱歉，我無法讀取這個網頁的內容進行深度查證。"
                 
                 # [NEW] 將查證結果存入記憶，讓用戶可以追問
                 if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
