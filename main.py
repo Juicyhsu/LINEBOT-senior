@@ -560,16 +560,16 @@ def summarize_content(content, user_id):
         
         Rules:
         1. **Objective & Serious**: NO jokes, NO "Hello elders", NO emoji spam.
-        2. **Ultra-Concise**: Total length under 250 words.
+        2. **Length**: Moderate info (approx 300-500 words).
         3. **Format**: Human-readable text (NOT JSON).
         
         Output Format:
         
-        📖 **內容重點**
-        (3 bullet points, concise)
+        📖 **內容摘要**
+        (Detailed summary of the article)
         
-        💡 **結論/建議**
-        (1-2 sentences)
+        💡 **重點整理**
+        (3-5 bullet points)
         """
         
         response = model_functional.generate_content(prompt)
@@ -618,14 +618,18 @@ def fetch_latest_news():
                         
                         # [FIX] 如果真的都沒內容，使用標題作為摘要 (Fallback to Title)
                         if not clean_summary or len(clean_summary) < 5:
-                            clean_summary = entry.get('title', '')
-                            print(f"[DEBUG] News Summary Empty. Fallback to Title: {clean_summary[:20]}...")
+                            # 優先使用 Description (如果不同於 Summary)
+                            desc = entry.get('description', '')
+                            if desc and len(desc) > 5:
+                                clean_summary = re.sub('<[^<]+?>', '', desc).strip()
+                            else:
+                                clean_summary = entry.get('title', '')
+                            # print(f"[DEBUG] Fallback to Title/Desc: {clean_summary[:20]}...")
                             
-                        # If still empty, skip
+                        # If still empty (no title?), skip
                         if not clean_summary:
-                            print(f"[DEBUG] News Skipped (No Content): {entry.get('title', 'Unknown')}")
+                            # print(f"[DEBUG] News Skipped (No Content): {entry.get('title', 'Unknown')}")
                             continue
-                            clean_summary = entry.title
 
                         news_items.append({
                             'title': entry.title,
