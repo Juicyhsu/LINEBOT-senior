@@ -2451,36 +2451,42 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 **Purpose:** {purp}
 
 **Format Requirements:**
-1. Use clear Markdown structure
-2. Organize by day: ## Day 1, ## Day 2, etc. (Keep "Day X" in English is fine, or use "第X天")
-3. For each day, include:
-   - **Morning (上午)** activities with specific locations and times
-   - **Afternoon (下午)** activities with specific locations and times  
-   - **Evening (晚上)** activities with specific locations and times
-   - Practical tips (transportation, costs, reservations)
-4. Include specific spot names.
-5. Provide realistic time estimates
-6. Add practical travel tips at the end
-7. **NO ADDRESSES** - Just the location name is enough
+1. **Readable Text Format**: Do NOT use Markdown headers (like ##). Use clean text separators.
+2. Structure:
+   【{dest} {purp}之旅】
+   
+   【Day 1】
+   [上午] (09:00-12:00)
+    - 景點：XX
+    - 建議停留：XX
+   
+   [下午] (13:00-17:00)
+    ...
+   
+   【旅遊小提示】
+    - 交通：...
+   
+3. **NO ADDRESSES** - Just spot names.
+4. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示".
 
 **Example Structure:**
-## {dest} {purp}之旅
+【{dest} {purp}之旅】
 
-### Day 1
-**上午 (09:00-12:00)**
+【Day 1】
+[上午] (09:00-12:00)
 - 景點：[Spot Name]
 - 停留時間：[Time]
 
-**下午 (13:00-17:00)**
+[下午] (13:00-17:00)
 - ...
 
-### 旅遊小提示
+【旅遊小提示】
 - 交通：...
 - 預算：...
 - 備註：...
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE.
-CRITICAL: Do NOT output as JSON. Output pure Markdown text.
+CRITICAL: Do NOT output as JSON. Output pure, clean text.
 """
             
             try:

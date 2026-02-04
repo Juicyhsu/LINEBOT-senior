@@ -54,16 +54,17 @@ For example:
 - If user says "調整時間" → ONLY adjust the times, keep activities unchanged
 
 **Format Requirements:**
-1. Use clear Markdown structure.
+1. **Readable Text Format**: Do NOT use Markdown headers (like ##). Use clean text separators.
 2. Structure: 
-   ## {dest} {purp}之旅
-   ### Day 1
-   **上午 (09:00-12:00)**
+   【{dest} {purp}之旅】
+   
+   【Day 1】
+   [上午] (09:00-12:00)
    ...
-   ### 旅遊小提示
+   【旅遊小提示】
    ...
 3. **NO ADDRESSES** - Just spot names.
-4. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示". DO NOT use "Morning", "Afternoon", "Tips".
+4. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示".
 5. Provide realistic time estimates
 6. Add practical travel tips at the end
 7. **NO ADDRESSES** - Just the location name is enough
