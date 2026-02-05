@@ -692,20 +692,22 @@ def generate_news_summary():
 
 {news_text}
 
-CRITICAL INSTRUCTION:
-請直接回傳你選擇的新聞 ID，以及摘要。
-絕對不要自己編造連結。
+CRITICAL INSTRUCTIONS:
+1. 請直接回傳你選擇的新聞 ID，以及摘要
+2. 絕對不要自己編造連結
+3. **務必保留所有數字、日期、金額**（如 2/9、3個、100元、2月5日）
+4. 數字和日期很重要，不可省略或改寫
 
 輸出格式（嚴格遵守）：
 📰 今日新聞摘要
 
 1️⃣ [ID] 【標題】
-   摘要內容（80-100字，包含重要細節）
+   摘要內容（80-100字，必須包含數字和日期）
 
 ... (請列出完整 7 則) ...
 
 7️⃣ [ID] 【標題】
-   摘要內容（80-100字，包含重要細節）
+   摘要內容（80-100字，必須包含數字和日期）
 """
         response = model_functional.generate_content(prompt)
         
@@ -1842,13 +1844,15 @@ def message_text(event):
                 try:
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
                     # 檢查是否有有效回應
-                    if analysis.candidates and len(analysis.candidates) > 0:
+                    if analysis and hasattr(analysis, 'text') and analysis.text:
                         reply_text = f"{analysis.text}"
+                    elif analysis and hasattr(analysis, 'candidates') and analysis.candidates:
+                        reply_text = "🔍 查證報告\n\n判定：內容被過濾\n建議：請謹慎查看"
                     else:
-                        reply_text = "🔍 查證報告\n\n判定：無法分析\n風險：內容無法取得\n建議：請直接查看原始網站"
+                        reply_text = "🔍 查證報告\n\n判定：無法分析\n建議：請直接查看原網站"
                 except Exception as e:
-                    print(f"Verification analysis error: {e}")
-                    reply_text = "🔍 查證報告\n\n判定：分析失敗\n風險：系統錯誤\n建議：請稍後再試"
+                    print(f"Verification error (old code): {e}")
+                    reply_text = f"🔍 查證報告\n\n判定：分析失敗\n錯誤：{str(e)[:30]}\n建議：請稍後再試"
             else:
                 reply_text = "抱歉，我無法讀取這個網頁的內容進行深度查證。"
             
