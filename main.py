@@ -503,7 +503,11 @@ def fetch_webpage_content(url):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         
-        response = requests.get(url, headers=headers, timeout=10)
+        # 忽略 SSL 警告（針對某些憑證無效的網站）
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        response = requests.get(url, headers=headers, timeout=10, verify=False)
         response.encoding = 'utf-8'
         
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -687,7 +691,18 @@ def generate_news_summary():
         generation_config = genai.types.GenerationConfig(
             temperature=0.1,
         )
-        response = model_functional.generate_content(prompt, generation_config=generation_config)
+        
+        # 使用更有邏輯的 Pro 模型來確保數字保留（用戶要求）
+        try:
+            model_pro = genai.GenerativeModel(
+                model_name="gemini-1.5-pro",
+                system_instruction="你是專業新聞編輯，必須精準保留新聞中的所有日期與數字。"
+            )
+            response = model_pro.generate_content(prompt, generation_config=generation_config)
+            print("[INFO] Using Gemini 1.5 Pro for news summary")
+        except Exception as e:
+            print(f"[WARNING] Failed to use Pro model, falling back to Functional model: {e}")
+            response = model_functional.generate_content(prompt, generation_config=generation_config)
         
         # DEBUG: 檢查 AI 輸出是否包含數字
         import re
