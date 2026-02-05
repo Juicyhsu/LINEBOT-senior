@@ -1824,7 +1824,9 @@ def message_text(event):
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
                     # 檢查是否有有效回應
                     if analysis and hasattr(analysis, 'text') and analysis.text:
-                        reply_text = f"{analysis.text}"
+                        # 清理 markdown 符號
+                        clean_result = analysis.text.replace('**', '').replace('*', '').strip()
+                        reply_text = f"🔍 查證報告\n\n{clean_result}"
                     elif analysis and hasattr(analysis, 'candidates') and analysis.candidates:
                         reply_text = "🔍 查證報告\n\n判定：內容被過濾\n建議：請謹慎查看"
                     else:
@@ -2090,14 +2092,19 @@ def message_text(event):
             # 步驟 4：移除標題文字
             clean_text = clean_text.replace('今日新聞摘要', '').replace('想聽語音播報？回覆「語音」即可', '').strip()
             
-            # 步驟 5：將「第X則」的數字轉為中文（方便 TTS 朗讀）
-            number_map = {
-                '1': '一', '2': '二', '3': '三', '4': '四', '5': '五',
-                '6': '六', '7': '七', '8': '八', '9': '九', '10': '十'
-            }
-            for num, chinese in number_map.items():
-                clean_text = clean_text.replace(f'第{num}則', f'第{chinese}則')
-                clean_text = clean_text.replace(f'{num}.', f'{chinese}、')  # 處理列表編號
+            # 步驟 5：將阿拉伯數字轉為中文（Google TTS 對中文數字發音更好）
+            # 定義數字對照表
+            digit_map = {'0': '零', '1': '一', '2': '二', '3': '三', '4': '四', 
+                         '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'}
+            
+            # 轉換所有阿拉伯數字為中文
+            result = []
+            for char in clean_text:
+                if char in digit_map:
+                    result.append(digit_map[char])
+                else:
+                    result.append(char)
+            clean_text = ''.join(result)
             
             print(f"[DEBUG] Voice text after cleaning (first 200 chars): {clean_text[:200]}")
             
