@@ -705,9 +705,10 @@ def generate_news_summary():
         import re
         ai_output = response.text.strip()
         has_numbers = bool(re.search(r'\d', ai_output))
-        print(f\"[DEBUG] AI news output has numbers: {has_numbers}\")
+        print(f"[DEBUG] AI news output has numbers: {has_numbers}")
         if not has_numbers:
-            print(f\"[WARNING] AI removed all numbers! First 300 chars: {ai_output[:300]}\")
+            print(f"[WARNING] AI removed all numbers! First 300 chars: {ai_output[:300]}")
+
         
         final_text = ai_output
         
