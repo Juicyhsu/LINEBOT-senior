@@ -673,28 +673,24 @@ def generate_news_summary():
 
 重要指示：
 1. 每則摘要 80-100 字
-2. 必須保留原文中的所有數字、日期、金額、數量
-   例如：2月5日、3個、100元、2/9、第5名、5萬人
-3. 數字和日期是新聞的關鍵信息，絕對不可省略
-4. 如果原文有「2月5日」，你的摘要也必須寫「2月5日」
+2. 必須保留原文中的所有數字，特別是日期
+   例如：4日、5日、2月5日、100元、3個
+3. 絕對不可以把「4日」省略成「日」
+4. 如果原文說「4日通話」，你必須寫「4日通話」，不能寫「日通話」
 
-範例（正確 - 有數字）：
-1️⃣ [1] 【台積電投資】
-   台積電宣布在美國投資400億美元，預計2025年量產3奈米晶片。
+範例（正確）：
+川普與習近平於4日通話，賴清德於5日回應。
 
-範例（錯誤 - 缺少數字）：
-1️⃣ [1] 【台積電投資】
-   台積電宣布在美國投資，預計明年量產晶片。
+範例（錯誤）：
+川普與習近平於日通話，賴清德於日回應。
 
 輸出格式：
 📰 今日新聞摘要
 
 1️⃣ [ID] 【標題】
-   摘要（必須包含數字和日期）
+   摘要（必須包含日期數字）
 
 ... 7則新聞 ...
-
-再次強調：每則摘要都必須包含原文中的數字！
 """
         generation_config = genai.types.GenerationConfig(
             temperature=0.0,  # 完全確定性，保留數字
@@ -1819,7 +1815,7 @@ def message_text(event):
                 
                 generation_config = genai.types.GenerationConfig(
                     temperature=0.5,
-                    max_output_tokens=400
+                    max_output_tokens=300
                 )
                 try:
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
