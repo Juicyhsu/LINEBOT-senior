@@ -1803,20 +1803,53 @@ def message_text(event):
         elif any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙', '2', '②', '２']):
             content = fetch_webpage_content(pending_url)
             if content:
+                # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
                 analysis_prompt = f"""
-請分析以下網頁內容是否可信:
+                [SYSTEM: SECURITY REPORT GENERATOR - STRICT MODE]
+                
+                Task: Analyze the following content and generate a CONCISE security report.
+                
+                Content:
+                {content[:2500]}
 
-{content[:3000]}
-
-請從以下角度分析:
-1. 內容是否合理? 有無明顯誇大或矛盾?
-2. 是否包含常見詐騙關鍵字?
-3. 整體可信度評估
-
-請用長輩容易理解的方式回答.
-"""
-                analysis = model.generate_content(analysis_prompt)
-                reply_text = f"🔍 深度查證結果\n\n{analysis.text}"
+                ABSOLUTE REQUIREMENTS:
+                1. **NO JOKES** - Zero humor, zero casual language
+                2. **NO EMOJIS in body text** - Only allowed in section headers
+                3. **LENGTH LIMIT**: 100-150 Chinese characters MAXIMUM (not words, characters)
+                4. **TONE**: Robotic, factual, professional
+                5. **FORMAT**: Strict bullet points only
+                
+                Output Format (MUST FOLLOW EXACTLY):
+                
+                🔍 查證報告
+                
+                判定：[詐騙/可疑/合法]
+                風險：[1-2個風險點，每個不超過15字]
+                建議：[Block/Ignore/Delete]
+                
+                Example:
+                🔍 查證報告
+                判定：可疑
+                風險：網域註冊僅30天、包含聳動用詞
+                建議：建議忽略此連結
+                
+                Remember: MAXIMUM 150 characters. Be precise.
+                """
+                # 使用 model_functional (Temp 0.0 for strictness)
+                generation_config = genai.types.GenerationConfig(
+                    temperature=0.0,
+                    max_output_tokens=200  # 強制限制輸出長度
+                )
+                try:
+                    analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
+                    # 檢查是否有有效回應
+                    if analysis.candidates and len(analysis.candidates) > 0:
+                        reply_text = f"{analysis.text}"
+                    else:
+                        reply_text = "🔍 查證報告\n\n判定：無法分析\n風險：內容無法取得\n建議：請直接查看原始網站"
+                except Exception as e:
+                    print(f"Verification analysis error: {e}")
+                    reply_text = "🔍 查證報告\n\n判定：分析失敗\n風險：系統錯誤\n建議：請稍後再試"
             else:
                 reply_text = "抱歉，我無法讀取這個網頁的內容進行深度查證。"
             
