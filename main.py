@@ -2833,35 +2833,39 @@ Now generate English prompt for: "{user_input}" """
                 bg_image = Image.open(bg_path)
                 
                 # AI 視覺分析 - 強調避開主體、選擇對比色
-                # AI 視覺分析 - 強調避開主體、選擇對比色
                 vision_prompt = f"""You are a professional Elderly Greetings Designer. Analyze this image and design the best layout for the text: "{text}".
 
 **Style Guide (Choose based on image features):**
 
-1. **classic** - Safe choice
-   - White bold text + Black stroke (8 to 12 px)
+1. **classic** - Safe choice (RECOMMENDED for most cases)
+   - White bold text + Black stroke (10 to 15 px recommended for clarity)
    - Suitable for: Any scene
-   - Features: Clear, Legible, Mistake-proof
+   - Features: Clear, Legible, High contrast, Easy to read
 
-2. **calligraphy** - Elegant
-   - Black/Dark large font, thin or no stroke
+2. **calligraphy** - Elegant (Use selectively)
+   - Black/Dark large font + Medium stroke (6-10px for legibility)
    - Suitable for: Flowers, Scenery, Artistic
    - Features: Texture, Artistic, Traditional
 
 3. **colorful** - Vibrant
-   - Multiple bright colors (Blue+Red+Green etc)
-   - Suitable for: Bright, Happy, Kids
-   - Features: Energetic, Rich colors
+   - Bright colors (Blue/Red/Yellow/Green) + Bold stroke (8-12px)
+   - Suitable for: Happy, Bright, Energetic scenes
+   - Features: Lively, Rich colors, High energy
 
-4. **gradient** - Soft
-   - Gradient or semi-transparent
+4. **gradient** - Soft (Use sparingly)
+   - Gradient or semi-transparent + Light stroke (5-8px)
    - Suitable for: Soft, Romantic, Dreamy
    - Features: Gentle, Elegant
 
 5. **neon** - Eye-catching
-   - Bright Yellow/Orange/Pink + Glow effect
+   - Bright Yellow/Orange/Pink + Strong glow effect (12-18px)
    - Suitable for: Dark background, Night scene
    - Features: Glowing, Stand out
+
+**Key Visual Principles:**
+- Elderly meme style typically uses **BOLD strokes** (10px+) for readability
+- High contrast is essential (light text + dark stroke or vice versa)
+- Font should be large and clear (avoid thin or delicate styles)
 
 **Smart Positioning Requirements:**
 1. Identify key subjects (Faces, Animals, Flowers, Food)
@@ -2888,7 +2892,7 @@ Now generate English prompt for: "{user_input}" """
   "color": "#FFFFFF",
   "font": "bold/heiti/kaiti",
   "font_size": 80,
-  "stroke_width": 10,
+  "stroke_width": 12,
   "stroke_color": "#000000",
   "angle": 0,
   "decorations": [
@@ -2897,10 +2901,10 @@ Now generate English prompt for: "{user_input}" """
 }}
 
 **Examples:**
-- Flower photo -> calligraphy style, black text in empty space, add Flower
-- Person photo -> classic style, white text not covering face
-- Food photo -> colorful style, vibrant text aside
-- Night view -> neon style, bright yellow glow
+- Flower photo -> calligraphy style, black text in empty space, medium stroke (8px), add Flower
+- Person photo -> classic style, white text not covering face, bold stroke (12-15px)
+- Food photo -> colorful style, vibrant text aside, stroke (10px)
+- Night view -> neon style, bright yellow glow (15px)
 
 Now design the best plan for this image and text: "{text}"
 """
