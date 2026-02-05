@@ -1803,22 +1803,23 @@ def message_text(event):
         elif any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙', '2', '②', '２']):
             content = fetch_webpage_content(pending_url)
             if content:
-                # 簡化查證 prompt
-                analysis_prompt = f"""分析以下網頁內容是否可信。
+                # 查證 prompt - 要求完整輸出
+                analysis_prompt = f"""請分析這個網頁內容的可信度。
 
-內容：
+網頁內容：
 {content[:1500]}
 
-請回答：
-1. 判定（詐騙/可疑/合法）
-2. 主要風險
-3. 建議
+請依照以下格式回答（三項都必須填寫）：
 
-限100字內。"""
+判定：詐騙/可疑/合法（擇一）
+理由：說明為何如此判定（30字以上）
+建議：給使用者的具體建議
+
+注意：知名網站如 astro.com、wikipedia.org、gov.tw 等通常是合法的。"""
                 
                 generation_config = genai.types.GenerationConfig(
-                    temperature=0.3,
-                    max_output_tokens=300
+                    temperature=0.5,
+                    max_output_tokens=400
                 )
                 try:
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
