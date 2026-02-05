@@ -1805,7 +1805,7 @@ def message_text(event):
                 
                 generation_config = genai.types.GenerationConfig(
                     temperature=0.3,
-                    max_output_tokens=350
+                    max_output_tokens=500  # 中文 200-300 字
                 )
                 try:
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
@@ -2119,6 +2119,13 @@ def message_text(event):
                                 ]
                             )
                         )
+                    
+                    # 成功發送後刪除本地檔案（節省空間）
+                    try:
+                        os.remove(audio_path)
+                        print(f"[CLEANUP] Deleted local audio file: {audio_path}")
+                    except Exception as e:
+                        print(f"[CLEANUP] Failed to delete audio file: {e}")
                     return
                 except Exception as e:
                     print(f"Audio upload error: {e}")
