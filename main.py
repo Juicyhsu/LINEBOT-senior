@@ -600,7 +600,6 @@ def fetch_latest_news():
             'https://feeds.feedburner.com/rsscna/politics',  # 中央社 - 政治
             'https://feeds.feedburner.com/rsscna/finance',  # 中央社 - 財經
             'https://udn.com/rssfeed/news/2/6638?ch=news',  # 聯合報 - 即時新聞
-            'https://www.ettoday.net/rss/rss.xml',  # ETtoday - 即時新聞
         ]
         
         news_items = []
@@ -2002,51 +2001,37 @@ def message_text(event):
             # 直接進行查證
             content = fetch_webpage_content(url)
             if content:
-                # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
-                analysis_prompt = f"""
-                [SYSTEM: SECURITY REPORT GENERATOR - STRICT MODE]
-                
-                Task: Analyze the following content and generate a CONCISE security report.
-                
-                Content:
-                {content[:2500]}
+                # 使用簡化 prompt 避免被安全過濾器阻擋
+                analysis_prompt = f"""分析以下網頁內容是否可信。
 
-                ABSOLUTE REQUIREMENTS:
-                1. **NO JOKES** - Zero humor, zero casual language
-                2. **NO EMOJIS in body text** - Only allowed in section headers
-                3. **LENGTH LIMIT**: 100-150 Chinese characters MAXIMUM (not words, characters)
-                4. **TONE**: Robotic, factual, professional
-                5. **FORMAT**: Strict bullet points only
+內容：
+{content[:1500]}
+
+請簡短回答：
+1. 判定（詐騙/可疑/合法）
+2. 主要風險
+3. 建議
+
+限80字內。"""
                 
-                Output Format (MUST FOLLOW EXACTLY):
-                
-                🔍 查證報告
-                
-                判定：[詐騙/可疑/合法]
-                風險：[1-2個風險點，每個不超過15字]
-                建議：[Block/Ignore/Delete]
-                
-                Example:
-                🔍 查證報告
-                判定：可疑
-                風險：網域註冊僅30天、包含聳動用詞
-                建議：建議忽略此連結
-                
-                Remember: MAXIMUM 150 characters. Be precise.
-                
-                Output Template:
-                🔍 **查證報告**
-                * **判定**: [SCAM / SUSPICIOUS / LEGIT]
-                * **風險**: [Risk 1], [Risk 2]
-                * **操作**: [Block / Ignore / Delete]
-                """
-                # 使用 model_functional (Temp 0.0 for strictness)
+                # 使用 model_functional (Temp 0.0)
                 generation_config = genai.types.GenerationConfig(
-                    temperature=0.0,
-                    max_output_tokens=200  # 強制限制輸出長度
+                    temperature=0.2,
+                    max_output_tokens=250
                 )
-                analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
-                reply_text = f"{analysis.text}"
+                try:
+                    analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
+                    # 檢查是否有有效回應
+                    if analysis and hasattr(analysis, 'text') and analysis.text:
+                        reply_text = f"🔍 查證報告\n\n{analysis.text}"
+                    elif analysis and hasattr(analysis, 'candidates') and analysis.candidates:
+                        # 嘗試從 candidates 取得文字
+                        reply_text = f"🔍 查證報告\n\n判定：無法完整分析\n建議：請謹慎查看內容"
+                    else:
+                        reply_text = "🔍 查證報告\n\n判定：無法分析\n建議：請直接查看原網站"
+                except Exception as e:
+                    print(f"Verification error: {e}")
+                    reply_text = f"🔍 查證報告\n\n判定：分析失敗\n原因：{str(e)[:30]}\n建議：請稍後再試"
             else:
                 reply_text = "抱歉，我無法讀取這個網頁的內容。可能是網站有防護機制或連結已失效。"
             
@@ -2105,7 +2090,7 @@ def message_text(event):
             # 生成語音
             news_text = user_news_cache[user_id]
             
-            # 清理文字（TTS 專用）- 重要：先處理 URL，再處理其他
+            # 清理文字（TTS 專用）- 重要：保留內容數字
             import re
             
             # 步驟 1：先移除 URL（包含 URL 中的數字）
@@ -2115,17 +2100,23 @@ def message_text(event):
             # 步驟 2：移除「來源：」後面的所有內容（通常是 URL 或網站名）
             clean_text = re.sub(r'來源：[^\n]*', '', clean_text)
             
-            # 步驟 3：移除 emoji（但保留內容中的數字！）
+            # 步驟 3：移除 emoji「符號」（但保留數字！）
+            # 只移除 emoji，不移除普通阿拉伯數字 0-9
             clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣0️⃣【】💡🔗]', '', clean_text)
             
             # 步驟 4：移除標題文字
             clean_text = clean_text.replace('今日新聞摘要', '').replace('想聽語音播報？回覆「語音」即可', '').strip()
             
-            # 步驟 5：將 emoji 數字改為文字（如果有遺漏的）
-            # 這一步確保「第1則」變成「第一則」以便朗讀
-            number_map = {'1': '一', '2': '二', '3': '三', '4': '四', '5': '五', '6': '六', '7': '七', '8': '八', '9': '九', '10': '十'}
+            # 步驟 5：將「第X則」的數字轉為中文（方便 TTS 朗讀）
+            number_map = {
+                '1': '一', '2': '二', '3': '三', '4': '四', '5': '五',
+                '6': '六', '7': '七', '8': '八', '9': '九', '10': '十'
+            }
             for num, chinese in number_map.items():
                 clean_text = clean_text.replace(f'第{num}則', f'第{chinese}則')
+                clean_text = clean_text.replace(f'{num}.', f'{chinese}、')  # 處理列表編號
+            
+            print(f"[DEBUG] Voice text after cleaning (first 200 chars): {clean_text[:200]}")
             
             audio_path = generate_news_audio(clean_text, user_id)
             
