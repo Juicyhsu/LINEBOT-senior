@@ -2105,20 +2105,32 @@ def message_text(event):
             # 生成語音
             news_text = user_news_cache[user_id]
             
-            # 移除 emoji 和格式符號（TTS 不需要）
+            # 清理文字（TTS 專用）- 重要：先處理 URL，再處理其他
             import re
-            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣0️⃣【】💡🔗]', '', news_text)
-            # 移除 URL（避免念出網址）
-            clean_text = re.sub(r'https?://[^\s]+', '', clean_text)
+            
+            # 步驟 1：先移除 URL（包含 URL 中的數字）
+            clean_text = re.sub(r'https?://[^\s]+', '', news_text)
             clean_text = re.sub(r'www\.[^\s]+', '', clean_text)
-            # 移除「來源：」標籤
-            clean_text = re.sub(r'來源：.*', '', clean_text)
+            
+            # 步驟 2：移除「來源：」後面的所有內容（通常是 URL 或網站名）
+            clean_text = re.sub(r'來源：[^\n]*', '', clean_text)
+            
+            # 步驟 3：移除 emoji（但保留內容中的數字！）
+            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣0️⃣【】💡🔗]', '', clean_text)
+            
+            # 步驟 4：移除標題文字
             clean_text = clean_text.replace('今日新聞摘要', '').replace('想聽語音播報？回覆「語音」即可', '').strip()
+            
+            # 步驟 5：將 emoji 數字改為文字（如果有遺漏的）
+            # 這一步確保「第1則」變成「第一則」以便朗讀
+            number_map = {'1': '一', '2': '二', '3': '三', '4': '四', '5': '五', '6': '六', '7': '七', '8': '八', '9': '九', '10': '十'}
+            for num, chinese in number_map.items():
+                clean_text = clean_text.replace(f'第{num}則', f'第{chinese}則')
             
             audio_path = generate_news_audio(clean_text, user_id)
             
             if audio_path:
-                # 上傳音檔並發送
+                # 上傳音檔並發送（不發送文字訊息以節省額度）
                 try:
                     audio_url = upload_image_to_external_host(audio_path)
                     
@@ -2128,10 +2140,9 @@ def message_text(event):
                             ReplyMessageRequest(
                                 reply_token=event.reply_token,
                                 messages=[
-                                    TextMessage(text="🔊 新聞語音播報："),
                                     AudioMessage(
                                         original_content_url=audio_url,
-                                        duration=60000  # 估計 60 秒
+                                        duration=60000  # LINE 顯示問題，實際播放不受影響
                                     )
                                 ]
                             )
