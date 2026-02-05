@@ -2882,14 +2882,20 @@ Now generate English prompt for: "{user_input}" """
 - Happy: Add Balloons, Confetti
 
 **Layout Flexibility:**
-- Horizontal or Vertical (based on composition)
-- Font Size: 60-120 (based on text length)
-- Rotation: -10 to 10 degrees
+- **Text Direction**: "horizontal" or "vertical" (vertical = traditional Chinese style, top-to-bottom, right-to-left)
+- **Font Size**: 50-150 (AI decides based on text length and image size)
+- **Rotation**: -10 to 10 degrees (for horizontal text only)
+
+**When to use Vertical Text:**
+- Traditional/Cultural images (temples, calligraphy, classical scenes)
+- Portrait-oriented photos with vertical empty space
+- When horizontal text would cover important subjects
 
 **Output JSON Format ONLY:**
 {{
   "style": "classic/calligraphy/colorful/gradient/neon",
   "position": "top-left/top-right/bottom-left/bottom-right/top/bottom/center",
+  "direction": "horizontal/vertical",
   "color": "#FFFFFF",
   "font": "bold/heiti/kaiti",
   "font_size": 80,
@@ -2927,13 +2933,15 @@ Now design the best plan for this image and text: "{text}"
                 import re
                 import json
                 
+                # 預設值 - 應該要被AI覆蓋
                 position = 'top'
-                color = 'white' 
+                direction = 'horizontal'
+                color = '#FFFFFF' 
                 font = 'heiti'
                 angle = 0
-                stroke_width = 0
-                stroke_color = None
-                size = 60 # Default size
+                stroke_width = 10  # 預設描邊寬度 (對閱讀很重要)
+                stroke_color = '#000000'
+                size = 80  # 預設字體大小
                 
                 try:
                     # 嘗試解析 JSON
@@ -2941,13 +2949,17 @@ Now design the best plan for this image and text: "{text}"
                     if json_match:
                         data = json.loads(json_match.group())
                         position = data.get('position', 'top')
+                        direction = data.get('direction', 'horizontal')
                         color = data.get('color', '#FFFFFF')
                         font = data.get('font', 'heiti')
                         angle = int(data.get('angle', 0))
-                        stroke_width = int(data.get('stroke_width', 0))
+                        stroke_width = int(data.get('stroke_width', 10))  # 預設10px
                         stroke_color = data.get('stroke_color', '#000000')
-                        size = int(data.get('font_size', 60))
+                        size = int(data.get('font_size', 80))  # 預設80
                         decorations = data.get('decorations', [])  # 新增：解析裝飾元素
+                        
+                        # DEBUG: 顯示AI選擇的風格
+                        print(f"[MEME AI] Style={data.get('style')}, Color={color}, Stroke={stroke_width}px, Direction={direction}")
                     else:
                         raise ValueError("No JSON found")
                         

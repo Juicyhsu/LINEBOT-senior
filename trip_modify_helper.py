@@ -70,21 +70,26 @@ For example:
 6. Add practical travel tips at the end
 7. **NO ADDRESSES** - Just the location name is enough
 
-**Example Structure:**
-## {dest} {purp}之旅
-
-### Day 1
-**上午 (09:00-12:00)**
-- 景點：[具體景點名稱]
-- 建議停留時間：[時間]
-
-**下午 (13:00-17:00)**
-- ...
-
-### 旅遊小提示
-- 交通方式：...
-- 預算建議：...
-- 注意事項：...
+**Example Structure:**\r
+## {dest} {purp}之旅\r
+\r
+### Day 1\r
+**上午 (09:00-12:00)**\r
+- 景點：[具體景點名稱]\r
+- 簡介：[約25字的景點或活動簡要敘述]\r
+- 建議停留時間：[時間]\r
+\r
+**下午 (13:00-17:00)**\r
+- 景點：[具體景點名稱]\r
+- 簡介：[約25字的簡要說明]\r
+- 建議停留時間：[時間]\r
+\r
+### 旅遊小提示\r
+- 交通方式：...\r
+- 預算建議：...\r
+- 注意事項：...\r
+\r
+**IMPORTANT**: Each activity MUST include a "簡介" field (approximately 25 characters) describing the highlight or reason to visit.
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE.
 AND MOST IMPORTANTLY: You MUST output the ENTIRE COMPLETE PLAN. Do NOT just output the modified part. The user needs to see the FULL itinerary with your changes integrated. If you only output the change, the system will fail. Output the WHOLE new plan."""
