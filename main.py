@@ -1891,7 +1891,7 @@ def message_text(event):
                     )
                 return
                 
-            elif any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙']):
+            elif any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙', '驗證', '查', '2', '2️⃣', '安全']):
                 # 用戶想要查證
                 content = fetch_webpage_content(pending_url)
                 if content:
