@@ -74,6 +74,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 
 # HTTP requests
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # 抑制 SSL 警告
 
 # Environment variables
 from dotenv import load_dotenv
@@ -593,10 +595,12 @@ def fetch_latest_news():
                 return news_cache['data']
         
         feeds = [
-            'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FucG9MV1JsWm1GMWJIUUtP?hl=zh-TW&gl=TW&ceid=TW:zh-Hant',
-            'https://www.cna.com.tw/rss/headline.xml',
-            'https://udn.com/rssfeed/news/2/6638?ch=news',
-            'https://news.pts.org.tw/xml/newsfeed.xml', # Public TV
+            'https://news.ltn.com.tw/rss/all.xml',  # 自由時報 - 所有新聞
+            'https://newtalk.tw/rss/all',  # 新頭殼 - 所有新聞
+            'https://feeds.feedburner.com/rsscna/politics',  # 中央社 - 政治
+            'https://feeds.feedburner.com/rsscna/finance',  # 中央社 - 財經
+            'https://udn.com/rssfeed/news/2/6638?ch=news',  # 聯合報 - 即時新聞
+            'https://www.ettoday.net/rss/rss.xml',  # ETtoday - 即時新聞
         ]
         
         news_items = []
@@ -609,9 +613,9 @@ def fetch_latest_news():
 
         for feed_url in feeds:
             try:
-                # [FIX] Rotate User-Agent
+                # [FIX] Rotate User-Agent and disable SSL verify for problematic feeds
                 headers = {'User-Agent': random.choice(user_agents)}
-                response = requests.get(feed_url, headers=headers, timeout=10)
+                response = requests.get(feed_url, headers=headers, timeout=10, verify=False)
                 if response.status_code == 200:
                     feed = feedparser.parse(response.content)
                     for entry in feed.entries[:10]:  # 增加到 10 則，確保有足夠新聞供挑選
