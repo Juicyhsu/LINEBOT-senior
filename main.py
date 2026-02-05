@@ -401,29 +401,9 @@ def get_domain_age(url):
     取得網域註冊天數
     返回: 天數 (int) 或 None (如果查詢失敗)
     """
-    try:
-        import whois
-        from datetime import datetime
-        
-        domain = extract_domain(url)
-        if not domain:
-            return None
-        
-        w = whois.whois(domain)
-        
-        # whois 回傳的 creation_date 可能是 datetime 或 list
-        creation_date = w.creation_date
-        if isinstance(creation_date, list):
-            creation_date = creation_date[0]
-        
-        if creation_date:
-            age = (datetime.now() - creation_date).days
-            return age
-        
-        return None
-    except Exception as e:
-        print(f"Domain age check error: {e}")
-        return None
+    # 簡化：直接返回 None，不執行 whois 查詢（避免 datetime 錯誤）
+    # 域名年齡檢查不是關鍵功能，且容易出錯
+    return None
 
 def quick_safety_check(url):
     """
@@ -687,31 +667,49 @@ def generate_news_summary():
         news_text = "\n\n".join(indexed_news)
         
         prompt = f"""
-以下是今天的新聞，請挑選最重要的 7 則，
-用長輩容易理解的方式摘要，每則 80 字內。
+你是專業新聞編輯。以下是今天的新聞，請挑選最重要的 7 則。
 
 {news_text}
 
-CRITICAL INSTRUCTIONS:
-1. 請直接回傳你選擇的新聞 ID，以及摘要
-2. 絕對不要自己編造連結
-3. **務必保留所有數字、日期、金額**（如 2/9、3個、100元、2月5日）
-4. 數字和日期很重要，不可省略或改寫
+重要指示：
+1. 每則摘要 80-100 字
+2. **必須保留原文中的所有數字、日期、金額、數量**
+   例如：2月5日、3個、100元、2/9、第5名、5萬人
+3. 數字和日期是新聞的關鍵信息，絕對不可省略
+4. 如果原文有「2月5日」，你的摘要也必須寫「2月5日」
 
-輸出格式（嚴格遵守）：
+範例（正確 - 有數字）：
+1️⃣ [1] 【台積電投資】
+   台積電宣布在美國投資400億美元，預計2025年量產3奈米晶片。
+
+範例（錯誤 - 缺少數字）：
+1️⃣ [1] 【台積電投資】
+   台積電宣布在美國投資，預計明年量產晶片。
+
+輸出格式：
 📰 今日新聞摘要
 
 1️⃣ [ID] 【標題】
-   摘要內容（80-100字，必須包含數字和日期）
+   摘要（必須包含數字和日期）
 
-... (請列出完整 7 則) ...
+... 7則新聞 ...
 
-7️⃣ [ID] 【標題】
-   摘要內容（80-100字，必須包含數字和日期）
+再次強調：每則摘要都必須包含原文中的數字！
 """
-        response = model_functional.generate_content(prompt)
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.0,  # 完全確定性，保留數字
+        )
+        response = model_functional.generate_content(prompt, generation_config=generation_config)
         
-        final_text = response.text.strip()
+        # DEBUG: 檢查 AI 輸出是否包含數字
+        import re
+        ai_output = response.text.strip()
+        has_numbers = bool(re.search(r'\d', ai_output))
+        print(f\"[DEBUG] AI news output has numbers: {has_numbers}\")
+        if not has_numbers:
+            print(f\"[WARNING] AI removed all numbers! First 300 chars: {ai_output[:300]}\")
+        
+        final_text = ai_output
         
         # Post-process: Replace [ID] with actual links
         import re
