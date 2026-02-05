@@ -2075,8 +2075,34 @@ def message_text(event):
     if detect_news_intent(user_input):
         # 檢查是否是要語音播報
         if user_id in user_news_cache and any(keyword in user_input for keyword in ['語音', '播報', '聽', '念', '讀']):
-            # 生成語音
-            news_text = user_news_cache[user_id]
+            # 使用 Pro 模型重新生成語音專用文字（保留數字）
+            print("[VOICE] Generating TTS text with Pro model for number preservation...")
+            
+            try:
+                # 使用 Pro 模型重新處理，確保數字被保留
+                voice_prompt = f"""將以下新聞改寫為適合語音播報的純文字。
+                
+重要規則：
+1. 必須保留所有日期和數字（如：4日、100萬、2月9日）
+2. 移除所有標點符號和表情符號
+3. 用口語化的方式表達
+4. 每則新聞約50字
+
+原始新聞：
+{user_news_cache[user_id][:2000]}
+
+直接輸出語音稿，不要加任何解釋。"""
+
+                model_pro = genai.GenerativeModel(
+                    model_name="gemini-2.5-pro",
+                    system_instruction="你是專業新聞播報員，必須精準保留所有日期與數字。"
+                )
+                response = model_pro.generate_content(voice_prompt)
+                news_text = response.text.strip()
+                print(f"[VOICE PRO] Generated text with numbers preserved: {news_text[:100]}...")
+            except Exception as e:
+                print(f"[VOICE] Pro model failed, using cached text: {e}")
+                news_text = user_news_cache[user_id]
             
             # 清理文字（TTS 專用）- 重要：保留內容數字
             import re
@@ -2836,37 +2862,35 @@ Now generate English prompt for: "{user_input}" """
                 # AI 視覺分析 - 強調避開主體、選擇對比色
                 vision_prompt = f"""You are a professional Elderly Greetings Designer. Analyze this image and design the best layout for the text: "{text}".
 
-**Style Guide (Choose based on image features):**
+**Style Guide (Choose creatively based on image mood & colors!):**
 
-1. **classic** - Safe choice (RECOMMENDED for most cases)
-   - White bold text + Black stroke (10 to 15 px recommended for clarity)
-   - Suitable for: Any scene
-   - Features: Clear, Legible, High contrast, Easy to read
+⚠️ IMPORTANT: Avoid always choosing "classic"! Be creative and match the style to the image mood.
 
-2. **calligraphy** - Elegant (Use selectively)
-   - Black/Dark large font + Medium stroke (6-10px for legibility)
-   - Suitable for: Flowers, Scenery, Artistic
-   - Features: Texture, Artistic, Traditional
+1. **classic** - For formal/clean backgrounds
+   - White bold text + Black stroke (10-15px)
+   - Best for: Plain walls, Simple scenes
 
-3. **colorful** - Vibrant
-   - Bright colors (Blue/Red/Yellow/Green) + Bold stroke (8-12px)
-   - Suitable for: Happy, Bright, Energetic scenes
-   - Features: Lively, Rich colors, High energy
+2. **calligraphy** - For nature/artistic images
+   - Dark large font + Medium stroke (6-10px)  
+   - Best for: Flowers, Mountains, Artistic photos
+   - Use color: #4A3728 (brown) or #2D4A1C (forest green)
 
-4. **gradient** - Soft (Use sparingly)
-   - Gradient or semi-transparent + Light stroke (5-8px)
-   - Suitable for: Soft, Romantic, Dreamy
-   - Features: Gentle, Elegant
+3. **colorful** - For bright/happy scenes (RECOMMENDED for most elderly memes!)
+   - Bright colors like #FF6B6B (coral), #4ECDC4 (teal), #FFE66D (yellow)
+   - Bold stroke (8-12px)
+   - Best for: Animals, Food, Celebrations, Morning greetings
 
-5. **neon** - Eye-catching
-   - Bright Yellow/Orange/Pink + Strong glow effect (12-18px)
-   - Suitable for: Dark background, Night scene
-   - Features: Glowing, Stand out
+4. **gradient** - For soft/romantic images
+   - Colors like #FF69B4 (pink), #87CEEB (sky blue)
+   - Light stroke (5-8px)
+   - Best for: Soft focus, Flowers, Sunset
 
-**Key Visual Principles:**
-- Elderly meme style typically uses **BOLD strokes** (10px+) for readability
-- High contrast is essential (light text + dark stroke or vice versa)
-- Font should be large and clear (avoid thin or delicate styles)
+5. **neon** - For dark/dramatic backgrounds
+   - Bright Yellow #FFD700 or Hot Pink #FF1493
+   - Strong glow effect (12-18px)
+   - Best for: Night scenes, Dark backgrounds
+
+**VARIETY RULE**: If image has warm colors → use colorful/neon. If nature → use calligraphy. If dark → use neon. Only use classic as last resort!
 
 **Smart Positioning Requirements:**
 1. Identify key subjects (Faces, Animals, Flowers, Food)
