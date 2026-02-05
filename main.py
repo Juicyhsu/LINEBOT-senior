@@ -695,14 +695,24 @@ def generate_news_summary():
         # 使用更有邏輯的 Pro 模型來確保數字保留（用戶要求）
         try:
             model_pro = genai.GenerativeModel(
-                model_name="gemini-1.5-pro",
+                model_name="gemini-2.5-pro",  # 最新 Pro 模型
                 system_instruction="你是專業新聞編輯，必須精準保留新聞中的所有日期與數字。"
             )
             response = model_pro.generate_content(prompt, generation_config=generation_config)
-            print("[INFO] Using Gemini 1.5 Pro for news summary")
+            print("[INFO] Using Gemini 2.5 Pro for news summary")
         except Exception as e:
-            print(f"[WARNING] Failed to use Pro model, falling back to Functional model: {e}")
-            response = model_functional.generate_content(prompt, generation_config=generation_config)
+            print(f"[WARNING] Failed to use 2.5 Pro model: {e}")
+            try:
+                # Fallback to 1.5 Pro
+                model_pro_backup = genai.GenerativeModel(
+                    model_name="gemini-1.5-pro-002",
+                    system_instruction="你是專業新聞編輯，必須精準保留新聞中的所有日期與數字。"
+                )
+                response = model_pro_backup.generate_content(prompt, generation_config=generation_config)
+                print("[INFO] Using Gemini 1.5 Pro (fallback)")
+            except Exception as e2:
+                print(f"[WARNING] All Pro models failed, using Flash: {e2}")
+                response = model_functional.generate_content(prompt, generation_config=generation_config)
         
         # DEBUG: 檢查 AI 輸出是否包含數字
         import re
@@ -1820,7 +1830,7 @@ def message_text(event):
                 
                 generation_config = genai.types.GenerationConfig(
                     temperature=0.3,
-                    max_output_tokens=500  # 中文 200-300 字
+                    max_output_tokens=3000  # 中文 1000-1500 字，確保完整輸出
                 )
                 try:
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
