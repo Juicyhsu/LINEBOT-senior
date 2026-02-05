@@ -2089,6 +2089,10 @@ def message_text(event):
             # 步驟 4：移除標題文字
             clean_text = clean_text.replace('今日新聞摘要', '').replace('想聽語音播報？回覆「語音」即可', '').strip()
             
+            # 步驟 5：將日期格式 X/Y 轉換為 X月Y日
+            # 例如：2/9 → 2月9日，12/25 → 12月25日
+            clean_text = re.sub(r'(\d{1,2})/(\d{1,2})', r'\1月\2日', clean_text)
+            
             # 步驟 5：將阿拉伯數字轉為中文（Google TTS 對中文數字發音更好）
             # 定義數字對照表
             digit_map = {'0': '零', '1': '一', '2': '二', '3': '三', '4': '四', 
