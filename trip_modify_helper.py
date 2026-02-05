@@ -46,62 +46,48 @@ Purpose: {purp}
 **User's Modification Request:** {user_input}
 
 **CRITICAL TASK:** 
-**You MUST output the ENTIRE COMPLETE PLAN with modifications integrated.**
-**The output must include ALL days, not just the modified parts.**
+**ONLY modify the specific parts the user requested. Keep everything else EXACTLY the same.**
 
-Modification Rules:
-- If user says "第一天想加入購物" → Modify Day 1, but OUTPUT complete plan including Days 2, 3, etc.
-- If user says "換掉某個景點" → Replace that spot, but OUTPUT the full itinerary
-- If user says "調整時間" → Adjust times, but OUTPUT everything
-
-**CRITICAL**: The system expects a COMPLETE trip plan. If you only return the changed section, the entire plan will be lost.
+For example:
+- If user says "第一天想加入購物" → ONLY modify Day 1, keep Days 2, 3, etc. unchanged
+- If user says "換掉某個景點" → ONLY replace that specific spot, keep the rest
+- If user says "調整時間" → ONLY adjust the times, keep activities unchanged
 
 **Format Requirements:**
-1. **MUST PRESERVE TITLE**: Keep the original title "{dest}，{dur}之旅" at the top
-2. **Readable Text Format**: Clean text with bullet points. NO Markdown headers (##).
-3. Structure:
-   
-   {dest}，{dur}之旅
+1. **Readable Text Format**: Clean text with bullet points. NO Markdown headers.
+2. Structure: 
    
    【Day 1】
    [上午] (09:00-12:00)
-    - 景點：XX
-    - 停留時間：XX
-   
-   [下午] (13:00-17:00)
-    ...
-   
+   ...
    【旅遊小提示】
-    - 交通：...
-   
-4. **NO ADDRESSES** - Just spot names.
-5. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示".
-6. Provide realistic time estimates
-7. Add practical travel tips at the end
+   ...
+3. **NO ADDRESSES** - Just spot names.
+4. **NO MAIN TITLE** - Do not output the trip title. Start adjacent to Day 1.
+3. **NO ADDRESSES** - Just spot names.
+4. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示".
+5. Provide realistic time estimates
+6. Add practical travel tips at the end
+7. **NO ADDRESSES** - Just the location name is enough
 
-**Example Output:**
-宜蘭，三天兩夜之旅
+**Example Structure:**
+## {dest} {purp}之旅
 
-【Day 1】
-[上午] (09:00-12:00)
+### Day 1
+**上午 (09:00-12:00)**
 - 景點：[具體景點名稱]
 - 建議停留時間：[時間]
 
-[下午] (13:00-17:00)
+**下午 (13:00-17:00)**
 - ...
 
-【Day 2】
-...
-
-【Day 3】
-...
-
-【旅遊小提示】
+### 旅遊小提示
 - 交通方式：...
 - 預算建議：...
+- 注意事項：...
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE.
-AND MOST IMPORTANTLY: Output the COMPLETE modified plan with ALL days included."""
+AND MOST IMPORTANTLY: You MUST output the ENTIRE COMPLETE PLAN. Do NOT just output the modified part. The user needs to see the FULL itinerary with your changes integrated. If you only output the change, the system will fail. Output the WHOLE new plan."""
 
     try:
         print(f"[DEBUG] 修改行程 - 用戶: {user_id}, 輸入: {user_input}")
