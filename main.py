@@ -692,27 +692,10 @@ def generate_news_summary():
             temperature=0.1,
         )
         
-        # 使用更有邏輯的 Pro 模型來確保數字保留（用戶要求）
-        try:
-            model_pro = genai.GenerativeModel(
-                model_name="gemini-2.5-pro",  # 最新 Pro 模型
-                system_instruction="你是專業新聞編輯，必須精準保留新聞中的所有日期與數字。"
-            )
-            response = model_pro.generate_content(prompt, generation_config=generation_config)
-            print("[INFO] Using Gemini 2.5 Pro for news summary")
-        except Exception as e:
-            print(f"[WARNING] Failed to use 2.5 Pro model: {e}")
-            try:
-                # Fallback to 1.5 Pro
-                model_pro_backup = genai.GenerativeModel(
-                    model_name="gemini-1.5-pro-002",
-                    system_instruction="你是專業新聞編輯，必須精準保留新聞中的所有日期與數字。"
-                )
-                response = model_pro_backup.generate_content(prompt, generation_config=generation_config)
-                print("[INFO] Using Gemini 1.5 Pro (fallback)")
-            except Exception as e2:
-                print(f"[WARNING] All Pro models failed, using Flash: {e2}")
-                response = model_functional.generate_content(prompt, generation_config=generation_config)
+        
+        # 查新聞使用 Flash 模型（快速回報），語音播報才用 Pro
+        response = model_functional.generate_content(prompt, generation_config=generation_config)
+        print("[INFO] Using Flash for news summary (fast display)")
         
         # DEBUG: 檢查 AI 輸出是否包含數字
         import re
