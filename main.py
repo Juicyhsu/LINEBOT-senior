@@ -1897,16 +1897,35 @@ def message_text(event):
                 if content:
                     # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
                     analysis_prompt = f"""
-                    [SYSTEM: SECURITY REPORT GEN]
-                    Task: Generate a security report for the following content.
+                    [SYSTEM: SECURITY REPORT GENERATOR - STRICT MODE]
+                    
+                    Task: Analyze the following content and generate a CONCISE security report.
                     
                     Content:
                     {content[:2500]}
 
-                    Rules:
-                    1. **Format**: STRICT REPORT FORMAT.
-                    2. **Tone**: Robotic, Objective, Dry. NO JOKES. NO EMOTION.
-                    3. **Length**: Under 200 words.
+                    ABSOLUTE REQUIREMENTS:
+                    1. **NO JOKES** - Zero humor, zero casual language
+                    2. **NO EMOJIS in body text** - Only allowed in section headers
+                    3. **LENGTH LIMIT**: 100-150 Chinese characters MAXIMUM (not words, characters)
+                    4. **TONE**: Robotic, factual, professional
+                    5. **FORMAT**: Strict bullet points only
+                    
+                    Output Format (MUST FOLLOW EXACTLY):
+                    
+                    🔍 查證報告
+                    
+                    判定：[詐騙/可疑/合法]
+                    風險：[1-2個風險點，每個不超過15字]
+                    建議：[Block/Ignore/Delete]
+                    
+                    Example:
+                    🔍 查證報告
+                    判定：可疑
+                    風險：網域註冊僅30天、包含聳動用詞
+                    建議：建議忽略此連結
+                    
+                    Remember: MAXIMUM 150 characters. Be precise.
                     
                     Output Template:
                     🔍 **查證報告**
@@ -1916,7 +1935,8 @@ def message_text(event):
                     """
                     # 使用 model_functional (Temp 0.0 for strictness)
                     generation_config = genai.types.GenerationConfig(
-                        temperature=0.0
+                        temperature=0.0,
+                        max_output_tokens=200  # 強制限制輸出長度
                     )
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
                     reply_text = f"{analysis.text}"
@@ -2458,8 +2478,11 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 **Purpose:** {purp}
 
 **Format Requirements:**
-1. **Readable Text Format**: Clean text with bullet points. NO Markdown headers (##).
-2. Structure:
+1. **MUST START WITH TITLE**: First line must be "{dest}，{dur}之旅"
+2. **Readable Text Format**: Clean text with bullet points. NO Markdown headers (##).
+3. Structure:
+   
+   {dest}，{dur}之旅
    
    【Day 1】
    [上午] (09:00-12:00)
@@ -2472,8 +2495,7 @@ ABSOLUTE RULES - NO EXCEPTIONS:
    【旅遊小提示】
     - 交通：...
    
-3. **NO ADDRESSES** - Just spot names.
-4. **NO MAIN TITLE** - Do not output the "X days Y trip" title. Just start with Day 1.
+4. **NO ADDRESSES** - Just spot names.
 
 **Example Structure:**
 
