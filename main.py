@@ -673,7 +673,7 @@ def generate_news_summary():
 
 重要指示：
 1. 每則摘要 80-100 字
-2. **必須保留原文中的所有數字、日期、金額、數量**
+2. 必須保留原文中的所有數字、日期、金額、數量
    例如：2月5日、3個、100元、2/9、第5名、5萬人
 3. 數字和日期是新聞的關鍵信息，絕對不可省略
 4. 如果原文有「2月5日」，你的摘要也必須寫「2月5日」
@@ -1803,42 +1803,22 @@ def message_text(event):
         elif any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙', '2', '②', '２']):
             content = fetch_webpage_content(pending_url)
             if content:
-                # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
-                analysis_prompt = f"""
-                [SYSTEM: SECURITY REPORT GENERATOR - STRICT MODE]
-                
-                Task: Analyze the following content and generate a CONCISE security report.
-                
-                Content:
-                {content[:2500]}
+                # 簡化查證 prompt
+                analysis_prompt = f"""分析以下網頁內容是否可信。
 
-                ABSOLUTE REQUIREMENTS:
-                1. **NO JOKES** - Zero humor, zero casual language
-                2. **NO EMOJIS in body text** - Only allowed in section headers
-                3. **LENGTH LIMIT**: 100-150 Chinese characters MAXIMUM (not words, characters)
-                4. **TONE**: Robotic, factual, professional
-                5. **FORMAT**: Strict bullet points only
+內容：
+{content[:1500]}
+
+請回答：
+1. 判定（詐騙/可疑/合法）
+2. 主要風險
+3. 建議
+
+限100字內。"""
                 
-                Output Format (MUST FOLLOW EXACTLY):
-                
-                🔍 查證報告
-                
-                判定：[詐騙/可疑/合法]
-                風險：[1-2個風險點，每個不超過15字]
-                建議：[Block/Ignore/Delete]
-                
-                Example:
-                🔍 查證報告
-                判定：可疑
-                風險：網域註冊僅30天、包含聳動用詞
-                建議：建議忽略此連結
-                
-                Remember: MAXIMUM 150 characters. Be precise.
-                """
-                # 使用 model_functional (Temp 0.0 for strictness)
                 generation_config = genai.types.GenerationConfig(
-                    temperature=0.0,
-                    max_output_tokens=200  # 強制限制輸出長度
+                    temperature=0.3,
+                    max_output_tokens=300
                 )
                 try:
                     analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
