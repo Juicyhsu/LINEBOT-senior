@@ -1964,6 +1964,69 @@ def message_text(event):
                     )
                 return
         
+        # 檢查是否同時包含查證關鍵字（直接查證，跳過選擇步驟）
+        if any(keyword in user_input for keyword in ['查證', '檢查', '確認', '真假', '詐騙', '驗證', '查', '安全']):
+            # 直接進行查證
+            content = fetch_webpage_content(url)
+            if content:
+                # 使用 Gemini 深度分析內容 (改用功能性模型 + 嚴格提示)
+                analysis_prompt = f"""
+                [SYSTEM: SECURITY REPORT GENERATOR - STRICT MODE]
+                
+                Task: Analyze the following content and generate a CONCISE security report.
+                
+                Content:
+                {content[:2500]}
+
+                ABSOLUTE REQUIREMENTS:
+                1. **NO JOKES** - Zero humor, zero casual language
+                2. **NO EMOJIS in body text** - Only allowed in section headers
+                3. **LENGTH LIMIT**: 100-150 Chinese characters MAXIMUM (not words, characters)
+                4. **TONE**: Robotic, factual, professional
+                5. **FORMAT**: Strict bullet points only
+                
+                Output Format (MUST FOLLOW EXACTLY):
+                
+                🔍 查證報告
+                
+                判定：[詐騙/可疑/合法]
+                風險：[1-2個風險點，每個不超過15字]
+                建議：[Block/Ignore/Delete]
+                
+                Example:
+                🔍 查證報告
+                判定：可疑
+                風險：網域註冊僅30天、包含聳動用詞
+                建議：建議忽略此連結
+                
+                Remember: MAXIMUM 150 characters. Be precise.
+                
+                Output Template:
+                🔍 **查證報告**
+                * **判定**: [SCAM / SUSPICIOUS / LEGIT]
+                * **風險**: [Risk 1], [Risk 2]
+                * **操作**: [Block / Ignore / Delete]
+                """
+                # 使用 model_functional (Temp 0.0 for strictness)
+                generation_config = genai.types.GenerationConfig(
+                    temperature=0.0,
+                    max_output_tokens=200  # 強制限制輸出長度
+                )
+                analysis = model_functional.generate_content(analysis_prompt, generation_config=generation_config)
+                reply_text = f"{analysis.text}"
+            else:
+                reply_text = "抱歉，我無法讀取這個網頁的內容。可能是網站有防護機制或連結已失效。"
+            
+            with ApiClient(configuration) as api_client:
+                line_bot_api = MessagingApi(api_client)
+                line_bot_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text=reply_text)]
+                    )
+                )
+            return
+        
         # 新連結：執行快速安全檢查
         safety_check = quick_safety_check(url)
         
@@ -2011,7 +2074,12 @@ def message_text(event):
             
             # 移除 emoji 和格式符號（TTS 不需要）
             import re
-            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣0️⃣【】💡]', '', news_text)
+            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣0️⃣【】💡🔗]', '', news_text)
+            # 移除 URL（避免念出網址）
+            clean_text = re.sub(r'https?://[^\s]+', '', clean_text)
+            clean_text = re.sub(r'www\.[^\s]+', '', clean_text)
+            # 移除「來源：」標籤
+            clean_text = re.sub(r'來源：.*', '', clean_text)
             clean_text = clean_text.replace('今日新聞摘要', '').replace('想聽語音播報？回覆「語音」即可', '').strip()
             
             audio_path = generate_news_audio(clean_text, user_id)
