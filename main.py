@@ -662,10 +662,10 @@ def generate_news_summary():
     
     # 使用 Gemini 摘要新聞
     try:
-        # 使用更多的新聞項目 (前 30 則) 給 AI 挑選
+        # 使用較少的新聞項目 (前 15 則) 加速處理
         # 為了確保連結正確，我們建立索引映射
         indexed_news = []
-        for i, item in enumerate(news_items[:30], 1):
+        for i, item in enumerate(news_items[:15], 1):
              indexed_news.append(f"[{i}] 標題: {item['title']}\n內容: {item['summary']}")
         
         news_text = "\n\n".join(indexed_news)
