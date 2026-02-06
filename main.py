@@ -2141,20 +2141,85 @@ def message_text(event):
             # 步驟 5：將日期格式 X/Y 轉換為 X月Y日
             clean_text = re.sub(r'(\d{1,2})/(\d{1,2})', r'\1月\2日', clean_text)
             
-            # 步驟 6：將阿拉伯數字轉為中文（Google TTS 對中文數字發音更好）
-            digit_map = {'0': '零', '1': '一', '2': '二', '3': '三', '4': '四', 
-                         '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'}
+            # 步驟 6：完整的中文數字轉換（含位數單位）
+            def num_to_chinese(num_str):
+                """將阿拉伯數字轉為中文（含單位）"""
+                digit_map = {'0': '零', '1': '一', '2': '二', '3': '三', '4': '四', 
+                             '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'}
+                
+                # 處理小數
+                if '.' in num_str:
+                    parts = num_str.split('.')
+                    integer_part = num_to_chinese(parts[0])
+                    decimal_part = ''.join(digit_map.get(d, d) for d in parts[1])
+                    return f"{integer_part}點{decimal_part}"
+                
+                # 處理整數
+                num = int(num_str)
+                if num == 0:
+                    return '零'
+                
+                units = ['', '十', '百', '千', '萬', '十萬', '百萬', '千萬', '億']
+                result = []
+                
+                # 億位
+                if num >= 100000000:
+                    result.append(digit_map[str(num // 100000000)])
+                    result.append('億')
+                    num %= 100000000
+                    if num > 0 and num < 10000000:
+                        result.append('零')
+                
+                # 萬位
+                if num >= 10000:
+                    wan = num // 10000
+                    if wan >= 10:
+                        result.append(num_to_chinese(str(wan)))
+                    else:
+                        result.append(digit_map[str(wan)])
+                    result.append('萬')
+                    num %= 10000
+                    if num > 0 and num < 1000:
+                        result.append('零')
+                
+                # 千位
+                if num >= 1000:
+                    result.append(digit_map[str(num // 1000)])
+                    result.append('千')
+                    num %= 1000
+                    if num > 0 and num < 100:
+                        result.append('零')
+                
+                # 百位
+                if num >= 100:
+                    result.append(digit_map[str(num // 100)])
+                    result.append('百')
+                    num %= 100
+                    if num > 0 and num < 10:
+                        result.append('零')
+                
+                # 十位
+                if num >= 10:
+                    tens = num // 10
+                    if tens != 1 or len(result) > 0:  # 避免 "一十" 只說 "十"
+                        result.append(digit_map[str(tens)])
+                    result.append('十')
+                    num %= 10
+                
+                # 個位
+                if num > 0:
+                    result.append(digit_map[str(num)])
+                
+                return ''.join(result)
             
-            result = []
-            for char in clean_text:
-                if char in digit_map:
-                    result.append(digit_map[char])
-                else:
-                    result.append(char)
-            clean_text = ''.join(result)
+            # 替換所有數字（包括小數）
+            def replace_number(match):
+                return num_to_chinese(match.group(0))
+            
+            clean_text = re.sub(r'\d+\.?\d*', replace_number, clean_text)
             
             # DEBUG: 驗證轉換結果
-            has_chinese_digits = any(c in clean_text for c in '零一二三四五六七八九')
+            has_chinese_digits = any(c in clean_text for c in '零一二三四五六七八九十百千萬億點')
             print(f"[DEBUG] After digit conversion - has Chinese digits: {has_chinese_digits}")
             
             print(f"[DEBUG] Voice text after cleaning (first 200 chars): {clean_text[:200]}")
@@ -2894,10 +2959,15 @@ Now generate English prompt for: "{user_input}" """
 - Small notes: 30-50px (signatures, small greetings)
 Choose ANY size that looks good!
 
-**Position Freedom:**
-- Look for EMPTY SPACE in the image
-- AVOID covering the main subject (face, animal, flower center)
-- Can place text at edges, corners, or any open area
+**🚨 CRITICAL POSITIONING RULE (MUST FOLLOW!):**
+- NEVER place text on the main subject (animal, person, flower, food)
+- First identify WHERE the main subject is in the image
+- Text MUST go in EMPTY/BACKGROUND areas only
+- Prefer: blurry backgrounds, sky, edges, corners, floor/ground
+- It's OK to cover small unimportant corners
+- If main subject is centered → place text at edges/corners
+- If main subject is on left → place text on right side
+
 
 **Style Freedom:**
 - stroke_width: 5-20px (thicker = more readable, pick what looks good)
@@ -3485,7 +3555,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
             if state == 'waiting_for_confirmation':
                 # 用戶確認生成
                 if '取消' in user_input:
-                    user_image_generation_state[user_id] = 'idle'
+                    del user_image_generation_state[user_id]
+                    if user_id in user_last_image_prompt:
+                        del user_last_image_prompt[user_id]
+                    print(f"[CANCEL] Image generation cancelled for user {user_id}")
                     return "已取消圖片生成。"
                 elif '確定' in user_input or '開始' in user_input or '生成' in user_input:
                     # 用戶確認，設定狀態為 generating 並繼續往下執行
@@ -3499,7 +3572,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
             if state == 'waiting_for_prompt':
                 # 檢查是否要取消
                 if '取消' in user_input:
-                    user_image_generation_state[user_id] = 'idle'
+                    del user_image_generation_state[user_id]
+                    if user_id in user_last_image_prompt:
+                        del user_last_image_prompt[user_id]
+                    print(f"[CANCEL] Image generation cancelled for user {user_id}")
                     return "已取消圖片生成。"
                 # 用戶已提供詳細需求，先確認
                 user_image_generation_state[user_id] = 'waiting_for_confirmation'
