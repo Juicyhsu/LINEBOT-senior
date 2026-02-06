@@ -9,7 +9,7 @@ graceful_timeout = 30
 
 # Worker 數量（使用環境變數或預設 2）
 import os
-workers = int(os.environ.get("WEB_CONCURRENCY", 2))
+workers = 1  # [Fix] 強制單一 Worker 以確保記憶體變數 (State) 不會因為負載平衡而丟失
 
 # 綁定地址
 bind = "0.0.0.0:" + os.environ.get("PORT", "8080")
