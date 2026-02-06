@@ -2965,53 +2965,36 @@ Now generate English prompt for: "{user_input}" """
                 # 載入背景圖片
                 bg_image = Image.open(bg_path)
                 
-                # AI 視覺分析 - 給予AI完全創意自由
-                vision_prompt = f"""You are a creative Elderly Greetings (長輩圖) Designer. Design a visually striking layout for: "{text}"
+                # AI 視覺分析 - 強制分析主體位置
+                vision_prompt = f"""Analyze this image and design text layout for: "{text}"
 
-**BE CREATIVE! Each image should look DIFFERENT. Study the image and choose the BEST style:**
+**STEP 1: FIND THE MAIN SUBJECT**
+Look at the image carefully. Identify the main subject (person, animal, object, flower).
+Determine which AREA the subject occupies: "top", "bottom", "left", "right", "center"
 
-**Color & Style Ideas (pick based on image mood):**
-- Bright & Warm: Use coral #FF6B6B, gold #FFD700, pink #FF69B4
-- Nature & Calm: Use forest green #2D4A1C, brown #4A3728, cream #F5F5DC
-- Cute & Sweet: Use pastel pink #FFB6C1, mint #98FB98, lavender #E6E6FA
-- Bold & Strong: Use red #FF0000, blue #0066CC, white #FFFFFF with thick stroke
+**STEP 2: PLACE TEXT IN THE OPPOSITE AREA**
+- If subject is at TOP → text goes at BOTTOM
+- If subject is at BOTTOM → text goes at TOP  
+- If subject is at CENTER → text goes at edges (top-left, top-right, bottom-left, bottom-right)
+- If subject is at LEFT → text goes at RIGHT
+- If subject is at RIGHT → text goes at LEFT
 
-**Font Size Freedom:**
-- Title/主標題: 100-150px (BIG and impactful)
-- Subtitle/副文: 50-80px (supporting text)
-- Small notes: 30-50px (signatures, small greetings)
-Choose ANY size that looks good!
+**NEVER put text over the main subject!**
 
-**🚨 CRITICAL POSITIONING RULE (MUST FOLLOW!):**
-- NEVER place text on the main subject (animal, person, flower, food)
-- First identify WHERE the main subject is in the image
-- Text MUST go in EMPTY/BACKGROUND areas only
-- Prefer: blurry backgrounds, sky, edges, corners, floor/ground
-- It's OK to cover small unimportant corners
-- If main subject is centered → place text at edges/corners
-- If main subject is on left → place text on right side
+**Color choices:**
+Pick colors that contrast with the background. Use bright colors for dark areas, dark colors for light areas.
 
-
-**Style Freedom:**
-- stroke_width: 5-20px (thicker = more readable, pick what looks good)
-- color: ANY hex color that contrasts well with background
-- font: bold (粗體), heiti (黑體), kaiti (楷體) - pick freely
-
-**Output JSON:**
+**Output JSON (MUST include subject_location):**
 {{
-  "style": "creative",
-  "position": "top/bottom/left/right/center/top-left/top-right/bottom-left/bottom-right",
-  "direction": "horizontal/vertical",
+  "subject_location": "top/bottom/left/right/center",
+  "position": "top/bottom/left/right/top-left/top-right/bottom-left/bottom-right",
   "color": "#HEXCODE",
-  "font": "bold/heiti/kaiti",
-  "font_size": 50-150,
-  "stroke_width": 5-20,
   "stroke_color": "#HEXCODE",
-  "angle": -15 to 15,
-  "decorations": [{{"char": "emoji", "position": "any", "size": 40-80}}]
+  "font_size": 80-120,
+  "stroke_width": 8-15
 }}
 
-Design now for: "{text}"
+Text to display: "{text}"
 """
 
                 # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
@@ -3046,6 +3029,7 @@ Design now for: "{text}"
                     json_match = re.search(r'\{.*\}', result, re.DOTALL)
                     if json_match:
                         data = json.loads(json_match.group())
+                        subject_location = data.get('subject_location', 'center')
                         position = data.get('position', 'top')
                         direction = data.get('direction', 'horizontal')
                         color = data.get('color', '#FFFFFF')
@@ -3056,14 +3040,33 @@ Design now for: "{text}"
                         size = int(data.get('font_size', 80))  # 預設80
                         decorations = data.get('decorations', [])  # 新增：解析裝飾元素
                         
+                        # 🚨 位置安全檢查：確保文字不會蓋住主體
+                        opposite_map = {
+                            'top': ['bottom', 'bottom-left', 'bottom-right'],
+                            'bottom': ['top', 'top-left', 'top-right'],
+                            'left': ['right', 'top-right', 'bottom-right'],
+                            'right': ['left', 'top-left', 'bottom-left'],
+                            'center': ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                        }
+                        safe_positions = opposite_map.get(subject_location, ['top', 'bottom'])
+                        
+                        # 如果 AI 選的位置不安全，強制修正
+                        if subject_location in position or position == subject_location:
+                            import random
+                            old_position = position
+                            position = random.choice(safe_positions)
+                            print(f"[MEME SAFETY] Position corrected: {old_position} → {position} (subject at {subject_location})")
+                        
                         # DEBUG: 顯示AI選擇的風格
-                        print(f"[MEME AI] Style={data.get('style')}, Color={color}, Stroke={stroke_width}px, Direction={direction}")
+                        print(f"[MEME AI] Subject={subject_location}, Position={position}, Color={color}, Stroke={stroke_width}px")
                     else:
                         raise ValueError("No JSON found")
                         
                 except Exception as parse_e:
                     print(f"[AI PARSE ERROR] {parse_e}, trying fallback regex")
                     decorations = []  # 如果解析失敗，裝飾為空
+                    # 安全預設：文字放底部
+                    position = 'bottom'
                     pass
                 
                 # 確保 color 是 hex 或 rainbow
@@ -3072,7 +3075,7 @@ Design now for: "{text}"
                      color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
                      color = color_map.get(color.lower(), '#FFFFFF')
 
-                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, {angle}度, stroke={stroke_width}, decorations={len(decorations)}")
+                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, stroke={stroke_width}")
                 
                 # 傳遞 decorations 參數
                 final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations)
@@ -3308,22 +3311,26 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              current_intent = None
              
              # 關鍵字強制映射 (還原使用者的制式操作體驗)
-             if any(k in user_input for k in ["規劃行程", "行程規劃", "去玩", "帶我去", "旅遊", "旅行", "景點推薦"]):
-                 current_intent = 'trip_planning'
-             elif any(k in user_input for k in ["長輩圖", "做長輩圖", "製作長輩圖", "梗圖", "迷因", "加文字", "上文字", "做一張圖"]):
-                 current_intent = 'meme_creation'
-             elif any(k in user_input for k in ["生成圖片", "產生圖片", "畫一張", "做圖", "畫圖", "繪圖"]):
-                 current_intent = 'image_generation'
-             elif any(k in user_input for k in ["生成影片", "製作影片", "做影片"]):
-                 current_intent = 'video_generation'
-             elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項", "提醒通知"]):
-                 current_intent = 'show_reminders'
+             # 重要：只有短指令（< 30字）才用關鍵字匹配，長文本交給 AI 判斷
+             is_short_command = len(user_input) < 30
+             
+             if is_short_command:
+                 if any(k in user_input for k in ["規劃行程", "行程規劃", "去玩", "帶我去", "旅遊", "旅行", "景點推薦"]):
+                     current_intent = 'trip_planning'
+                 elif any(k in user_input for k in ["長輩圖", "做長輩圖", "製作長輩圖", "梗圖", "迷因", "加文字", "上文字", "做一張圖"]):
+                     current_intent = 'meme_creation'
+                 elif any(k in user_input for k in ["生成圖片", "產生圖片", "畫一張", "做圖", "畫圖", "繪圖"]):
+                     current_intent = 'image_generation'
+                 elif any(k in user_input for k in ["生成影片", "製作影片", "做影片"]):
+                     current_intent = 'video_generation'
+                 elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項", "提醒通知"]):
+                     current_intent = 'show_reminders'
              
              # 如果關鍵字沒抓到，才用 AI (處理自然語言，如 "我想去宜蘭")
              if not current_intent:
                  current_intent = classify_user_intent(user_input)
              
-             print(f"User Intent: {current_intent} (Input: {user_input})")
+             print(f"User Intent: {current_intent} (Input length: {len(user_input)}, Short: {is_short_command})")
 
              # 1. 影片生成
              if current_intent == 'video_generation':
