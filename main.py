@@ -2216,7 +2216,30 @@ def message_text(event):
             def replace_number(match):
                 return num_to_chinese(match.group(0))
             
-            clean_text = re.sub(r'\d+\.?\d*', replace_number, clean_text)
+            # 步驟 7：處理百分比（23% → 百分之二十三）
+            def replace_percent(match):
+                num = match.group(1)
+                chinese_num = num_to_chinese(num)
+                return f"百分之{chinese_num}"
+            clean_text = re.sub(r'(\d+\.?\d*)%', replace_percent, clean_text)
+            
+            # 步驟 8：跳過字母數字混合碼（如 M1A2T, F-16, A380）
+            # 讓 TTS 直接唸英文字母和數字
+            alphanumeric_pattern = r'[A-Za-z][\dA-Za-z-]*\d[\dA-Za-z-]*|[A-Za-z]+-\d+'
+            
+            # 只轉換「純數字」，跳過字母數字混合
+            def smart_replace_number(match):
+                num_str = match.group(0)
+                # 檢查前後是否有字母
+                start = match.start()
+                end = match.end()
+                text = match.string
+                # 如果前面或後面有字母，不轉換
+                if (start > 0 and text[start-1].isalpha()) or (end < len(text) and text[end].isalpha()):
+                    return num_str  # 保持原樣
+                return num_to_chinese(num_str)
+            
+            clean_text = re.sub(r'\d+\.?\d*', smart_replace_number, clean_text)
             
             # DEBUG: 驗證轉換結果
             has_chinese_digits = any(c in clean_text for c in '零一二三四五六七八九十百千萬億點')
