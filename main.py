@@ -2073,6 +2073,27 @@ def message_text(event):
     # 新聞查詢功能：檢查是否想查詢新聞
     # ============================================
     if detect_news_intent(user_input):
+        # [Fix] 優先檢查是否為「語音播報」請求
+        # 如果用戶只說「語音」但沒有緩存，應該提示先看新聞，而不是重新抓新聞
+        is_voice_request = any(keyword in user_input for keyword in ['語音', '播報', '聽', '念', '讀'])
+        
+        if is_voice_request:
+            if user_id in user_news_cache:
+                # 有緩存 -> 繼續往下執行語音邏輯
+                pass 
+            else:
+                # 無緩存 -> 提示用戶
+                with ApiClient(configuration) as api_client:
+                    line_bot_api = MessagingApi(api_client)
+                    line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text="請先說「看新聞」或「新聞」，我準備好新聞後才能唸給您聽喔！📢")]
+                        )
+                    )
+                return
+
+        # 檢查是否是要語音播報 (這裡是既有邏輯，保留作為 fallback)
         # 檢查是否是要語音播報
         if user_id in user_news_cache and any(keyword in user_input for keyword in ['語音', '播報', '聽', '念', '讀']):
             # 使用 Pro 模型重新生成語音專用文字（保留數字）
