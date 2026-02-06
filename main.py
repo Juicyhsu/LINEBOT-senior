@@ -3067,8 +3067,15 @@ Text to display: "{text}"
                         }
                         safe_positions = opposite_map.get(subject_location, ['top', 'bottom'])
                         
-                        # 如果 AI 選的位置不安全，強制修正
-                        if subject_location in position or position == subject_location:
+                        # 🚨 強化安全檢查：禁止 center，強制移到邊角
+                        # 如果 AI 選的位置不安全（包含主體位置關鍵字，或是 center）
+                        is_unsafe = (
+                            subject_location in position or 
+                            position == subject_location or
+                            position == 'center'  # 永遠禁止 center
+                        )
+                        
+                        if is_unsafe:
                             import random
                             old_position = position
                             position = random.choice(safe_positions)
