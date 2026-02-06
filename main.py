@@ -3067,12 +3067,12 @@ Text to display: "{text}"
                         }
                         safe_positions = opposite_map.get(subject_location, ['top', 'bottom'])
                         
-                        # 🚨 強化安全檢查：禁止 center，強制移到邊角
-                        # 如果 AI 選的位置不安全（包含主體位置關鍵字，或是 center）
+                        # 🚨 安全檢查：只在文字位置會蓋住主體時才修正
+                        # 注意：如果主體不在 center（如風景圖），center 位置是安全的
                         is_unsafe = (
                             subject_location in position or 
                             position == subject_location or
-                            position == 'center'  # 永遠禁止 center
+                            (position == 'center' and subject_location == 'center')  # 只有主體在中間時才禁止 center
                         )
                         
                         if is_unsafe:
