@@ -676,7 +676,7 @@ def generate_news_summary():
 {news_text}
 
 摘要規則：
-1. 每則 40-50 字（精簡！）
+1. 每則 60-80 字（適中長度！）
 2. 保留原文的日期和數字（如：4日、1.5小時、100萬）
 3. 不要省略任何數字
 
@@ -684,7 +684,7 @@ def generate_news_summary():
 📰 今日新聞摘要
 
 1️⃣ [ID] 【標題】
-   摘要內容（40-50字）
+   摘要內容（60-80字）
 
 ... 7則 ...
 """
@@ -2979,7 +2979,11 @@ Determine which AREA the subject occupies: "top", "bottom", "left", "right", "ce
 - If subject is at LEFT → text goes at RIGHT
 - If subject is at RIGHT → text goes at LEFT
 
-**NEVER put text over the main subject!**
+**STEP 3: DETERMINE FONT SIZE**
+- If subject covers > 50% of image (LARGE subject) → Use SMALLER font (50-80px) to fit in gaps
+- If subject is small/clean background → Use LARGER font (90-120px)
+
+**NEVER put text over the main subject! It's okay to cover unimportant corners.**
 
 **Color choices:**
 Pick colors that contrast with the background. Use bright colors for dark areas, dark colors for light areas.
@@ -2987,10 +2991,11 @@ Pick colors that contrast with the background. Use bright colors for dark areas,
 **Output JSON (MUST include subject_location):**
 {{
   "subject_location": "top/bottom/left/right/center",
+  "subject_size": "large/small",
   "position": "top/bottom/left/right/top-left/top-right/bottom-left/bottom-right",
   "color": "#HEXCODE",
   "stroke_color": "#HEXCODE",
-  "font_size": 80-120,
+  "font_size": 50-120,
   "stroke_width": 8-15
 }}
 
@@ -3030,15 +3035,27 @@ Text to display: "{text}"
                     if json_match:
                         data = json.loads(json_match.group())
                         subject_location = data.get('subject_location', 'center')
+                        subject_size = data.get('subject_size', 'small') # 新增：主體大小
                         position = data.get('position', 'top')
                         direction = data.get('direction', 'horizontal')
                         color = data.get('color', '#FFFFFF')
                         font = data.get('font', 'heiti')
                         angle = int(data.get('angle', 0))
-                        stroke_width = int(data.get('stroke_width', 10))  # 預設10px
+                        stroke_width = int(data.get('stroke_width', 10))
                         stroke_color = data.get('stroke_color', '#000000')
-                        size = int(data.get('font_size', 80))  # 預設80
-                        decorations = data.get('decorations', [])  # 新增：解析裝飾元素
+                        size = int(data.get('font_size', 80))
+                        decorations = data.get('decorations', [])
+                        
+                        # 📏 根據主體大小自動調整字體 (Auto-Resize)
+                        if subject_size == 'large':
+                            # 主體很大時，強制縮小字體以塞入縫隙，但保持至少 50px
+                            if size > 80:
+                                print(f"[MEME RESIZE] Subject is large, shrinking font from {size} to 80px")
+                                size = 80
+                        else:
+                            # 主體很小或背景乾淨，允許大字體，但確保不小於 60px
+                            if size < 60:
+                                size = 60
                         
                         # 🚨 位置安全檢查：確保文字不會蓋住主體
                         opposite_map = {
