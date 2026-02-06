@@ -3311,26 +3311,28 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              current_intent = None
              
              # 關鍵字強制映射 (還原使用者的制式操作體驗)
-             # 重要：只有短指令（< 30字）才用關鍵字匹配，長文本交給 AI 判斷
-             is_short_command = len(user_input) < 30
+             # 重要：只有關鍵字在「開頭」才觸發，避免誤判文本中間的關鍵字
+             # 例如：「生成圖片...」✅ 觸發，但「工具清單：1. 生成圖片」❌ 不觸發
              
-             if is_short_command:
-                 if any(k in user_input for k in ["規劃行程", "行程規劃", "去玩", "帶我去", "旅遊", "旅行", "景點推薦"]):
-                     current_intent = 'trip_planning'
-                 elif any(k in user_input for k in ["長輩圖", "做長輩圖", "製作長輩圖", "梗圖", "迷因", "加文字", "上文字", "做一張圖"]):
-                     current_intent = 'meme_creation'
-                 elif any(k in user_input for k in ["生成圖片", "產生圖片", "畫一張", "做圖", "畫圖", "繪圖"]):
-                     current_intent = 'image_generation'
-                 elif any(k in user_input for k in ["生成影片", "製作影片", "做影片"]):
-                     current_intent = 'video_generation'
-                 elif any(k in user_input for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項", "提醒通知"]):
-                     current_intent = 'show_reminders'
+             # 檢查關鍵字是否在前 15 字內
+             prefix = user_input[:15]
+             
+             if any(k in prefix for k in ["規劃行程", "行程規劃", "去玩", "帶我去", "旅遊", "旅行", "景點推薦"]):
+                 current_intent = 'trip_planning'
+             elif any(k in prefix for k in ["長輩圖", "做長輩圖", "製作長輩圖", "梗圖", "迷因", "加文字", "上文字", "做一張圖"]):
+                 current_intent = 'meme_creation'
+             elif any(k in prefix for k in ["生成圖片", "產生圖片", "畫一張", "做圖", "畫圖", "繪圖", "幫我生成", "幫我畫"]):
+                 current_intent = 'image_generation'
+             elif any(k in prefix for k in ["生成影片", "製作影片", "做影片"]):
+                 current_intent = 'video_generation'
+             elif any(k in prefix for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項", "提醒通知"]):
+                 current_intent = 'show_reminders'
              
              # 如果關鍵字沒抓到，才用 AI (處理自然語言，如 "我想去宜蘭")
              if not current_intent:
                  current_intent = classify_user_intent(user_input)
              
-             print(f"User Intent: {current_intent} (Input length: {len(user_input)}, Short: {is_short_command})")
+             print(f"User Intent: {current_intent} (Prefix: '{prefix}')")
 
              # 1. 影片生成
              if current_intent == 'video_generation':
