@@ -2114,23 +2114,37 @@ def message_text(event):
             # 步驟 2：移除「來源：」後面的所有內容（通常是 URL 或網站名）
             clean_text = re.sub(r'來源：[^\n]*', '', clean_text)
             
-            # 步驟 3：移除 emoji「符號」（但保留數字！）
-            # 只移除 emoji，不移除普通阿拉伯數字 0-9
-            clean_text = re.sub(r'[📰🔊1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣0️⃣【】💡🔗]', '', clean_text)
+            # 步驟 3：移除特定 emoji 符號（不使用 emoji 數字字符，避免誤刪普通數字）
+            # 改用 unicode 移除常見表情符號
+            emoji_pattern = re.compile("["
+                u"\U0001F600-\U0001F64F"  # emoticons
+                u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+                u"\U0001F680-\U0001F6FF"  # transport & map symbols
+                u"\U0001F1E0-\U0001F1FF"  # flags
+                u"\U00002702-\U000027B0"  # dingbats
+                u"\U0001F4A0-\U0001F4FF"  # 其他符號
+                "]+", flags=re.UNICODE)
+            clean_text = emoji_pattern.sub('', clean_text)
+            # 移除中括號等標記
+            clean_text = re.sub(r'[【】🔗💡📰🔊]', '', clean_text)
             
             # 步驟 4：移除標題文字
             clean_text = clean_text.replace('今日新聞摘要', '').replace('想聽語音播報？回覆「語音」即可', '').strip()
             
+            # DEBUG: 檢查數字保留情況
+            has_digits_before = bool(re.search(r'\d', clean_text))
+            print(f"[DEBUG] Before digit conversion - has digits: {has_digits_before}")
+            if has_digits_before:
+                digit_sample = re.findall(r'\d+', clean_text)[:5]
+                print(f"[DEBUG] Sample digits found: {digit_sample}")
+            
             # 步驟 5：將日期格式 X/Y 轉換為 X月Y日
-            # 例如：2/9 → 2月9日，12/25 → 12月25日
             clean_text = re.sub(r'(\d{1,2})/(\d{1,2})', r'\1月\2日', clean_text)
             
-            # 步驟 5：將阿拉伯數字轉為中文（Google TTS 對中文數字發音更好）
-            # 定義數字對照表
+            # 步驟 6：將阿拉伯數字轉為中文（Google TTS 對中文數字發音更好）
             digit_map = {'0': '零', '1': '一', '2': '二', '3': '三', '4': '四', 
                          '5': '五', '6': '六', '7': '七', '8': '八', '9': '九'}
             
-            # 轉換所有阿拉伯數字為中文
             result = []
             for char in clean_text:
                 if char in digit_map:
@@ -2138,6 +2152,10 @@ def message_text(event):
                 else:
                     result.append(char)
             clean_text = ''.join(result)
+            
+            # DEBUG: 驗證轉換結果
+            has_chinese_digits = any(c in clean_text for c in '零一二三四五六七八九')
+            print(f"[DEBUG] After digit conversion - has Chinese digits: {has_chinese_digits}")
             
             print(f"[DEBUG] Voice text after cleaning (first 200 chars): {clean_text[:200]}")
             
@@ -2859,85 +2877,48 @@ Now generate English prompt for: "{user_input}" """
                 # 載入背景圖片
                 bg_image = Image.open(bg_path)
                 
-                # AI 視覺分析 - 強調避開主體、選擇對比色
-                vision_prompt = f"""You are a professional Elderly Greetings Designer. Analyze this image and design the best layout for the text: "{text}".
+                # AI 視覺分析 - 給予AI完全創意自由
+                vision_prompt = f"""You are a creative Elderly Greetings (長輩圖) Designer. Design a visually striking layout for: "{text}"
 
-**Style Guide (Choose creatively based on image mood & colors!):**
+**BE CREATIVE! Each image should look DIFFERENT. Study the image and choose the BEST style:**
 
-⚠️ IMPORTANT: Avoid always choosing "classic"! Be creative and match the style to the image mood.
+**Color & Style Ideas (pick based on image mood):**
+- Bright & Warm: Use coral #FF6B6B, gold #FFD700, pink #FF69B4
+- Nature & Calm: Use forest green #2D4A1C, brown #4A3728, cream #F5F5DC
+- Cute & Sweet: Use pastel pink #FFB6C1, mint #98FB98, lavender #E6E6FA
+- Bold & Strong: Use red #FF0000, blue #0066CC, white #FFFFFF with thick stroke
 
-1. **classic** - For formal/clean backgrounds
-   - White bold text + Black stroke (10-15px)
-   - Best for: Plain walls, Simple scenes
+**Font Size Freedom:**
+- Title/主標題: 100-150px (BIG and impactful)
+- Subtitle/副文: 50-80px (supporting text)
+- Small notes: 30-50px (signatures, small greetings)
+Choose ANY size that looks good!
 
-2. **calligraphy** - For nature/artistic images
-   - Dark large font + Medium stroke (6-10px)  
-   - Best for: Flowers, Mountains, Artistic photos
-   - Use color: #4A3728 (brown) or #2D4A1C (forest green)
+**Position Freedom:**
+- Look for EMPTY SPACE in the image
+- AVOID covering the main subject (face, animal, flower center)
+- Can place text at edges, corners, or any open area
 
-3. **colorful** - For bright/happy scenes (RECOMMENDED for most elderly memes!)
-   - Bright colors like #FF6B6B (coral), #4ECDC4 (teal), #FFE66D (yellow)
-   - Bold stroke (8-12px)
-   - Best for: Animals, Food, Celebrations, Morning greetings
+**Style Freedom:**
+- stroke_width: 5-20px (thicker = more readable, pick what looks good)
+- color: ANY hex color that contrasts well with background
+- font: bold (粗體), heiti (黑體), kaiti (楷體) - pick freely
 
-4. **gradient** - For soft/romantic images
-   - Colors like #FF69B4 (pink), #87CEEB (sky blue)
-   - Light stroke (5-8px)
-   - Best for: Soft focus, Flowers, Sunset
-
-5. **neon** - For dark/dramatic backgrounds
-   - Bright Yellow #FFD700 or Hot Pink #FF1493
-   - Strong glow effect (12-18px)
-   - Best for: Night scenes, Dark backgrounds
-
-**VARIETY RULE**: If image has warm colors → use colorful/neon. If nature → use calligraphy. If dark → use neon. Only use classic as last resort!
-
-**Smart Positioning Requirements:**
-1. Identify key subjects (Faces, Animals, Flowers, Food)
-2. Find empty or secondary areas (Sky, Wall, Floor, Blur)
-3. OK to cover: Corners, Clutter, Secondary elements
-4. AVOID: Faces, Key features of main subject
-5. Ensure text is FULLY inside image boundaries
-
-**Decorations (Optional):**
-- Morning/Greeting: Add Flowers, Sun, Heart
-- Motivational: Add Sparkles, Stars
-- Warm/Love: Add Hearts, Roses
-- Happy: Add Balloons, Confetti
-
-**Layout Flexibility:**
-- **Text Direction**: "horizontal" or "vertical" (vertical = traditional Chinese style, top-to-bottom, right-to-left)
-- **Font Size**: 50-150 (AI decides based on text length and image size)
-- **Rotation**: -10 to 10 degrees (for horizontal text only)
-
-**When to use Vertical Text:**
-- Traditional/Cultural images (temples, calligraphy, classical scenes)
-- Portrait-oriented photos with vertical empty space
-- When horizontal text would cover important subjects
-
-**Output JSON Format ONLY:**
+**Output JSON:**
 {{
-  "style": "classic/calligraphy/colorful/gradient/neon",
-  "position": "top-left/top-right/bottom-left/bottom-right/top/bottom/center",
+  "style": "creative",
+  "position": "top/bottom/left/right/center/top-left/top-right/bottom-left/bottom-right",
   "direction": "horizontal/vertical",
-  "color": "#FFFFFF",
+  "color": "#HEXCODE",
   "font": "bold/heiti/kaiti",
-  "font_size": 80,
-  "stroke_width": 12,
-  "stroke_color": "#000000",
-  "angle": 0,
-  "decorations": [
-    {{"char": "❤️", "position": "top-right", "size": 60}}
-  ]
+  "font_size": 50-150,
+  "stroke_width": 5-20,
+  "stroke_color": "#HEXCODE",
+  "angle": -15 to 15,
+  "decorations": [{{"char": "emoji", "position": "any", "size": 40-80}}]
 }}
 
-**Examples:**
-- Flower photo -> calligraphy style, black text in empty space, medium stroke (8px), add Flower
-- Person photo -> classic style, white text not covering face, bold stroke (12-15px)
-- Food photo -> colorful style, vibrant text aside, stroke (10px)
-- Night view -> neon style, bright yellow glow (15px)
-
-Now design the best plan for this image and text: "{text}"
+Design now for: "{text}"
 """
 
                 # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
@@ -3074,6 +3055,10 @@ def classify_user_intent(text):
             return "image_generation"
         if "圖片" in text and any(kw in text for kw in ["給我", "想要", "來一張", "一張", "生"]):
             return "image_generation"
+        
+        # 4. 長文本 (超過100字) 通常是聊天/分享內容，不是指令
+        if len(text) > 100:
+            return "chat"
             
         classification_prompt = f"""
         Analyze user input: "{text}"
@@ -3183,13 +3168,16 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
         
         # 檢查用戶是否想取消操作
         if user_input.strip() in ["取消", "不做了", "不想做了", "停止", "cancel", "不要了", "先不要", "放棄", "quit", "exit"]:
-            # 清除所有狀態
+            # 完全清除所有狀態，避免殘留
             if user_id in user_image_generation_state:
-                user_image_generation_state[user_id] = 'idle'
+                del user_image_generation_state[user_id]
+            if user_id in user_last_image_prompt:
+                del user_last_image_prompt[user_id]
             if user_id in user_meme_state:
                 user_meme_state[user_id] = {'stage': 'idle'}
             if user_id in user_video_state:
                 user_video_state[user_id] = 'idle'
+            print(f"[CANCEL] Cleared all states for user {user_id}")
             return "好的！已經取消剛才的操作了。我們可以聊聊天或是做別的事情喔！😊"
 
 
