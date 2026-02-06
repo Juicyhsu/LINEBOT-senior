@@ -3002,7 +3002,7 @@ Determine which AREA the subject occupies: "top", "bottom", "left", "right", "ce
 
 **STEP 3: DETERMINE FONT SIZE**
 - If subject covers > 50% of image (LARGE subject) → Use SMALLER font (50-80px) to fit in gaps
-- If subject is small/clean background → Use LARGER font (90-120px)
+- If subject is small/clean background → Use LARGER font (90-130px)
 
 **NEVER put text over the main subject! It's okay to cover unimportant corners.**
 
@@ -3016,7 +3016,7 @@ Pick colors that contrast with the background. Use bright colors for dark areas,
   "position": "top/bottom/left/right/top-left/top-right/bottom-left/bottom-right",
   "color": "#HEXCODE",
   "stroke_color": "#HEXCODE",
-  "font_size": 50-120,
+  "font_size": 60-130,
   "stroke_width": 8-15
 }}
 
@@ -3069,14 +3069,14 @@ Text to display: "{text}"
                         
                         # 📏 根據主體大小自動調整字體 (Auto-Resize)
                         if subject_size == 'large':
-                            # 主體很大時，強制縮小字體以塞入縫隙，但保持至少 50px
-                            if size > 80:
-                                print(f"[MEME RESIZE] Subject is large, shrinking font from {size} to 80px")
-                                size = 80
+                            # 主體很大時，強制縮小字體以塞入縫隙，但保持至少 60px
+                            if size > 90:
+                                print(f"[MEME RESIZE] Subject is large, shrinking font from {size} to 90px")
+                                size = 90
                         else:
-                            # 主體很小或背景乾淨，允許大字體，但確保不小於 60px
-                            if size < 60:
-                                size = 60
+                            # 主體很小或背景乾淨，允許大字體，但確保不小於 70px
+                            if size < 70:
+                                size = 70
                         
                         # 🚨 位置安全檢查：確保文字不會蓋住主體
                         opposite_map = {
