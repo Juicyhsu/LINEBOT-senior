@@ -3055,10 +3055,6 @@ def classify_user_intent(text):
             return "image_generation"
         if "圖片" in text and any(kw in text for kw in ["給我", "想要", "來一張", "一張", "生"]):
             return "image_generation"
-        
-        # 4. 長文本 (超過100字) 通常是聊天/分享內容，不是指令
-        if len(text) > 100:
-            return "chat"
             
         classification_prompt = f"""
         Analyze user input: "{text}"
