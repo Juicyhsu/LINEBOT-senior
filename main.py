@@ -1020,7 +1020,7 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         txt_draw = ImageDraw.Draw(txt_layer)
         
         # 計算起始位置
-        padding = 20  # 用戶希望文字更靠近邊緣 (原本60)
+        padding = 30  # 用戶希望文字更靠近邊緣但不要太貼
         
 
         # -------------------------------------------------------
