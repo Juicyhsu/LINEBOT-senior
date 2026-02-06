@@ -2885,6 +2885,9 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
         # 檢查是否要取消
         if user_input and '取消' in user_input:
             user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
+            # [Fix] Clear cached image to prevent reuse
+            if user_id in user_images:
+                del user_images[user_id]
             return "已取消長輩圖製作。"
         
         # Handle Image Upload (Passed via image_content)
@@ -2951,7 +2954,10 @@ Now generate English prompt for: "{user_input}" """
             # 檢查是否要取消
             if '取消' in user_input:
                 user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
-                return "已取消長輕圖製作。"
+                # [Fix] Clear cached image to prevent reuse
+                if user_id in user_images:
+                    del user_images[user_id]
+                return "已取消長輩圖製作。"
             # 檢查是否要重新選擇
             elif '重新' in user_input or '換' in user_input:
                 state['stage'] = 'waiting_bg'
@@ -2969,6 +2975,9 @@ Now generate English prompt for: "{user_input}" """
             # 檢查是否要取消
             if '取消' in user_input:
                 user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
+                # [Fix] Clear cached image to prevent reuse
+                if user_id in user_images:
+                    del user_images[user_id]
                 return "已取消長輩圖製作。"
             
             state['text'] = user_input
