@@ -1217,23 +1217,23 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                     # 繪製文字 (多次繪製以模擬粗體，如果字體本身不夠粗)
                     # 這是 "Fake Bold" 技巧：上下左右偏移 1px
                     # 只有在非 Windows 環境 (Cloud) 且 Stroke width 較小時才啟用，避免太粗
-                    if os.name != 'nt': 
-                        # 模擬粗體 (偏移 1px)
-                        offsets = [(0,0)]
-                        # 如果是標題或重點文字，且字體可能不夠粗 (Variable Font 在某些 PIL 版本支援度不佳)
-                        # 強制加粗 - 增強版 (3x3 九宮格繪製)
-                        if font_size > 40:
-                            # 上下左右 + 四個角落，全方位加粗
-                            offsets = [
-                                (0,0), 
-                                (-1,0), (1,0), (0,-1), (0,1), 
-                                (-1,-1), (-1,1), (1,-1), (1,1)
-                            ] 
+                    if os.name != 'nt' and font_size > 30: 
+                        # 強力加粗邏輯 (Double-Pass Rendering)
+                        # 1. 計算加粗量 (字體大小的 1/15)
+                        bold_sim_width = max(1, int(font_size / 15))
                         
-                        for ox, oy in offsets:
-                            cd.text((text_x+ox, text_y+oy), char, font=char_font, fill=char_color, stroke_width=stroke_width, stroke_fill=effective_stroke_color)
+                        # 2. 繪製底部輪廓 (總寬度 = 用戶描邊 + 加粗量)
+                        # Pass 1: Draw Thick Outline (Border + Boldness)
+                        cd.text((text_x, text_y), char, font=char_font, fill=char_color, 
+                               stroke_width=stroke_width + bold_sim_width, stroke_fill=effective_stroke_color)
+                               
+                        # 3. 繪製文字本體 (加粗量) -> 這會讓白色部分變粗，蓋掉內縮的黑色描邊
+                        # Pass 2: Draw Thick Body (Boldness)
+                        cd.text((text_x, text_y), char, font=char_font, fill=char_color, 
+                               stroke_width=bold_sim_width, stroke_fill=char_color)
+                               
                     else:
-                        # Windows 環境通常字體正確，直接繪製
+                        # Windows 環境或字體夠粗，直接標準描邊
                         cd.text((text_x, text_y), char, font=char_font, fill=char_color, stroke_width=stroke_width, stroke_fill=effective_stroke_color)
                 else:
                     # 預設陰影 (如果沒描邊)
