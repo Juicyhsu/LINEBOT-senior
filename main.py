@@ -960,7 +960,7 @@ def get_font_path(font_type):
         print(f"[FONT] Download exception: {e}")
         return None
 
-def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=0, stroke_color=None, decorations=None):
+def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=12, stroke_color=None, decorations=None):
     """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果 + 裝飾元素）"""
     try:
         import random
@@ -3028,7 +3028,7 @@ Pick colors that contrast with the background. Use bright colors for dark areas,
   "color": "#HEXCODE",
   "stroke_color": "#HEXCODE",
   "font_size": 60-130,
-  "stroke_width": 8-15
+  "stroke_width": 15-25
 }}
 
 Text to display: "{text}"
@@ -3554,7 +3554,21 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              else:
                  # 檢查是否有圖
                  has_image = user_id in user_images
-                 if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
+                 
+                 # [Modified] Load history from DB if enabled
+                 if user_id not in chat_sessions:
+                     history = []
+                     if ADVANCED_FEATURES_ENABLED and db:
+                         try:
+                             logs = db.get_chat_history(user_id, limit=10) # 恢復最近 10 則
+                             for log in logs:
+                                 history.append({'role': log['role'], 'parts': [log['message']]})
+                             print(f"[MEMORY] Loaded {len(history)} msgs for {user_id}")
+                         except Exception as e:
+                             print(f"[MEMORY] Load failed: {e}")
+                             
+                     chat_sessions[user_id] = model.start_chat(history=history)
+                     
                  chat = chat_sessions[user_id]
                  
                  if has_image:
@@ -3564,6 +3578,17 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  else:
                      formatted_input = f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}"
                      response = chat.send_message(formatted_input)
+                 
+                 # [Modified] Save to DB
+                 if ADVANCED_FEATURES_ENABLED and db:
+                     try:
+                         # Save User Msg (Text only for now)
+                         db.add_chat_log(user_id, 'user', user_input)
+                         # Save Model Msg
+                         db.add_chat_log(user_id, 'model', response.text)
+                     except Exception as e:
+                         print(f"[MEMORY] Save failed: {e}")
+                         
                  return response.text
 
 
