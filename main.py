@@ -888,23 +888,28 @@ def get_font_path(font_type):
     
     # 字體映射 (備份檔案邏輯 + 雲端支援)
     # 優先檢查 Windows 本地字體 (開發環境)
+    # 使用微軟正黑體粗體 (msjhbd.ttc) 作為主要字體，解決字體過細問題
     win_paths = {
-        'msjh': "C:\\Windows\\Fonts\\msjh.ttc",
-        'heiti': "C:\\Windows\\Fonts\\msjh.ttc",
-        'kaiti': "C:\\Windows\\Fonts\\kaiu.ttf",
+        'msjh': "C:\\Windows\\Fonts\\msjhbd.ttc",   # 改用粗體
+        'heiti': "C:\\Windows\\Fonts\\msjhbd.ttc",  # 改用粗體
+        'kaiti': "C:\\Windows\\Fonts\\msjhbd.ttc",  # 改用正黑體粗體 (因為標楷體 kaiu.ttf 太細)
         'ming': "C:\\Windows\\Fonts\\mingliu.ttc"
     }
     
     # 如果是 Windows 且檔案存在，直接回傳
     if os.name == 'nt':
         win_path = win_paths.get(font_type)
+        # 如果粗體不存在，退回一般體
+        if win_path and not os.path.exists(win_path):
+            win_path = win_path.replace("bd.ttc", ".ttc")
+            
         if win_path and os.path.exists(win_path):
             return win_path
 
     # Linux/Cloud 環境：使用 Free Google Fonts (TTF)
     # 使用 NotoSerifTC (楷體/明體替代品) 和 NotoSansTC (黑體替代品)
     cloud_font_map = {
-        'kaiti': 'NotoSerifTC-Regular.otf', # PIL 對 OTF 支援有時有問題，嘗試如果 OTF 失敗下載 TTF
+        'kaiti': 'NotoSansTC-Bold.otf',  # 改用 NotoSansTC-Bold (因為 NotoSerifTC-Regular 太細)
         'heiti': 'NotoSansTC-Bold.otf',
         'ming': 'NotoSerifTC-Regular.otf',
         'default': 'NotoSansTC-Regular.otf'
