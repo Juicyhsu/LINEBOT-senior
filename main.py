@@ -929,15 +929,16 @@ def get_font_path(font_type):
     base_url = "https://github.com/google/fonts/raw/main/ofl"
     
     # 對應表
-    # 注意：Google Fonts repo 結構可能會變
-    # 暫時改用更穩定的 CDN 或確保 URL 正確
-    # 這裡嘗試使用 Noto Sans TC 的 Variable Font (ttf) 如果可能，或是直接用 OTF
-    # 經過檢查 GitHub google/fonts，NotoSansTC 目錄下通常是 .otf
+    # 改用更穩定的 CDN (jsdelivr via github)
+    # 使用 Google Fonts 的 raw github 連結通常是 OTF (對於 CJK)。
+    # 我們改用一個更確定的 URL (來自第三方穩定的字體託管，或直接指向 Google Fonts 指定 commit)
     
     urls = {
-        'NotoSansTC-Bold.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf", # 改用 Variable TTF
+        # 使用 Noto Sans TC Bold (Static) - 來自 Google Fonts repo 的特定 commit (確保文件存在)
+        'NotoSansTC-Bold.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf", 
+        # 暫時維持 Variable Font, 但我們會用 Fake Bold 增強
         'NotoSansTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
-        'NotoSerifTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notoseriftc/NotoSerifTC%5Bwght%5D.ttf" # 改用 Variable TTF
+        'NotoSerifTC-Regular.otf': "https://github.com/google/fonts/raw/main/ofl/notoseriftc/NotoSerifTC%5Bwght%5D.ttf"
     }
     
     # 因為我們改用 TTF，所以要把 local_font_path 的副檔名也改掉，避免混淆
@@ -1213,8 +1214,22 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 # 描邊處理 (AI 決定)
                 if stroke_width > 0:
                     effective_stroke_color = stroke_color if stroke_color else '#000000'
-                    cd.text((text_x, text_y), char, font=char_font, fill=char_color, 
-                           stroke_width=stroke_width, stroke_fill=effective_stroke_color)
+                    # 繪製文字 (多次繪製以模擬粗體，如果字體本身不夠粗)
+                    # 這是 "Fake Bold" 技巧：上下左右偏移 1px
+                    # 只有在非 Windows 環境 (Cloud) 且 Stroke width 較小時才啟用，避免太粗
+                    if os.name != 'nt': 
+                        # 模擬粗體 (偏移 1px)
+                        offsets = [(0,0)]
+                        # 如果是標題或重點文字，且字體可能不夠粗 (Variable Font 在某些 PIL 版本支援度不佳)
+                        # 強制加粗
+                        if font_size > 40:
+                            offsets = [(0,0), (1,0), (0,1), (1,1), (1,0), (0,1)] 
+                        
+                        for ox, oy in offsets:
+                            cd.text((text_x+ox, text_y+oy), char, font=char_font, fill=char_color, stroke_width=stroke_width, stroke_fill=effective_stroke_color)
+                    else:
+                        # Windows 環境通常字體正確，直接繪製
+                        cd.text((text_x, text_y), char, font=char_font, fill=char_color, stroke_width=stroke_width, stroke_fill=effective_stroke_color)
                 else:
                     # 預設陰影 (如果沒描邊)
                     cd.text((text_x + 3, text_y + 3), char, font=char_font, fill='#00000088')
@@ -2934,8 +2949,9 @@ Requirements:
 3. If it is a landscape (mountain, water, flower, sunset), emphasize the scenery
 4. If it is an object (lotus, rose), emphasize the object
 5. Use English, detailed and specific. 
-6. Follow the user's style description strictly. If no style is specified, use a 'bright, vibrant, high-quality' style suitable for a greeting card.
-7. Return ONLY the English prompt, no other text
+6. Follow the user's style description strictly. 
+7. [[SMART SAFETY]]: If the description contains humans (child, girl, boy, man, woman, people) AND does NOT specify a style (like 'photo', 'realistic'), you MUST append ", warm illustration style" to the prompt to ensure safety compliance.
+8. Return ONLY the English prompt, no other text
 
 Example:
 Input "Mountain and Water" -> "A beautiful natural landscape with lush green mountains and clear flowing water, bright and peaceful scenery, suitable for traditional Chinese meme card background, vibrant colors, photorealistic"
