@@ -1219,8 +1219,8 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                     # 只有在非 Windows 環境 (Cloud) 且 Stroke width 較小時才啟用，避免太粗
                     if os.name != 'nt' and font_size > 30: 
                         # 強力加粗邏輯 (Double-Pass Rendering)
-                        # 1. 計算加粗量 (字體大小的 1/15)
-                        bold_sim_width = max(1, int(font_size / 15))
+                        # 1. 計算加粗量 (介於中間值，約字體大小的 1/28，例如 100px -> 3px)
+                        bold_sim_width = max(1, int(font_size / 28))
                         
                         # 2. 繪製底部輪廓 (總寬度 = 用戶描邊 + 加粗量)
                         # Pass 1: Draw Thick Outline (Border + Boldness)
