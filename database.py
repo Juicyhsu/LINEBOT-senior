@@ -532,78 +532,8 @@ class Database:
         conn.close()
         return messages
 
-    # ==================
-    # 聊天記錄功能 (Chat History) - [New Feature for Persistence]
-    # ==================
 
-    def add_chat_log(self, user_id: str, role: str, message: str):
-        """新增聊天記錄 (role: 'user' or 'model')"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        if self.db_type == "postgres":
-            cursor.execute("""
-                INSERT INTO chat_history (user_id, role, message)
-                VALUES (%s, %s, %s)
-            """, (user_id, role, message))
-        else:
-            cursor.execute("""
-                INSERT INTO chat_history (user_id, role, message)
-                VALUES (?, ?, ?)
-            """, (user_id, role, message))
-        
-        # [Auto-Cleanup] 順便刪除該用戶 7 天前的舊紀錄，節省空間
-        if self.db_type == "postgres":
-            cursor.execute("DELETE FROM chat_history WHERE user_id = %s AND created_at < NOW() - INTERVAL '7 days'", (user_id,))
-        else:
-            cursor.execute("DELETE FROM chat_history WHERE user_id = ? AND created_at < datetime('now', '-7 days')", (user_id,))
 
-        conn.commit()
-        conn.close()
-
-    def get_chat_history(self, user_id: str, limit: int = 50) -> List[Dict]:
-        """取得最近 7 天內的聊天記錄 (用於恢復記憶)"""
-        conn = self._get_connection()
-        
-        if self.db_type == "postgres":
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            cursor.execute("""
-                SELECT role, message FROM chat_history 
-                WHERE user_id = %s AND created_at >= NOW() - INTERVAL '7 days'
-                ORDER BY created_at DESC 
-                LIMIT %s
-            """, (user_id, limit))
-        else:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT role, message FROM chat_history 
-                WHERE user_id = ? AND created_at >= datetime('now', '-7 days')
-                ORDER BY created_at DESC 
-                LIMIT ?
-            """, (user_id, limit))
-        
-        if self.db_type == "postgres":
-            rows = cursor.fetchall()
-        else:
-            columns = [description[0] for description in cursor.description]
-            rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        
-        conn.close()
-        # 資料庫取出是 DESC (最新的在前)，要反轉回 ASC (最舊在前) 以便餵給 AI
-        return rows[::-1]
-
-    def delete_user_chat_history(self, user_id: str):
-        """清除用戶聊天記錄"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        if self.db_type == "postgres":
-            cursor.execute("DELETE FROM chat_history WHERE user_id = %s", (user_id,))
-        else:
-            cursor.execute("DELETE FROM chat_history WHERE user_id = ?", (user_id,))
-        
-        conn.commit()
-        conn.close()
 
 
 
