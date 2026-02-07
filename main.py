@@ -824,14 +824,20 @@ def generate_image_with_imagen(prompt, user_id):
         
         for attempt in range(max_retries + 1):
             try:
-                images = imagen_model.generate_images(
+                response = imagen_model.generate_images(
                     prompt=enhanced_prompt,
                     number_of_images=1,
                     aspect_ratio="1:1",
                 )
                 
+                # 處理回應格式 (可能是 list 或 ImageGenerationResponse 物件)
+                if hasattr(response, 'images'):
+                    images = response.images
+                else:
+                    images = response
+                
                 if not images or len(images) == 0:
-                    print(f"API returned no images (possibly blocked). images object: {images}")
+                    print(f"API returned no images. Response object: {response}")
                     raise ValueError("API returned no images (potentially blocked by safety filters)")
                 
                 # 儲存圖片
