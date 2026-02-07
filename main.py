@@ -1221,9 +1221,14 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                         # 模擬粗體 (偏移 1px)
                         offsets = [(0,0)]
                         # 如果是標題或重點文字，且字體可能不夠粗 (Variable Font 在某些 PIL 版本支援度不佳)
-                        # 強制加粗
+                        # 強制加粗 - 增強版 (3x3 九宮格繪製)
                         if font_size > 40:
-                            offsets = [(0,0), (1,0), (0,1), (1,1), (1,0), (0,1)] 
+                            # 上下左右 + 四個角落，全方位加粗
+                            offsets = [
+                                (0,0), 
+                                (-1,0), (1,0), (0,-1), (0,1), 
+                                (-1,-1), (-1,1), (1,-1), (1,1)
+                            ] 
                         
                         for ox, oy in offsets:
                             cd.text((text_x+ox, text_y+oy), char, font=char_font, fill=char_color, stroke_width=stroke_width, stroke_fill=effective_stroke_color)
@@ -3058,7 +3063,7 @@ Pick colors that contrast with the background. Use bright colors for dark areas,
   "color": "#HEXCODE",
   "stroke_color": "#HEXCODE",
   "font_size": 60-130,
-  "stroke_width": 10-18
+  "stroke_width": 6-16
 }}
 
 Text to display: "{text}"
