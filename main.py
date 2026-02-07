@@ -3574,10 +3574,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  
                  if has_image:
                      upload_image = PIL.Image.open(user_images[user_id])
-                     formatted_input = [f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}", upload_image]
+                     formatted_input = [f"系統提示：請用激勵大師的語氣回答。**若用戶詢問個人資訊（如名字、喜好），請務必根據對話歷史回答，不要講大道理。**\n回答最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}", upload_image]
                      response = chat.send_message(formatted_input)
                  else:
-                     formatted_input = f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}"
+                     formatted_input = f"系統提示：請用激勵大師的語氣回答。**若用戶詢問個人資訊（如名字、喜好），請務必根據對話歷史回答，不要講大道理。**\n回答最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}"
                      response = chat.send_message(formatted_input)
                  
 

@@ -552,6 +552,12 @@ class Database:
                 VALUES (?, ?, ?)
             """, (user_id, role, message))
         
+        # [Auto-Cleanup] 順便刪除該用戶 7 天前的舊紀錄，節省空間
+        if self.db_type == "postgres":
+            cursor.execute("DELETE FROM chat_history WHERE user_id = %s AND created_at < NOW() - INTERVAL '7 days'", (user_id,))
+        else:
+            cursor.execute("DELETE FROM chat_history WHERE user_id = ? AND created_at < datetime('now', '-7 days')", (user_id,))
+
         conn.commit()
         conn.close()
 
