@@ -3555,10 +3555,20 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  # 檢查是否有圖
                  has_image = user_id in user_images
                  
+
                  # [Modified] Load history from DB if enabled
                  if user_id not in chat_sessions:
                      history = []
-                 if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
+                     if ADVANCED_FEATURES_ENABLED and db:
+                         try:
+                             logs = db.get_chat_history(user_id, limit=10) # 恢復最近 10 則
+                             for log in logs:
+                                 history.append({'role': log['role'], 'parts': [log['message']]})
+                             print(f"[MEMORY] Loaded {len(history)} msgs for {user_id}")
+                         except Exception as e:
+                             print(f"[MEMORY] Load failed: {e}")
+                             
+                     chat_sessions[user_id] = model.start_chat(history=history)
                      
                  chat = chat_sessions[user_id]
                  
@@ -3572,6 +3582,16 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  
 
                          
+                 # [Modified] Save to DB
+                 if ADVANCED_FEATURES_ENABLED and db:
+                     try:
+                         # Save User Msg (Text only for now)
+                         db.add_chat_log(user_id, 'user', user_input)
+                         # Save Model Msg
+                         db.add_chat_log(user_id, 'model', response.text)
+                     except Exception as e:
+                         print(f"[MEMORY] Save failed: {e}")
+
                  return response.text
 
 
