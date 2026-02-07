@@ -3032,7 +3032,7 @@ Pick colors that contrast with the background. Use bright colors for dark areas,
   "color": "#HEXCODE",
   "stroke_color": "#HEXCODE",
   "font_size": 60-130,
-  "stroke_width": 15-25
+  "stroke_width": 10-18
 }}
 
 Text to display: "{text}"
