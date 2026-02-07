@@ -830,8 +830,9 @@ def generate_image_with_imagen(prompt, user_id):
                     aspect_ratio="1:1",
                 )
                 
-                if not images:
-                    raise ValueError("API returned no images (possibly due to safety filters)")
+                if not images or len(images) == 0:
+                    print(f"API returned no images (possibly blocked). images object: {images}")
+                    raise ValueError("API returned no images (potentially blocked by safety filters)")
                 
                 # 儲存圖片
                 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -841,11 +842,13 @@ def generate_image_with_imagen(prompt, user_id):
 
             except Exception as e:
                 error_str = str(e)
-                # 只有在遇到暫時性錯誤時才重試 (429 Resource Exhausted, 503 Service Unavailable, 500 Internal Error)
+                print(f"API Error (Attempt {attempt+1}/{max_retries}): {error_str}")
+                
+                # 只有在遇到暫時性錯誤時才重試
                 is_retryable = any(code in error_str for code in ["429", "503", "500", "ResourceExhausted", "ServiceUnavailable"])
                 
                 if is_retryable and attempt < max_retries:
-                    print(f"API Error (Attempt {attempt+1}/{max_retries}): {error_str}. Retrying in {retry_delay}s...")
+                    print(f"Retrying in {retry_delay}s...")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
                 else:
