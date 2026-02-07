@@ -3558,16 +3558,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  # [Modified] Load history from DB if enabled
                  if user_id not in chat_sessions:
                      history = []
-                     if ADVANCED_FEATURES_ENABLED and db:
-                         try:
-                             logs = db.get_chat_history(user_id, limit=10) # 恢復最近 10 則
-                             for log in logs:
-                                 history.append({'role': log['role'], 'parts': [log['message']]})
-                             print(f"[MEMORY] Loaded {len(history)} msgs for {user_id}")
-                         except Exception as e:
-                             print(f"[MEMORY] Load failed: {e}")
-                             
-                     chat_sessions[user_id] = model.start_chat(history=history)
+                 if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
                      
                  chat = chat_sessions[user_id]
                  
@@ -3579,15 +3570,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      formatted_input = f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}"
                      response = chat.send_message(formatted_input)
                  
-                 # [Modified] Save to DB
-                 if ADVANCED_FEATURES_ENABLED and db:
-                     try:
-                         # Save User Msg (Text only for now)
-                         db.add_chat_log(user_id, 'user', user_input)
-                         # Save Model Msg
-                         db.add_chat_log(user_id, 'model', response.text)
-                     except Exception as e:
-                         print(f"[MEMORY] Save failed: {e}")
+
                          
                  return response.text
 
@@ -4055,16 +4038,18 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
         traceback.print_exc()
         return "哎呀！我遇到一點小問題...請稍後再試一次！"
 
+# Initialize Scheduler Globally (for Gunicorn support)
+# This ensures scheduler starts even when run via WSGI
+if ADVANCED_FEATURES_ENABLED:
+    try:
+        from scheduler import init_scheduler
+        # Avoid duplicate init if already running (though scheduler handles it)
+        print("Initializing scheduler...")
+        init_scheduler(channel_access_token)
+    except Exception as e:
+        print(f"⚠️ Failed to start scheduler: {e}")
+
 if __name__ == "__main__":
-    # 初始化提醒排程器（如果啟用進階功能）
-    reminder_scheduler = None
-    if ADVANCED_FEATURES_ENABLED:
-        try:
-            reminder_scheduler = init_scheduler(channel_access_token)
-            print("✅ Reminder scheduler started")
-        except Exception as e:
-            print(f"⚠️ Failed to start scheduler: {e}")
-    
     port = int(os.environ.get("PORT", 5000))
     try:
         print(f"🚀 Starting bot on port {port}...")
