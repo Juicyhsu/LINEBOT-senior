@@ -152,6 +152,7 @@ llm_role_description = """
 - 不要用粗體、斜體等格式
 
 使用繁體中文來回答問題。
+不管回答什麼，請在最後一定要加上口頭禪「加油！Cheer up！讚喔！」。
 """
 
 # Use the model
@@ -3539,11 +3540,11 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      t = datetime.fromisoformat(data['reminder_time'])
                      db.add_reminder(user_id, data['reminder_text'], t)
                      
-                     reply = f"OK! Reminder set for {t.strftime('%m/%d %H:%M')}: {data['reminder_text']}."
+                     reply = f"OK! 已為您設定提醒：{t.strftime('%m/%d %H:%M')}，提醒內容：「{data['reminder_text']}」。"
                      
                      # 檢查系統額度狀態，若已滿則主動告知
                      if db.is_system_quota_full():
-                         reply += "\n\n[Warning] System quota full. Notification might not be sent automatically. Please check your reminders manually!"
+                         reply += "\n\n[注意] 系統免費額度已滿，可能無法自動發送推播，請人工檢查您的提醒清單！"
                          
                      return reply
                  except Exception as e:
@@ -3562,11 +3563,12 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  
                  if has_image:
                      upload_image = PIL.Image.open(user_images[user_id])
-                     formatted_input = [f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}", upload_image]
+                     # 圖片模式下，仍保留簡單提示以確保多模態效果，但簡化內容
+                     formatted_input = [f"{user_input}", upload_image]
                      response = chat.send_message(formatted_input)
                  else:
-                     formatted_input = f"系統提示：請用激勵大師的語氣回答，並且在回答的最後一定要加上口頭禪「加油！Cheer up！讚喔！」。\n\n用戶說：{user_input}"
-                     response = chat.send_message(formatted_input)
+                     # 純文字模式：直接傳送用戶訊息，讓對話歷史保持乾淨，解決記憶問題
+                     response = chat.send_message(user_input)
                  
 
                          
