@@ -2753,7 +2753,7 @@ ABSOLUTE RULES - NO EXCEPTIONS:
    [上午] (09:00-12:00)
     - 景點：XX
     - 停留時間：XX
-    - 簡介：XX (20字內簡介)
+    - 簡介：XX (50-60字簡介，重點特色描述)
    
    [下午] (13:00-17:00)
     ...
@@ -2769,7 +2769,7 @@ ABSOLUTE RULES - NO EXCEPTIONS:
 [上午] (09:00-12:00)
 - 景點：[Spot Name]
 - 停留時間：[Time]
-- 簡介：[Brief Description]
+- 簡介：[Brief Description (50-60 words)]
 
 [下午] (13:00-17:00)
 - ...
