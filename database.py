@@ -555,15 +555,15 @@ class Database:
         conn.commit()
         conn.close()
 
-    def get_chat_history(self, user_id: str, limit: int = 20) -> List[Dict]:
-        """取得最近的聊天記錄 (用於恢復記憶)"""
+    def get_chat_history(self, user_id: str, limit: int = 50) -> List[Dict]:
+        """取得最近 7 天內的聊天記錄 (用於恢復記憶)"""
         conn = self._get_connection()
         
         if self.db_type == "postgres":
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             cursor.execute("""
                 SELECT role, message FROM chat_history 
-                WHERE user_id = %s 
+                WHERE user_id = %s AND created_at >= NOW() - INTERVAL '7 days'
                 ORDER BY created_at DESC 
                 LIMIT %s
             """, (user_id, limit))
@@ -571,7 +571,7 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT role, message FROM chat_history 
-                WHERE user_id = ? 
+                WHERE user_id = ? AND created_at >= datetime('now', '-7 days')
                 ORDER BY created_at DESC 
                 LIMIT ?
             """, (user_id, limit))

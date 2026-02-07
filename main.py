@@ -3561,7 +3561,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      history = []
                      if ADVANCED_FEATURES_ENABLED and db:
                          try:
-                             logs = db.get_chat_history(user_id, limit=10) # 恢復最近 10 則
+                             logs = db.get_chat_history(user_id, limit=50) # 恢復最近 7 天內的對話
                              for log in logs:
                                  history.append({'role': log['role'], 'parts': [log['message']]})
                              print(f"[MEMORY] Loaded {len(history)} msgs for {user_id}")
