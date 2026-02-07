@@ -262,17 +262,6 @@ def speech_to_text(audio_content):
         print(f"Speech to text error: {e}")
         return None
 
-
-
-
-
-
-
-
-
-
-
-
 def detect_help_intent(text):
     """檢測是否想查看幫助/功能總覽（統一處理）"""
     keywords = ["功能總覽", "功能", "選單", "使用說明", "怎麼用", "功能介紹", "能做什麼", "使用方法", "幫助", "help", "說明", "功能列表"]
@@ -996,7 +985,16 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             # 支援粗體選擇 (如果 font_type='bold')
             font_path = get_font_path(font_type)
             if font_path:
-                base_font = ImageFont.truetype(font_path, font_size)
+                try:
+                    base_font = ImageFont.truetype(font_path, font_size)
+                    # 嘗試設定 Variable Font 的粗體 (如果支援)
+                    try:
+                        base_font.set_variation_by_name('Bold')
+                    except:
+                        pass
+                except Exception as e:
+                    print(f"[FONT] Error loading specific font: {e}")
+                    base_font = ImageFont.load_default()
             else:
                 # Fallback
                 base_font = ImageFont.load_default()
@@ -2935,8 +2933,9 @@ Requirements:
 2. Add style descriptors suitable for Elderly Greetings (Bright, Positive, Clear, Vibrant)
 3. If it is a landscape (mountain, water, flower, sunset), emphasize the scenery
 4. If it is an object (lotus, rose), emphasize the object
-5. Use English, detailed and specific
-6. Return ONLY the English prompt, no other text
+5. Use English, detailed and specific. 
+6. Follow the user's style description strictly. If no style is specified, use a 'bright, vibrant, high-quality' style suitable for a greeting card.
+7. Return ONLY the English prompt, no other text
 
 Example:
 Input "Mountain and Water" -> "A beautiful natural landscape with lush green mountains and clear flowing water, bright and peaceful scenery, suitable for traditional Chinese meme card background, vibrant colors, photorealistic"
@@ -3341,7 +3340,8 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
             if user_id in user_video_state:
                 user_video_state[user_id] = 'idle'
             print(f"[CANCEL] Cleared all states for user {user_id}")
-            return "好的！已經取消剛才的操作了。我們可以聊聊天或是做別的事情喔！😊"
+            print(f"[CANCEL] Cleared all states for user {user_id}")
+            return "好的，已取消當前操作！"
 
 
 
@@ -3542,9 +3542,9 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              elif current_intent == 'set_reminder':
                  if not ADVANCED_FEATURES_ENABLED or not db: return "提醒功能需要資料庫支援喔！"
                  try:
-                     parse_prompt = f"""System: User says: "{user_input}". Parse reminder and rewrite warmly.
+                     parse_prompt = f"""System: User says: "{user_input}". Parse reminder and rewrite warmly in Traditional Chinese (繁體中文).
                      Return JSON: {{ "reminder_text": "...", "reminder_time": "2026-01-17T08:00:00" }}
-                     Requirement: Keep response short and smooth.
+                     Requirement: Keep response short and smooth. Ensure reminder_text is in Traditional Chinese.
                      Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}
                      """
                      # 使用功能性模型解析
