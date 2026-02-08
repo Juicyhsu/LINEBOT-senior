@@ -344,12 +344,7 @@ def get_function_menu():
 # 連結查證與新聞功能
 # ======================
 
-# 儲存用戶待處理的連結
-user_link_pending = {}
-# 儲存新聞快取 (避免重複抓取)
-news_cache = {'data': None, 'timestamp': None}
-# 儲存用戶的新聞內容 (用於語音播報)
-user_news_cache = {}
+
 
 def extract_url(text):
     """從文字中提取 URL"""
