@@ -3421,10 +3421,156 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
         if user_id in user_trip_plans and user_trip_plans.get(user_id, {}).get('stage') != 'idle':
              return handle_trip_agent(user_id, user_input, reply_token=reply_token)
 
-        # 檢查圖片生成狀態 (處理等待 Prompt 或 Modification 的情況)
+        # 檢查圖片生成狀態 (優先處理)
         if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
-             # 這裡原有的邏輯不需要變動，因為它們是在 check state
-             pass 
+            state = user_image_generation_state[user_id]
+            
+            # [MOVED BLOCK START] 處理可修改狀態 (從下方移至此處)
+            if state == 'can_modify':
+                # 檢查是否要結束修改
+                if is_confirmation(user_input):
+                    user_image_generation_state[user_id] = 'idle'
+                    return "好的！圖片已完成。期待下次為您服務！"
+                
+                # 檢查是否只是說「修改」
+                if user_input.strip() in ['修改', '要修改', '我要修改']:
+                    user_image_generation_state[user_id] = 'waiting_for_modification'
+                    return "好的，請說明您想要如何修改這張圖片？\n(例如：加上文字、改變顏色、調整內容等)\n\n如不需調整，請說「完成」或「ok」。" 
+                else:
+                    # 直接說修改內容，進入修改流程
+                    user_image_generation_state[user_id] = 'generating'
+                    
+                    last_prompt = user_last_image_prompt.get(user_id, "")
+                    optimize_prompt = f"""
+                    系統：用戶想要修改之前的圖片。
+                    舊提示詞：{last_prompt}
+                    用戶修改需求：{user_input}
+                    
+                    請產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
+                    回傳 JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
+                    要求：
+                    1. 保留舊圖核心。 
+                    2. 絕對不要講笑話。
+                    3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
+                    """
+                    try:
+                        # 使用功能性模型解析 Prompt
+                        optimized = model_functional.generate_content(optimize_prompt)
+                        import json, re
+                        image_prompt = optimized.text.strip()
+                        text_overlay = None
+                        try:
+                            match = re.search(r'\{.*\}', optimized.text, re.DOTALL)
+                            if match:
+                                data = json.loads(match.group())
+                                image_prompt = data.get('image_prompt', image_prompt)
+                                text_overlay = data.get('text_overlay')
+                        except: pass
+                        
+                        success, result = generate_image_with_imagen(image_prompt, user_id)
+                        image_path = result if success else None
+                        if success:
+                            if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
+                            user_last_image_prompt[user_id] = {'prompt': image_prompt}
+                            msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                            if send_image_to_line(user_id, image_path, msg, reply_token):
+                                user_image_generation_state[user_id] = 'can_modify'
+                                return None # 已回覆
+                            else:
+                                user_image_generation_state[user_id] = 'can_modify'
+                                return "圖片生成成功但發送失敗。請檢查後台 Log。"
+                        else:
+                            user_image_generation_state[user_id] = 'can_modify'
+                            return f"修改失敗：{result}"
+                    except Exception as e:
+                        print(f"Modification error: {e}")
+                        user_image_generation_state[user_id] = 'can_modify'
+                        return "修改時發生錯誤，請重試。"
+
+            if state == 'waiting_for_confirmation':
+                # 用戶確認生成
+                if '取消' in user_input:
+                    del user_image_generation_state[user_id]
+                    if user_id in user_last_image_prompt:
+                        del user_last_image_prompt[user_id]
+                    print(f"[CANCEL] Image generation cancelled for user {user_id}")
+                    return "已取消圖片生成。"
+                elif is_confirmation(user_input):
+                    user_image_generation_state[user_id] = 'generating'
+                    state = 'generating' 
+                else:
+                    return f"好的，您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+            
+            if state == 'waiting_for_prompt':
+                if '取消' in user_input:
+                    del user_image_generation_state[user_id]
+                    if user_id in user_last_image_prompt:
+                        del user_last_image_prompt[user_id]
+                    print(f"[CANCEL] Image generation cancelled for user {user_id}")
+                    return "已取消圖片生成。"
+                user_image_generation_state[user_id] = 'waiting_for_confirmation'
+                if user_id not in user_last_image_prompt or isinstance(user_last_image_prompt[user_id], str):
+                    user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
+                user_last_image_prompt[user_id]['pending_description'] = user_input
+                return f"您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+            
+            if state == 'generating':
+                saved_data = user_last_image_prompt.get(user_id, {})
+                if isinstance(saved_data, str):
+                    original_description = saved_data if saved_data else user_input
+                else:
+                    original_description = saved_data.get('pending_description', user_input)
+                
+                optimize_prompt = f"""用戶想生成圖片，描述是：「{original_description}」。
+                請將這個描述轉換成適合 AI 生圖的英文提示詞。
+                如果用戶明顯想要在圖片上寫字（例如：「上面寫早安」），請將文字提取出來。
+                回傳 JSON 格式： {{ "image_prompt": "...", "text_overlay": "..." }}
+                要求：
+                1. 風格正向、安全。
+                2. 絕對不要講笑話。
+                3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
+                """
+                try:
+                    optimized = model.generate_content(optimize_prompt)
+                    import json, re
+                    image_prompt = optimized.text.strip()
+                    text_overlay = None
+                    try:
+                        match = re.search(r'\{.*\}', optimized.text, re.DOTALL)
+                        if match:
+                            data = json.loads(match.group())
+                            image_prompt = data.get('image_prompt', image_prompt)
+                            text_overlay = data.get('text_overlay')
+                    except Exception as e:
+                        print(f"JSON parsing error: {e}")
+                        pass
+                    
+                    print(f"生成圖片，Prompt: {image_prompt}")
+                    success, result = generate_image_with_imagen(image_prompt, user_id)
+                    image_path = result if success else None
+                    error_reason = result if not success else None
+                    
+                    if image_path:
+                        if text_overlay:
+                            image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
+                        user_last_image_prompt[user_id] = {'prompt': image_prompt}
+                        msg = "圖片生成完成。\n\n如需修改，請直接說明您的調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 修改期間約15秒，請勿再次發送訊息，以免錯誤！"
+                        if send_image_to_line(user_id, image_path, msg, reply_token):
+                            user_image_generation_state[user_id] = 'can_modify'
+                            return None 
+                        else:
+                            user_image_generation_state[user_id] = 'idle'
+                            return "圖片已生成但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)設定有誤。\n請檢查後台 Log 或 terminal 輸出中的 [SEND IMAGE] 訊息。"
+                    else:
+                        if user_id in user_last_image_prompt:
+                            user_last_image_prompt[user_id].pop('pending_description', None)
+                        user_image_generation_state[user_id] = 'idle'
+                        return f"圖片生成失敗：{error_reason}"
+                except Exception as e:
+                    print(f"Image generation error: {e}")
+                    user_image_generation_state[user_id] = 'idle'
+                    return "圖片生成時發生錯誤，請稍後再試。"
+            # [MOVED BLOCK END] 
         else:
              # 只有在 Idle 狀態才做意圖判斷
              # 只有在 Idle 狀態才做意圖判斷
@@ -3658,9 +3804,6 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  return response.text
 
 
-
-
-        
         # 檢查圖片生成狀態
         if user_id in user_image_generation_state:
             state = user_image_generation_state[user_id]
