@@ -1,6 +1,40 @@
-# LINE Bot 長輩版機器人
+# 👵 長輩版 Line Bot (Senior Companion Bot)
 
-🤖 專為老人家設計的全功能 LINE 聊天機器人，提供陪伴、圖片生成、行程規劃等實用功能。
+這是一個專為長輩設計的 Line Bot，具備大字體、語音互動、長輩圖生成、健康提醒等功能。
+
+---
+
+## 🤝 給接手維護/部署的人員 (For Maintainers)
+
+如果您是協助部署此專案的人員，請依照以下步驟進行：
+
+### 1. 閱讀部署文件
+本專案包含完整的部署教學，請務必閱讀 `Documentation` 資料夾中的文件：
+
+*   **Google Cloud 設定** (最優先)：
+    *   請閱讀 **`Documentation/Google_Cloud_Deployment_Guide.md`**
+    *   這份文件會教您如何建立自己的 GCP 專案、取得 API Key 和 `service-account-key.json`。
+    *   **注意**：請使用您自己的 GCP 帳號，以確保費用計算在您的帳號下。
+
+*   **AWS 部署教學**：
+    *   請閱讀 **`Documentation/AWS_DEPLOYMENT_CHECKLIST.md`**
+    *   這份文件適用於 AWS App Runner 或 Elastic Beanstalk 部署。
+    *   包含如何設定環境變數（Environment Variables）與 Base64 金鑰。
+
+### 2. 環境變數設定 (.env)
+專案根目錄附帶了一個 `.env.example` 檔案。
+1.  請將其複製並重新命名為 `.env`。
+2.  填入您的相關金鑰（LINE Token, GCP Project ID, Bucket Name 等）。
+3.  **不要** 將含有真實金鑰的 `.env` 檔案上傳到 GitHub。
+
+### 3. 本地開發 (Local Development)
+若需在本地測試：
+```bash
+pip install -r requirements.txt
+python main.py
+```
+
+---
 
 ## ✨ 主要功能
 
@@ -26,7 +60,6 @@
 - **語音播報**：可選擇語音朗讀新聞內容
 - **可信來源**：僅抓取台灣官方新聞媒體
 
-
 ### ⏰ 提醒通知
 - **語音設定**：說「提醒我明天早上吃藥」
 - **自動通知**：時間到自動 LINE 通知
@@ -36,6 +69,8 @@
 - **景點推薦**：根據興趣推薦附近景點
 - **地址查找**：自動搜尋並規劃
 - **行程規劃**：結合地圖資訊的專業行程
+
+---
 
 ## 🛠️ 技術架構
 
@@ -50,7 +85,7 @@
 
 ## 📦 部署
 
-詳細部署說明請參閱 [Deployment Checklist](deployment/AWS_DEPLOYMENT_CHECKLIST.md)
+詳細部署說明請參閱 `Documentation/AWS_DEPLOYMENT_CHECKLIST.md`
 
 本專案已針對 **Zeabur** 與 **AWS (App Runner/Beanstalk)** 優化。
 
