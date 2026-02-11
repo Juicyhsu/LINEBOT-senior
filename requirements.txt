@@ -3,6 +3,7 @@ google-generativeai==0.8.3
 flask==3.0.0
 line-bot-sdk==3.12.0
 pillow==10.4.0
+gunicorn==21.2.0  # Production Server
 
 # Google Cloud AI 服務
 google-cloud-aiplatform>=1.38.0
