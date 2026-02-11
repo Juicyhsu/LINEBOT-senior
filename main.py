@@ -2993,8 +2993,9 @@ Now generate English prompt for: "{user_input}" """
                 state['stage'] = 'waiting_bg'
                 state['bg_image'] = None
                 return "好的，請重新上傳圖片或輸入背景描述。\n\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
+
             # 用戶確認，進入文字輸入階段
-            elif '好' in user_input or 'ok' in user_input.lower() or '確定' in user_input:
+            elif is_confirmation(user_input):
                 state['stage'] = 'waiting_text'
                 return "好的！請輸入要在圖片上顯示的文字內容。\n(例如：早安、平安喜樂、認同請分享)\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
             else:
@@ -3209,6 +3210,44 @@ Text to display: "{text}"
 
     return "發生了一些問題...\n\n輸入「取消」可重新開始。"
 
+
+
+def is_confirmation(user_input):
+    """
+    Check if the user input is a confirmation (Yes/OK).
+    Strictly checks for short, exact matches to avoid false positives.
+    """
+    if not user_input: return False
+    clean_input = user_input.strip().lower()
+    
+    # 1. Exact Match for Short Words (Highest Priority)
+    # Allows valid variations like "好", "可以", "沒問題"
+    # But REJECTS sentences containing these words (e.g. "畫好的圖")
+    exact_keywords = [
+        "好", "好的", "好喔", "好啊", "好哒", "好滴",
+        "可以", "行", "沒問題", "ok", "k", "yes", "y",
+        "對", "對的", "沒錯", "正確", "是", "是的",
+        "確定", "confirm", "sure", "go", "start", "開始", "生成",
+        "完成", "好了", "結束", "謝謝", "感謝"
+    ]
+    
+    # Remove common punctuation just for the check
+    import re
+    clean_text_no_punct = re.sub(r'[^\w\s]', '', clean_input) 
+    
+    if clean_text_no_punct in exact_keywords:
+        return True
+        
+    # 2. Length-based Safety Check
+    # If the input contains a keyword but is very short (< 5 chars), treat as confirmation.
+    # e.g. "ok..." (length 5) -> True
+    # e.g. "畫一個好的" (length 5) -> False (contains "好" but unlikely confirmation)
+    
+    if len(clean_input) <= 4:
+         if any(k == clean_text_no_punct for k in exact_keywords):
+             return True
+             
+    return False
 
 # ======================
 # Main LLM Function
@@ -3616,8 +3655,8 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
             # 處理可修改狀態
             if state == 'can_modify':
                 # 檢查是否要結束修改
-                end_keywords = ['完成', 'ok', 'OK', '好了', '不用了', '結束', '謝謝', '感謝']
-                if any(keyword in user_input for keyword in end_keywords):
+                # 使用共用的確認邏輯 (包含：好、ok、完成、結束...)
+                if is_confirmation(user_input):
                     user_image_generation_state[user_id] = 'idle'
                     return "好的！圖片已完成。期待下次為您服務！"
                 
@@ -3686,7 +3725,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         del user_last_image_prompt[user_id]
                     print(f"[CANCEL] Image generation cancelled for user {user_id}")
                     return "已取消圖片生成。"
-                elif '確定' in user_input or '開始' in user_input or '生成' in user_input or 'ok' in user_input.lower():
+                elif is_confirmation(user_input):
                     # 用戶確認，設定狀態為 generating 並繼續往下執行
                     user_image_generation_state[user_id] = 'generating'
                     state = 'generating'  # 重要：更新 state 變數，讓下面的 if state == 'generating' 能夠執行
