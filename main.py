@@ -3532,8 +3532,21 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  
                  # 簡單過濾觸發詞
                  clean_prompt = user_input
+                 # 1. 去除明確的動作指令 (保留原有邏輯，全域替換)
                  for kw in ["給我一張", "畫一張", "我要一張", "生成一張", "產生一張", "畫一隻", "製作一張", "create a", "generate a", "image of", "picture of"]:
                      clean_prompt = clean_prompt.replace(kw, "")
+                 
+                 # 2. 去除句首的禮貌/請求用語 (避免誤刪中間的字，如「申請」)
+                 # 反覆去除直到沒有前綴為止 (處理「請幫我...」這類組合)
+                 prefix_keywords = ["幫我", "請", "麻煩", "可以幫我", "我要", "能幫我", "能夠", "可以"]
+                 while True:
+                     original_len = len(clean_prompt)
+                     for prefix in prefix_keywords:
+                         if clean_prompt.startswith(prefix):
+                             clean_prompt = clean_prompt[len(prefix):].strip()
+                     if len(clean_prompt) == original_len:
+                         break
+
                  clean_prompt = clean_prompt.replace("圖片", "").strip()
                  
                  if len(clean_prompt) > 2: # 假設描述長度大於2就是有效描述
