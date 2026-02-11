@@ -2834,7 +2834,8 @@ CRITICAL: Do NOT output as JSON. Output pure, clean text.
     # 處理可討論狀態 - 允許用戶修改行程
     elif state['stage'] == 'can_discuss':
         # 檢查是否要結束討論
-        if any(keyword in user_input for keyword in ['完成', 'ok', 'OK', '好了', '謝謝', '不用了']):
+        # Fix: Convert input to lowercase to catch "Ok", "OK", "ok"
+        if any(keyword in user_input.lower() for keyword in ['完成', 'ok', '好了', '謝謝', '不用了']):
             user_trip_plans[user_id] = {'stage': 'idle'}
             return "好的！祝您旅途愉快！"
         

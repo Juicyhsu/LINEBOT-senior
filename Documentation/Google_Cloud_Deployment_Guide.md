@@ -83,3 +83,34 @@ GCS_BUCKET_NAME=your-bucket-name
 ```
 
 完成以上步驟後，機器人所使用的 Google 資源費用就會計算在您的帳號下，並且擁有完整的權限。
+
+---
+
+## 進階：專案擁有權 vs. 付款帳號 (Sponsorship Model)
+
+如果您是開發者，希望能全權管理專案程式碼與部署，但希望由 **業主 (Sponsor)** 直接支付 Google Cloud 費用，可以使用 **「帳單帳戶授權 (Billing Account Delegation)」** 模式。
+
+這讓您可以保有專案的所有權 (Project Owner)，而業主只需要負責綁定信用卡即可。
+
+### 設定步驟
+
+**1. 業主端 (Sponsor)：建立付款帳戶**
+1.  業主前往 [Google Cloud Billing](https://console.cloud.google.com/billing)。
+2.  建立一個新的 **Billing Account (付款帳戶)**，並綁定信用卡。
+3.  進入該付款帳戶的 **「Account Management (帳戶管理)」**。
+4.  點擊右側的 **「Add Principal (新增成員)」**。
+5.  輸入開發者 (您) 的 Google Email。
+6.  賦予角色：**`Billing Account User` (付款帳戶使用者)**。
+7.  完成後通知開發者。
+
+**2. 開發者端 (You)：連結專案**
+1.  進入您的 Google Cloud 專案。
+2.  左側選單選擇 **「Billing (付款)」**。
+3.  點擊 **「Link a Billing Account (連結付款帳戶)」** 或 **「Change Billing Account (變更付款帳戶)」**。
+4.  選擇業主剛剛授權給您的那個付款帳戶。
+5.  點擊 **「Set Account (設定帳戶)」**。
+
+**結果：**
+*   ✅ **專案管理權**：100% 在您手上 (您可以部署、寫 code)。
+*   ✅ **費用支付**：100% 由業主信用卡扣款 (帳單直接寄給業主)。
+*   ✅ **隱私**：業主看不到您的程式碼 (除非您另外開權限給他)，他只會看到帳單明細 (e.g. "Vertex AI 使用費: $10")。
