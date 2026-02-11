@@ -3686,7 +3686,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         del user_last_image_prompt[user_id]
                     print(f"[CANCEL] Image generation cancelled for user {user_id}")
                     return "已取消圖片生成。"
-                elif '確定' in user_input or '開始' in user_input or '生成' in user_input:
+                elif '確定' in user_input or '開始' in user_input or '生成' in user_input or 'ok' in user_input.lower():
                     # 用戶確認，設定狀態為 generating 並繼續往下執行
                     user_image_generation_state[user_id] = 'generating'
                     state = 'generating'  # 重要：更新 state 變數，讓下面的 if state == 'generating' 能夠執行
