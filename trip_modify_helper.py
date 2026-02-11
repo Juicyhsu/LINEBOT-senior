@@ -140,7 +140,7 @@ def validate_and_fix_trip_plan(plan, model):
     
     Output:
     - If safe: 'PASS'
-    - If errors: Rewrite the problematic activity part ONLY (in Traditional Chinese).
+    - If errors: Rewrite the ENTIRE trip plan with the fix integrated. Do NOT just return the fixed part. Return the FULL plan.
     """
     try:
         print("[DEBUG] Running Trip Validation...")
