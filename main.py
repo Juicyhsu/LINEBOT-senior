@@ -4171,7 +4171,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 'remove': ['去掉', '移除', '刪除', '去除', '拿掉', '刪掉'],
                 'merge': ['合併', '融合', '合在一起', '結合', '混合', '合體',
                           '加入', '並排', '放進去', '放入', '拼在一起', '乆在一起',
-                          '两人一起', '放在同一張', '放到同一張']  # 擴充自然表达方式
+                          '两人一起', '放在同一張', '放到同一張', '放進', '合成']  # 擴充自然表达方式
             }
             
             #檢查是否為任一類修改請求 (關鍵詞快速匹配)
@@ -4182,9 +4182,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
             # 關鍵詞判定的 is_merge
             is_merge_by_kw = any(kw in user_input for kw in modify_keywords['merge'])
             
-            # AI 判斷意圖（關鍵詞沒匹到才呼叫，節省資源）
+            # AI 判斷意圖（如果有兩張圖以上，或者關鍵字沒匹到，就呼叫 AI 以確保準確性）
             ai_intent = None  # 'merge' / 'modify' / 'other'
-            if (not is_modify) and len(user_image_list) > 0:
+            should_check_ai = (not is_modify) or (len(user_image_list) >= 2)
+            if should_check_ai and len(user_image_list) > 0:
                 try:
                     num_images = len(user_image_list)
                     
