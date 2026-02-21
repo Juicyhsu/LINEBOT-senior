@@ -1642,7 +1642,7 @@ CRITICAL RULES:
             model="gemini-2.5-flash-image",
             contents=contents,
             config=genai_types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"]
+                response_modalities=["IMAGE"]
             )
         )
         
@@ -1687,7 +1687,7 @@ CRITICAL RULES:
                 model="gemini-2.5-flash-image",
                 contents=retry_contents,
                 config=genai_types.GenerateContentConfig(
-                    response_modalities=["IMAGE", "TEXT"]
+                    response_modalities=["IMAGE"]
                 )
             )
             retry_parts = retry_response.candidates[0].content.parts
