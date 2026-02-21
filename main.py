@@ -264,7 +264,7 @@ user_news_cache = {}
 # ======================
 MAX_DAILY_IMAGES = 6
 MAX_DAILY_REMINDERS = 3
-QUOTA_WHITELIST = {'Uef7a27fdb40659345ccd473051078f67'}  # ← 您的專屬 API ID
+QUOTA_WHITELIST = {'Uef7a27fdb40659345ccd473051078f67','U98fe7f3eca4714b1b122d6efdcb4f1cf'}  # ← 您的專屬 API ID
 #QUOTA_WHITELIST = set()  # ← 恢復成這樣就是空無一人的名單
 
 def _quota_key_today(prefix, user_id):
