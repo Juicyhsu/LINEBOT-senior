@@ -100,6 +100,15 @@ class Database:
 
 
             
+            # [NEW] kv_store 表格 (Quota 用途)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS kv_store (
+                    key VARCHAR(255) PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # 建立索引
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_reminders_user_time 
@@ -159,6 +168,15 @@ class Database:
 
 
             
+            # [NEW] kv_store 表格 (Quota 用途)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS kv_store (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # 建立索引
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_reminders_user_time 
@@ -375,26 +393,25 @@ class Database:
         conn.commit()
         conn.close()
         return deleted
-    
-    def delete_all_user_reminders(self, user_id: str) -> int:
-        """刪除用戶所有提醒"""
+    def delete_pending_user_reminders(self, user_id: str) -> int:
+        """刪除用戶所有尚未發送的提醒"""
         conn = self._get_connection()
         cursor = conn.cursor()
         
         if self.db_type == "postgres":
             cursor.execute("""
-                DELETE FROM reminders WHERE user_id = %s
+                DELETE FROM reminders WHERE user_id = %s AND is_sent = 0
             """, (user_id,))
         else:
             cursor.execute("""
-                DELETE FROM reminders WHERE user_id = ?
+                DELETE FROM reminders WHERE user_id = ? AND is_sent = 0
             """, (user_id,))
         
         deleted_count = cursor.rowcount
         conn.commit()
         conn.close()
         return deleted_count
-    
+
     # ==================
     # 行程規劃功能
     # ==================
@@ -480,8 +497,43 @@ class Database:
         return plan
 
     # ==================
-    # 被動通知功能 (Pending Notifications)
+    # Key-Value 存儲 (Quota 等用途)
     # ==================
+    
+    def get(self, key: str) -> Optional[str]:
+        """取得 kv_store 的值"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        if self.db_type == "postgres":
+            cursor.execute("SELECT value FROM kv_store WHERE key = %s", (key,))
+        else:
+            cursor.execute("SELECT value FROM kv_store WHERE key = ?", (key,))
+            
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else None
+        
+    def set(self, key: str, value: str):
+        """設定 kv_store 的值"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        value = str(value)
+        
+        if self.db_type == "postgres":
+            cursor.execute("""
+                INSERT INTO kv_store (key, value)
+                VALUES (%s, %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+            """, (key, value))
+        else:
+            cursor.execute("""
+                INSERT OR REPLACE INTO kv_store (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            """, (key, value))
+            
+        conn.commit()
+        conn.close()
 
     def add_pending_notification(self, user_id: str, message_text: str):
         """新增待讀取通知"""

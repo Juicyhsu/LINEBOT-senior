@@ -45,13 +45,13 @@ Purpose: {purp}
 
 **User's Modification Request:** {user_input}
 
-**CRITICAL TASK:** 
-**ONLY modify the specific parts the user requested. Keep everything else EXACTLY the same.**
+**CRITICAL OUTPUT REQUIREMENT:** 
+**You MUST output the ENTIRE, COMPLETE multi-day itinerary.** 
+**DO NOT just output the modified day. You MUST include ALL days (Day 1, Day 2, Day 3, etc.) exactly as they were in the 'Current Plan', with ONLY the user's requested changes applied to the specific day.** If you only output one day of a multi-day trip, you will critically break the application.
 
 For example:
-- If user says "第一天想加入購物" → ONLY modify Day 1, keep Days 2, 3, etc. unchanged
-- If user says "換掉某個景點" → ONLY replace that specific spot, keep the rest
-- If user says "調整時間" → ONLY adjust the times, keep activities unchanged
+- If user says "第一天想加入購物" → Modify Day 1, BUT STILL OUTPUT Day 1, Day 2, Day 3... in your final response.
+- If user says "換掉某個景點" → Replace that specific spot, BUT STILL OUTPUT the full itinerary.
 
 **Format Requirements:**
 1. **Readable Text Format**: Clean text with bullet points. NO Markdown headers.
@@ -60,20 +60,18 @@ For example:
    【Day 1】
    [上午] (09:00-12:00)
    ...
+   【Day 2】
+   ...
    【旅遊小提示】
    ...
 3. **NO ADDRESSES** - Just spot names.
 4. **NO MAIN TITLE** - Do not output the trip title. Start adjacent to Day 1.
-3. **NO ADDRESSES** - Just spot names.
-4. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示".
-5. Provide realistic time estimates
-6. Add practical travel tips at the end
-7. **NO ADDRESSES** - Just the location name is enough
+5. **HEADERS MUST BE CHINESE**: Use "上午", "下午", "晚上", "旅遊小提示".
+6. Provide realistic time estimates
+7. Add practical travel tips at the end
 
 **Example Structure:**
-## {dest} {purp}之旅
-
-### Day 1
+【Day 1】
 **上午 (09:00-12:00)**
 • 景點：[景點名稱]
   簡介：[約25字景點特色]
@@ -82,24 +80,35 @@ For example:
 • 景點：[景點名稱]
   簡介：[約25字景點特色]
 
-### 交通資訊
+【Day 2】
+...
+
+【交通資訊】
 • [交通方式及所需時間]
 
-### 旅遊小提示
+【旅遊小提示】
 • 預算建議：...
 • 注意事項：...
 
 **IMPORTANT**: Each spot MUST have a brief "簡介" (about 25 chars).
 
 Remember: STRICTLY PROFESSIONAL. NO JOKES. NO EMOJIS. NO CASUAL LANGUAGE.
-AND MOST IMPORTANTLY: You MUST output the ENTIRE COMPLETE PLAN. Do NOT just output the modified part. The user needs to see the FULL itinerary with your changes integrated. If you only output the change, the system will fail. Output the WHOLE new plan."""
+AND MOST IMPORTANTLY: You MUST output the ENTIRE COMPLETE PLAN. Do NOT just output the modified part. The user needs to see the FULL itinerary with your changes integrated. Output the WHOLE new plan from Day 1 to the final day."""
 
     try:
         print(f"[DEBUG] 修改行程 - 用戶: {user_id}, 輸入: {user_input}")
         
         # 調用 AI (狀態通知已移除以節省 API 額度，警告已在初始提示中顯示)
         print("[DEBUG] 調用 Gemini...")
-        response = model.generate_content(modify_prompt)
+        # [Fix] 增加 token 限制防止輸出被截斷 (Truncation Issue)
+        # Fix: confusion between vertexai and google.generativeai. 
+        # The model object passed here is from google.generativeai (Gemini API), not VertexAI.
+        # So we should pass a dict or google.generativeai.types.GenerationConfig.
+        # Simplest way is to pass a dict.
+        response = model.generate_content(
+            modify_prompt,
+            generation_config={"max_output_tokens": 8192}
+        )
         print(f"[DEBUG] Gemini 成功回應，長度: {len(response.text)}")
         
         draft_plan = response.text.strip()

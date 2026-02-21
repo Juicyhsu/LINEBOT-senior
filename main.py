@@ -11,6 +11,10 @@ import random
 
 import google.generativeai as genai
 import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 # Set Timezone to Asia/Taipei
 try:
@@ -191,7 +195,7 @@ model_functional = genai.GenerativeModel(
 # ======================
 tts_client = None
 
-UPLOAD_FOLDER = "static"
+UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "/tmp/uploads")
 
 app = Flask(__name__)
 
@@ -215,16 +219,26 @@ configuration = Configuration(access_token=channel_access_token)
 chat_sessions = {}
 # 儲存每個用戶的最後活動時間
 last_activity = {}
-# 儲存每個用戶上傳的圖片
-user_images = {}
+# 儲存每個用戶上傳的圖片（改為list保留最近5張）
+user_images = {}  # 格式: {user_id: [image_path1, image_path2, ...]}
+# 儲存每個用戶的圖片修改狀態和歷史
+user_uploaded_image_pending = {}  # 格式: {user_id: {'images': [...], 'history': [...]}}
+# 圖片批次回覆機制（延遲合併多張圖片）
+import threading
+image_batch_timers = {}   # {user_id: threading.Timer}
+image_batch_tokens = {}   # {user_id: reply_token}  保存最後一個reply_token
 # 儲存每個用戶最後一次生圖的 Prompt
 user_last_image_prompt = {} 
 # 儲存每個用戶的圖片生成狀態
 user_image_generation_state = {}  # 'idle', 'waiting_for_prompt', 'generating'
+# 儲存每個用戶最後一次生成的圖片路徑 (for Image-to-Image editing)
+user_last_generated_image_path = {}
 # 儲存每個用戶的長輩圖製作狀態
 user_meme_state = {}
 # 儲存每個用戶的行程規劃狀態
 user_trip_plans = {}
+# [New] 儲存當前批次上傳的圖片 (用於描述，描述完即清空)
+user_image_batch = {}
 
 # 儲存每個用戶的提醒事項
 user_reminders = {}
@@ -243,6 +257,116 @@ user_link_pending = {}
 news_cache = {'data': None, 'timestamp': None}
 # 用戶新聞快取(語音播報)
 user_news_cache = {}
+
+# ======================
+# Daily Quota (圖片 6次/天, 提醒 3次/天)
+# 白名單: 確認功能正常後再加入自己 → QUOTA_WHITELIST = {'jolinhsu51'}
+# ======================
+MAX_DAILY_IMAGES = 6
+MAX_DAILY_REMINDERS = 3
+QUOTA_WHITELIST = {'Uef7a27fdb40659345ccd473051078f67'}  # ← 您的專屬 API ID
+#QUOTA_WHITELIST = set()  # ← 恢復成這樣就是空無一人的名單
+
+def _quota_key_today(prefix, user_id):
+    """產生今日配額的 db key（台灣時間 UTC+8）"""
+    from datetime import timezone
+    tw_now = datetime.now(timezone(timedelta(hours=8)))
+    return f"{prefix}:{user_id}:{tw_now.strftime('%Y-%m-%d')}"
+
+def check_image_quota(user_id):
+    """
+    檢查今日圖片配額（生成/修改/融合/背景 共用同一份）
+    回傳: (is_allowed: bool, remaining: int, blocked_msg: str or None)
+    """
+    if user_id in QUOTA_WHITELIST:
+        return (True, 999, None)
+    if not db:
+        return (True, MAX_DAILY_IMAGES, None)
+    try:
+        key = _quota_key_today("img_quota", user_id)
+        used = int(db.get(key) or 0)
+        remaining = MAX_DAILY_IMAGES - used
+        if remaining <= 0:
+            msg = (
+                f"抱歉，您今天的畫圖/修圖配額（共 {MAX_DAILY_IMAGES} 次）已用完囉！\n"
+                "請明天再來繼續玩吧 🌅\n(每天台灣時間凌晨零點自動重置)"
+            )
+            return (False, 0, msg)
+        return (True, remaining, None)
+    except Exception as e:
+        print(f"[QUOTA] check_image_quota error: {e}")
+        return (True, MAX_DAILY_IMAGES, None)
+
+def increment_image_quota(user_id):
+    """圖片操作成功後才呼叫，將今日計數 +1"""
+    if user_id in QUOTA_WHITELIST or not db:
+        return
+    try:
+        key = _quota_key_today("img_quota", user_id)
+        used = int(db.get(key) or 0)
+        db.set(key, used + 1)
+    except Exception as e:
+        print(f"[QUOTA] increment_image_quota error: {e}")
+
+def remain_img_hint(user_id):
+    """成功後顯示剩餘配額提示字串（白名單不顯示）"""
+    if user_id in QUOTA_WHITELIST:
+        return ""
+    try:
+        key = _quota_key_today("img_quota", user_id)
+        used = int(db.get(key) or 0)
+        left = MAX_DAILY_IMAGES - used
+        return f"\n\n📊 今日畫圖剩餘配額：{left} 次"
+    except:
+        return ""
+
+def check_reminder_quota(user_id):
+    """
+    檢查今日提醒配額（max 3）
+    回傳: (is_allowed: bool, used_count: int, blocked_msg: str or None)
+    """
+    if user_id in QUOTA_WHITELIST:
+        return (True, 0, None)
+    if not db:
+        return (True, 0, None)
+    try:
+        key = _quota_key_today("remind_quota", user_id)
+        used = int(db.get(key) or 0)
+        if used >= MAX_DAILY_REMINDERS:
+            msg = (
+                f"抱歉，您今天已設定 {MAX_DAILY_REMINDERS} 個提醒，已達每日上限！\n"
+                "請明天再設定🌅 (若有尚未發送的提醒，可輸入「刪除提醒」來釋出額度)"
+            )
+            return (False, used, msg)
+        return (True, used, None)
+    except Exception as e:
+        print(f"[QUOTA] check_reminder_quota error: {e}")
+        return (True, 0, None)
+
+def increment_reminder_quota(user_id):
+    """提醒設定成功後呼叫，計數 +1 並回傳剩餘數"""
+    if user_id in QUOTA_WHITELIST or not db:
+        return MAX_DAILY_REMINDERS
+    try:
+        key = _quota_key_today("remind_quota", user_id)
+        used = int(db.get(key) or 0)
+        db.set(key, used + 1)
+        return MAX_DAILY_REMINDERS - used - 1
+    except Exception as e:
+        print(f"[QUOTA] increment_reminder_quota error: {e}")
+        return MAX_DAILY_REMINDERS
+
+def decrement_reminder_quota(user_id, count=1):
+    """提醒取消後呼叫，退回計數"""
+    if user_id in QUOTA_WHITELIST or not db:
+        return
+    try:
+        key = _quota_key_today("remind_quota", user_id)
+        used = int(db.get(key) or 0)
+        new_used = max(0, used - count)
+        db.set(key, new_used)
+    except Exception as e:
+        print(f"[QUOTA] decrement_reminder_quota error: {e}")
 
 # ======================
 # Helper Functions
@@ -316,29 +440,29 @@ def get_function_menu():
 2️⃣ 👴 製作長輩圖
 👉 請說：「我要做長輩圖」或「製作早安圖」
 
-3️⃣ ⏰ 設定提醒
-👉 請說：「提醒我明天8點吃藥」
-   或「10分鐘後叫我關火」
-👉 輸入「刪除提醒」可清除所有待辦
-
-4️⃣ 🗺️ 行程規劃
-👉 請說：「規劃宜蘭一日遊」
-
-5️⃣ 🔗 連結查證
-👉 貼上任何連結，我會幫你：
-   • 📖 摘要內容
-   • 🔍 查證是否可信
-
-6️⃣ 📰 新聞快報
+3️⃣ 📰 看新聞
 👉 請說：「看新聞」或「今日新聞」
 
-7️⃣ 💬 聊天解悶
+4️⃣ 🎨 更改圖片
+👉 上傳照片後說：「把衣服改成紅色」、「改成水彩風格」
+
+5️⃣ 🔗 連結查證
+👉 貼上任何連結，我會幫你摘要內容並查證是否可信
+
+6️⃣ ⏰ 設定提醒
+👉 請說：「提醒我明天8點吃藥」
+👉 輸入「刪除提醒」可清除所有待辦
+
+7️⃣ 🗺️ 行程規劃
+👉 請說：「規劃宜蘭一日遊」
+
+8️⃣ 💬 聊天解悶
 👉 隨時都可以跟我聊天喔！
 
-⚠️ 貼心小提醒：
-• 輸入「取消」可停止目前動作
-• 生成期間約15秒請勿傳訊
-• 記憶維持七天，輸入「清除記憶」可重置"""
+⚠️ 重要提醒：
+• 🚫 遇到任何狀況想停止，請輸入「取消」
+• ⏱️ 生成期間約15秒，請勿同時傳送多則訊息
+• 💾 記憶維持七天，輸入「清除記憶」可重置"""
 
 # ======================
 # 連結查證與新聞功能
@@ -778,14 +902,25 @@ def generate_news_audio(text, user_id):
         return None
 
 
-def generate_image_with_imagen(prompt, user_id):
-    """使用 Imagen 3 生成圖片
+def generate_image_with_imagen(prompt, user_id, base_image_path=None):
+    """使用 Imagen 3 生成圖片 (支援 Text-to-Image 和 Image-to-Image 編輯)
+    並統一在這裡進行配額（Quota）的扣除與檢查，確保所有衍生功能都有防護。
+    
+    Args:
+        prompt (str): 提示詞
+        user_id (str): 用戶ID
+        base_image_path (str, optional): 原圖路徑，若提供則進行 Image-to-Image 編輯
     
     Returns:
         tuple: (成功與否, 圖片路徑或錯誤訊息)
-        - 成功: (True, image_path)
-        - 失敗: (False, error_message)
     """
+    
+    # 1. 檢查配額 (若額度用盡，直接回傳 False 及錯誤訊息)
+    if user_id:
+        quota_ok, remain, quota_msg = check_image_quota(user_id)
+        if not quota_ok:
+            return False, quota_msg
+    
     try:
         # 初始化 Vertex AI
         project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
@@ -794,11 +929,19 @@ def generate_image_with_imagen(prompt, user_id):
         aiplatform.init(project=project_id, location=location)
         
         # 使用 Imagen 3 生成圖片
-        from vertexai.preview.vision_models import ImageGenerationModel
+        from vertexai.preview.vision_models import ImageGenerationModel, Image
         import time
         
-        imagen_model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
-        
+        # [Fix] Update to Imagen 3 (Imagen 2 is EOL)
+        # imagen-3.0-generate-001 or imagen-3.0-capability-001
+        model_name = "imagen-3.0-generate-001"
+            
+        try:
+            imagen_model = ImageGenerationModel.from_pretrained(model_name)
+        except Exception as e:
+             print(f"[IMAGEN] Failed to load {model_name}: {e}. Trying capability model...")
+             imagen_model = ImageGenerationModel.from_pretrained("imagen-3.0-capability-001")
+
         # 優化提示詞（加入品質關鍵字）
         enhanced_prompt = f"{prompt}, high quality, detailed, vibrant colors"
         
@@ -806,15 +949,44 @@ def generate_image_with_imagen(prompt, user_id):
         max_retries = 3
         retry_delay = 2
         
+        fallback_edit_model_tried = False
+        
         for attempt in range(max_retries + 1):
             try:
-                response = imagen_model.generate_images(
-                    prompt=enhanced_prompt,
-                    number_of_images=1,
-                    aspect_ratio="1:1",
-                )
+                if base_image_path and os.path.exists(base_image_path):
+                    # Image-to-Image (Editing) Mode
+                    # ... (keep existing code)
+                    print(f"[IMAGEN] Editing image with base: {base_image_path}")
+                    base_img = Image.load_from_file(base_image_path)
+                    try:
+                        # [Fix] SDK Update: edit_images -> edit_image (Singular) for version 1.133+
+                        response = imagen_model.edit_image(
+                            prompt=prompt,
+                            base_image=base_img,
+                            number_of_images=1,
+                            # guidance_scale=15.0, # Optional
+                        )
+                        generated_image = response.images[0]
+                    except Exception as edit_e:
+                        print(f"[IMAGEN] edit_image failed: {edit_e}. Falling back to generate_images.")
+                        # If edit_image fails, try generate_images as a fallback
+                        response = imagen_model.generate_images(
+                            prompt=enhanced_prompt,
+                            number_of_images=1,
+                            aspect_ratio="1:1",
+                        )
+                        generated_image = response.images[0]
+                else:
+                    # Text-to-Image (Generation) Mode
+                    # ... (keep existing code)
+                    print(f"[IMAGEN] Generating new image")
+                    response = imagen_model.generate_images(
+                        prompt=enhanced_prompt,
+                        number_of_images=1,
+                        aspect_ratio="1:1",
+                    )
                 
-                # 處理回應格式 (可能是 list 或 ImageGenerationResponse 物件)
+                # ... (keep response handling)
                 if hasattr(response, 'images'):
                     images = response.images
                 else:
@@ -826,14 +998,40 @@ def generate_image_with_imagen(prompt, user_id):
                 
                 # 儲存圖片
                 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-                image_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_generated.png")
+                image_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_generated_{int(time.time()*1000)}.png")
                 images[0].save(location=image_path)
+                
+                # 生圖成功，扣除配額
+                if user_id:
+                    increment_image_quota(user_id)
+                    
                 return (True, image_path)
 
             except Exception as e:
                 error_str = str(e)
                 print(f"API Error (Attempt {attempt+1}/{max_retries}): {error_str}")
                 
+                 # 如果是編輯模式失敗（例如模型不支援、404錯誤等）
+                if base_image_path:
+                     print(f"[IMAGEN] Edit failed with error: {error_str}")
+                     
+                     # [Fix] Removed deprecated 005 fallback
+                     # Proceed directly to Text-to-Image fallback if editing fails
+                     pass
+                     
+                     # If 005 also failed (or switch failed), fallback to Generation
+                     print("[IMAGEN] Falling back to text-to-image generation AND switching to Imagen 3...")
+                     base_image_path = None # Disable editing for next retry
+                     
+                     # 切換到 Imagen 3 (生成專用模型)
+                     try:
+                         imagen_model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
+                         print("[IMAGEN] Successfully switched to Imagen 3")
+                     except Exception as switch_e:
+                         print(f"[IMAGEN] Failed to switch model: {switch_e}")
+                     
+                     continue
+
                 # 只有在遇到暫時性錯誤時才重試
                 is_retryable = any(code in error_str for code in ["429", "503", "500", "ResourceExhausted", "ServiceUnavailable"])
                 
@@ -1014,9 +1212,16 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                     'cyan': '#00FFFF', 'lime': '#00FF00', 'gold': '#FFD700',
                     'orange': '#FFA500', 'magenta': '#FF00FF', 'pink': '#FF69B4',
                     'deeppink': '#FF1493', 'hotpink': '#FF69B4',
-                    'black': '#000000', 'blue': '#0000FF', 'green': '#008000'
+                    'black': '#000000', 'blue': '#0000FF', 'green': '#008000',
+                    'purple': '#800080', 'brown': '#A52A2A', 'grey': '#808080',
+                    'gray': '#808080', 'silver': '#C0C0C0', 'navy': '#000080',
+                    'teal': '#008080', 'olive': '#808000', 'maroon': '#800000'
                 }
-                fill_color = basic_colors.get(color.lower(), '#FFD700')
+                # [Fix] If color name is unknown, use a random color instead of fixed Gold
+                # to prevent "always yellow" issue when AI invents color names.
+                import random
+                fallback_keys = list(basic_colors.values()) + ['#FFD700', '#FF0000', '#FFFFFF']
+                fill_color = basic_colors.get(color.lower(), random.choice(fallback_keys))
 
         # 🌈 彩虹色彩組（高對比鮮豔色）
         rainbow_colors = [
@@ -1114,6 +1319,15 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 
             # 計算總高度檢查
             total_h = len(lines) * int(font_size * 1.3)
+            
+            # [Fix] 針對短文字 (20字以內)，盡量縮小字體以維持在單行 (User Request)
+            # 如果文字較短，且被折行了，且字體還夠大(>30)，就縮小字體重試
+            if len(lines) > 1 and len(text) < 20 and font_size > 30:
+                # 檢查是否原本就有換行符 (如有手動換行則不強制單行)
+                if '\n' not in text:
+                    font_size -= 5
+                    continue
+
             if total_h > (img.height - padding * 1.5):
                 font_size -= 5
                 continue
@@ -1330,7 +1544,191 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         traceback.print_exc()
         return None
 
+
+def edit_image_with_gemini(edit_prompt, user_id, image_path1, image_path2=None):
+    """使用 Gemini 圖片編輯模型修改/融合照片 (保留構圖與人物)
+    
+    Args:
+        edit_prompt (str): 修改指令 (繁體中文或英文均可)
+        user_id (str): 用戶ID
+        image_path1 (str): 原圖路徑 (單張修改) 或 底圖路徑 (融合)
+        image_path2 (str, optional): 第二張圖路徑 (融合模式)
+    
+    Returns:
+        tuple: (成功與否, 圖片路徑或錯誤訊息)
+    """
+def gemini_edit_image_internal(edit_prompt, user_id, image_path1, image_path2=None):
+    try:
+        import time as _time
+        from google import genai as genai_new
+        from google.genai import types as genai_types
+        
+        # 使用支援圖片輸出的 Gemini Image 模型
+        gemini_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        client = genai_new.Client(api_key=gemini_api_key)
+        
+        # 讀取圖片為 bytes
+        with open(image_path1, "rb") as f:
+            image1_bytes = f.read()
+        
+        # 判斷圖片 MIME type (不使用已廢棄的 imghdr)
+        _ext1 = image_path1.rsplit('.', 1)[-1].lower()
+        mime_type1 = 'image/jpeg' if _ext1 in ('jpg', 'jpeg') else f'image/{_ext1 or "png"}'
+        
+        # 建構 contents
+        contents = []
+        
+        if image_path2:
+            with open(image_path2, "rb") as f:
+                image2_bytes = f.read()
+            _ext2 = image_path2.rsplit('.', 1)[-1].lower()
+            mime_type2 = 'image/jpeg' if _ext2 in ('jpg', 'jpeg') else f'image/{_ext2 or "png"}'
+            
+            full_prompt = f"""You are an expert photo compositor.
+Task: Composite these two photos into one based on user's request.
+User request: {edit_prompt}
+
+CRITICAL RULES:
+- Identify the main subject(s) from EACH photo and preserve them EXACTLY as they appear
+- Do NOT add any new objects, characters, backgrounds, or elements that are NOT already present in Photo 1 or Photo 2
+- Do NOT change the appearance, features, or colors of any subject
+- Place the subjects together naturally according to the user's request
+- Blend backgrounds naturally (prefer Photo 2's background or a natural blend)
+- Maintain consistent lighting and scale between subjects
+- Output a single, clean, realistic composite photo showing ONLY the original subjects from both photos"""
+            contents = [
+                full_prompt,
+                genai_types.Part.from_bytes(data=image1_bytes, mime_type=mime_type1),
+                genai_types.Part.from_bytes(data=image2_bytes, mime_type=mime_type2),
+            ]
+        else:
+            # 判斷是否為風格轉換請求（水彩、卡通、油畫、動漫等全面風格）
+            style_keywords = ['風格', '水彩', '卡通', '動漫', '油畫', '素描', '童話', '漫畫', '插畫', '賽璐璐',
+                              '像素', '版畫', '水墨', '古風', '寫實', '抽象', '印象派', '變成卡通', '變成動漫',
+                              'style', 'cartoon', 'anime', 'watercolor', 'painting', 'sketch', 'illustration']
+            is_style_transfer = any(kw in edit_prompt for kw in style_keywords)
+            
+            if is_style_transfer:
+                full_prompt = f"""You are an expert artistic style transfer editor.
+Task: Apply the requested artistic style to this photo.
+User request: {edit_prompt}
+
+RULES FOR STYLE TRANSFORMATION:
+- Apply the requested art style DRAMATICALLY and COMPLETELY to the entire image
+- The style change should be clearly visible and striking (not subtle)
+- Preserve the same composition, pose, and identity of the subjects (same people, same positions)
+- The textures, colors, and rendering SHOULD change significantly - that is the whole point
+- Do NOT be conservative - make the style change bold and obvious
+- Output a high-quality styled image"""
+            else:
+                full_prompt = f"""You are an expert photo editor.
+Task: Edit this photo as requested.
+User request: {edit_prompt}
+
+CRITICAL RULES:
+- Preserve the EXACT same composition, layout, subject positions
+- Preserve ALL people's faces, body, pose, clothing EXACTLY - do not change faces
+- Only apply the specific change requested by the user
+- Do NOT change background unless explicitly asked
+- Output a high-quality, realistic edited photo"""
+            contents = [
+                full_prompt,
+                genai_types.Part.from_bytes(data=image1_bytes, mime_type=mime_type1),
+            ]
+        
+        print(f"[GEMINI_EDIT] Sending to gemini-2.5-flash-image, merge={image_path2 is not None}")
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image",
+            contents=contents,
+            config=genai_types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"]
+            )
+        )
+        
+        # 從 response 中提取圖片 (含 debug logging)
+        parts = response.candidates[0].content.parts
+        print(f"[GEMINI_EDIT] Response parts count: {len(parts)}")
+        for i, part in enumerate(parts):
+            print(f"[GEMINI_EDIT] Part[{i}] has_inline_data={part.inline_data is not None}, has_text={bool(getattr(part, 'text', None))}")
+            if part.inline_data:
+                print(f"[GEMINI_EDIT] Part[{i}] mime_type={part.inline_data.mime_type}, data_len={len(part.inline_data.data) if part.inline_data.data else 0}")
+                raw = part.inline_data.data
+                if raw:
+                    import base64
+                    # data 可能已是 bytes，也可能是 base64 string
+                    if isinstance(raw, (bytes, bytearray)):
+                        image_data = raw
+                    else:
+                        image_data = base64.b64decode(raw)
+                    
+                    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                    out_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_gemini_edit_{int(_time.time()*1000)}.png")
+                    with open(out_path, "wb") as f:
+                        f.write(image_data)
+                    
+                    print(f"[GEMINI_EDIT] Success, saved to {out_path}")
+                    return (True, out_path)
+        
+        # 若沒有圖片部分，印出 finish_reason 幫助診斷
+        finish_reason = getattr(response.candidates[0], 'finish_reason', 'unknown')
+        print(f"[GEMINI_EDIT] No image found in first attempt. finish_reason={finish_reason}")
+        
+        # 如果是 STOP (safety/policy)，嘗試用簡化英文 prompt 重試
+        if image_path2 and str(finish_reason) in ('FinishReason.STOP', 'STOP'):
+            print(f"[GEMINI_EDIT] Retrying with simplified English prompt...")
+            retry_prompt = f"Photoshop composition: Take the main subject from image 1 and place it into the scene of image 2. Keep both subjects appearing exactly as they look in their original photos. No new elements. Natural lighting. Realistic result."
+            retry_contents = [
+                retry_prompt,
+                genai_types.Part.from_bytes(data=image1_bytes, mime_type=mime_type1),
+                genai_types.Part.from_bytes(data=image2_bytes, mime_type=mime_type2),
+            ]
+            retry_response = client.models.generate_content(
+                model="gemini-2.5-flash-image",
+                contents=retry_contents,
+                config=genai_types.GenerateContentConfig(
+                    response_modalities=["IMAGE", "TEXT"]
+                )
+            )
+            retry_parts = retry_response.candidates[0].content.parts
+            for part in retry_parts:
+                if part.inline_data:
+                    raw = part.inline_data.data
+                    if raw:
+                        import base64
+                        image_data = raw if isinstance(raw, (bytes, bytearray)) else base64.b64decode(raw)
+                        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                        out_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_gemini_edit_{int(_time.time()*1000)}.png")
+                        with open(out_path, "wb") as f:
+                            f.write(image_data)
+                        print(f"[GEMINI_EDIT] Retry success, saved to {out_path}")
+                        return (True, out_path)
+            retry_reason = getattr(retry_response.candidates[0], 'finish_reason', 'unknown')
+            print(f"[GEMINI_EDIT] Retry also failed. finish_reason={retry_reason}")
+        
+        return (False, f"Gemini 未回傳圖片 (finish_reason={finish_reason})")
+        
+    except Exception as e:
+        print(f"[GEMINI_EDIT_ERROR] {e}")
+        return (False, f"Gemini edit error: {str(e)[:100]}")
+
+def edit_image_with_gemini(edit_prompt, user_id, image_path1, image_path2=None):
+    """使用 Gemini 2.5 Flash 進行圖片修改或融合，自帶配額防護。"""
+    if user_id:
+        quota_ok, remain, quota_msg = check_image_quota(user_id)
+        if not quota_ok:
+            return False, quota_msg
+            
+    success, result = gemini_edit_image_internal(edit_prompt, user_id, image_path1, image_path2)
+    
+    if success and user_id:
+        increment_image_quota(user_id)
+        
+    return success, result
+
+
 def beautify_image(image_path, user_id):
+
     """美化圖片（提升亮度、對比、銳度）"""
     try:
         img = Image.open(image_path)
@@ -1654,6 +2052,9 @@ def callback():
 @handler.add(MessageEvent, message=TextMessageContent)
 def message_text(event):
     user_id = event.source.user_id
+    print(f"==============================")
+    print(f"[LINE API] Incoming Message from User ID: {user_id}")
+    print(f"==============================")
     user_input = event.message.text.strip()
     
     # ------------------------------------------------------------
@@ -2136,6 +2537,7 @@ def message_text(event):
 2. 移除所有標點符號和表情符號
 3. 用口語化的方式表達
 4. 每則新聞約50字
+5. 每則新聞開頭必須以「第一則、第二則、第三則...」等方式唸出則數，例如：「第一則。台灣...」
 
 原始新聞：
 {user_news_cache[user_id][:2000]}
@@ -2395,6 +2797,13 @@ def message_text(event):
 def message_image(event):
     global user_images
     user_id = event.source.user_id
+    reply_token = event.reply_token
+    
+    # [Fix] Upper Logic: 圖片上傳時，若用戶處於「等待生成描述」狀態，應視為「放棄生成，改為處理此圖片」
+    if user_id in user_image_generation_state and user_image_generation_state[user_id] == 'waiting_for_prompt':
+        print(f"[IMAGE_MSG] User {user_id} uploaded image while waiting for prompt. Clearing state.")
+        user_image_generation_state[user_id] = 'idle'
+
     
     try:
         # 確保資料夾存在
@@ -2405,8 +2814,9 @@ def message_image(event):
             message_content = line_bot_blob_api.get_message_content(
                 message_id=event.message.id
             )
-            # 為每個用戶建立獨立的圖片檔案
-            image_filename = f"{user_id}_image.jpg"
+            # 為每個用戶建立獨立的圖片檔案（用時間戳區分多張）
+            import time as _time
+            image_filename = f"{user_id}_image_{int(_time.time()*1000)}.jpg"
             image_path = os.path.join(UPLOAD_FOLDER, image_filename)
             
             with open(image_path, 'wb') as f:
@@ -2414,51 +2824,137 @@ def message_image(event):
         
         # 檢查是否在長輩圖製作流程中 (等待背景圖)
         if user_id in user_meme_state and user_meme_state[user_id].get('stage') == 'waiting_bg':
-             # 讀取圖片 binary data
              with open(image_path, 'rb') as f:
                  image_data = f.read()
-             
-             # 呼叫 agent 處理
-             reply_text = handle_meme_agent(user_id, image_content=image_data, reply_token=event.reply_token)
-             
-             # 回覆用戶
+             reply_text = handle_meme_agent(user_id, image_content=image_data, reply_token=reply_token)
              with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
-                        reply_token=event.reply_token,
+                        reply_token=reply_token,
                         messages=[TextMessage(text=reply_text)],
                     )
                 )
              return
 
-        # 儲存該用戶的圖片路徑
-        user_images[user_id] = image_path
+        # 儲存圖片路徑
+        if user_id not in user_images:
+            user_images[user_id] = []
+        user_images[user_id].append(image_path)
         
-        # 使用 Gemini Vision 描述圖片
-        try:
-            upload_image = PIL.Image.open(image_path)
-            vision_response = model.generate_content([
-                "請用繁體中文描述這張圖片的內容，保持簡短生動（不超過100字）。描述完後，直接說「我已經記得這張圖片了！你想和我聊些什麼呢？」",
-                upload_image
-            ])
-            finish_message = vision_response.text
-        except:
-            # 告知用戶圖片已接收
-            finish_message = "我已經記得這張圖片了！你想跟我聊些什麼呢？（例如：這張照片在哪裡拍的？或是照片裡有什麼？）加油！Cheer up！"
+        # [New] 加入當前批次
+        if user_id not in user_image_batch:
+            user_image_batch[user_id] = []
+        user_image_batch[user_id].append(image_path)
+        
+        # 保留最近5張
+        if len(user_images[user_id]) > 5:
+            old_image = user_images[user_id].pop(0)
+            try:
+                os.remove(old_image)
+            except:
+                pass
+        
+        # 設定圖片修改狀態
+        user_uploaded_image_pending[user_id] = {
+            'images': user_images[user_id].copy(),
+            'history': []
+        }
+        
+        # ===== 批次延遲回覆機制 =====
+        # 保存最新的 reply_token（只有最後一個有效）
+        image_batch_tokens[user_id] = reply_token
+        
+        # 如果已有計時器，取消並重置（等待更多圖片）
+        if user_id in image_batch_timers and image_batch_timers[user_id] is not None:
+            image_batch_timers[user_id].cancel()
+        
+        def send_batch_reply(uid):
+            """計時器到期後，統一描述所有圖片並回覆"""
+            try:
+                saved_token = image_batch_tokens.get(uid)
+                if not saved_token:
+                    return
+                
+                # [Fix] 只描述當前批次的圖片，而不是歷史圖片
+                images_to_describe = user_image_batch.get(uid, [])
+                if not images_to_describe:
+                    return
+                
+                # 清空批次 (避免下次重複描述)
+                user_image_batch[uid] = []
+                
+                # 用 Gemini Vision 統一描述所有圖片
+                try:
+                    # 最多描述最近5張 (批次內)
+                    recent = images_to_describe[-5:]
+                    img_objects = []
+                    for p in recent:
+                        try:
+                            img_objects.append(PIL.Image.open(p))
+                        except:
+                            pass
+                    
+                    if len(img_objects) == 1:
+                        vision_prompt = "請用繁體中文描述這張圖片的內容，保持簡短生動（不超過100字）。描述完後，直接說「我已經記得這張圖片了！」"
+                        vision_response = model.generate_content([vision_prompt, img_objects[0]])
+                    else:
+                        count = len(img_objects)
+                        labels = "\n".join([f"📸 第{i+1}張：..." for i in range(count)])
+                        vision_prompt = f"請用繁體中文分別簡短描述這{count}張圖片的內容（每張不超過40字），格式為：\n{labels}\n描述完後，說「我已經記得這{count}張圖片了！」"
+                        vision_response = model.generate_content([vision_prompt] + img_objects)
+                    
+                    finish_message = vision_response.text
+                    if '加油' not in finish_message:
+                        finish_message += "\n\n加油！Cheer up！讚啦！"
+                except:
+                    count = len(images_to_describe)
+                    if count > 1:
+                        finish_message = f"我已經記得這{count}張圖片了！\n\n加油！Cheer up！讚啦！"
+                    else:
+                        finish_message = "我已經記得這張圖片了！\n\n加油！Cheer up！讚啦！"
+                
+                # 用最後一個 reply_token 回覆
+                with ApiClient(configuration) as api_client:
+                    line_bot_api = MessagingApi(api_client)
+                    line_bot_api.reply_message_with_http_info(
+                        ReplyMessageRequest(
+                            reply_token=saved_token,
+                            messages=[TextMessage(text=finish_message)],
+                        )
+                    )
+                print(f"[IMAGE_BATCH] Replied for {uid} with {len(images_to_describe)} image(s)")
+            except Exception as e:
+                print(f"[IMAGE_BATCH] Error: {e}")
+            finally:
+                # 清理計時器
+                image_batch_timers.pop(uid, None)
+                image_batch_tokens.pop(uid, None)
+        
+        # 設定2秒後觸發（等待用戶可能繼續傳圖）
+        timer = threading.Timer(2.0, send_batch_reply, args=[user_id])
+        image_batch_timers[user_id] = timer
+        timer.start()
+        print(f"[IMAGE_BATCH] Timer set for {user_id}, total images: {len(user_images[user_id])}")
+        
+        # 不在這裡回覆，由 Timer 統一回覆
+        return
         
     except Exception as e:
         print(f"Image upload error: {e}")
-        finish_message = "圖片上傳失敗，請再試一次。加油！Cheer up！"
-    
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=finish_message)],
-            )
-        )
+        # 發生錯誤時直接回覆
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            try:
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=reply_token,
+                        messages=[TextMessage(text="圖片上傳失敗，請再試一次。加油！Cheer up！")],
+                    )
+                )
+            except:
+                pass
+
 
 @handler.add(MessageEvent, message=AudioMessageContent)
 def message_audio(event):
@@ -2491,8 +2987,8 @@ def message_audio(event):
             # ------------------------------------------------------------
             needs_confirmation = False
             
-            # 1. 檢查圖片生成/修改狀態
-            if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
+            # 1. 檢查圖片生成/修改狀態 (排除 generating 與 can_modify，這些狀態不接受中斷確認)
+            if user_id in user_image_generation_state and user_image_generation_state[user_id] not in ['idle', 'generating', 'can_modify']:
                 needs_confirmation = True
             
             # 2. 檢查長輩圖製作狀態
@@ -2507,11 +3003,35 @@ def message_audio(event):
                 pass
 
             if needs_confirmation:
-                # 暫存語音文字，等待確認
-                user_audio_confirmation_pending[user_id] = {'text': text}
-                
-                # 回傳純淨的確認訊息 (絕對不含 jokes/cheer up)，並加上警語
-                reply_text = f"收到語音訊息\n\n您說的是：「{text}」\n\n請問是否正確？\n(請回答「是」或「ok」確認，或是重新錄音)\n\n⚠️ 確認後將開始製作，需等待約15秒，期間請勿操作！"
+                # 檢查是否為確認詞（視為確認，不是修改內容）
+                confirmation_keywords = ['對', '確定', '完成', 'ok', 'Ok', 'OK', 'ＯＫ', 'Ｏｋ', 'ｏｋ', '是', '沒錯', '好']
+                if any(kw in text for kw in confirmation_keywords):
+                    
+                    # [Fix] 若目前有等待確認的語音文字，發送語音「是」等同於確認該文字
+                    if user_id in user_audio_confirmation_pending:
+                        text = user_audio_confirmation_pending[user_id]['text']
+                        del user_audio_confirmation_pending[user_id]
+                        print(f"[AUDIO CONFIRM] Resuming pending text via voice confirm: {text}")
+
+                    # 直接當作確認，不儲存到pending
+                    confirmation = f"✅ 收到：「{text}」"
+                    
+                    # 呼叫 LLM 處理
+                    print(f"[AUDIO CONFIRM] User confirmed with: {text}")
+                    response = gemini_llm_sdk(text, user_id, reply_token=event.reply_token)
+                    
+                    if response:
+                        reply_text = f"{confirmation}\n\n---\n\n{response}"
+                    else:
+                        # 如果 response 為 None，表示已經由 gemini_llm_sdk 內部處理完畢
+                        print("[AUDIO] Handled internally by SDK")
+                        return # 直接結束，不需再 reply_message
+                else:
+                    # 需要確認語音內容
+                    user_audio_confirmation_pending[user_id] = {'text': text}
+                    
+                    # 回傳純淨的確認訊息 (絕對不含 jokes/cheer up)，並加上警語
+                    reply_text = f"收到語音訊息\n\n您說的是：「{text}」\n\n請問是否正確？\n(請回答「是」或「ok」確認，或是重新錄音)\n\n⚠️ 確認後將開始製作，需等待約15秒，期間請勿操作！"
             else:
                 # 一般閒聊模式 - 只有在閒聊時才允許 AI 發揮 (含 jokes)
                 # 但如果進入了 functional flow (如 trip agent via gemini_llm_sdk)，那邊會使用 functional model
@@ -2598,15 +3118,14 @@ def handle_follow(event):
     # 避免發生「圖片比歡迎詞先跳出來」的順序錯誤
     time.sleep(1.5)
 
-    # 準備歡迎文字 (從統一選單獲取)
-    welcome_text = "🎉 歡迎加入！我是您的長輩好朋友！\n\n" + get_function_menu()
+    # 準備歡迎文字 (作為備用)
+    welcome_text = get_function_menu()
     
     messages = []
     
-    # 1. 先加入文字訊息 (Text First) - 用戶要求移除文字，只保留系統預設歡迎詞+功能圖片
-    # messages.append(TextMessage(text=welcome_text))
+    # 用戶要求只顯示圖片，不顯示文字總覽
+    # 但如果圖片無法載入，則作為備用方案加上文字
     
-    # 2. 再加入圖片訊息 (Image Second)
     image_url_to_send = None
     
     # 嘗試使用 URL
@@ -2624,6 +3143,7 @@ def handle_follow(event):
         ))
     else:
         print("[WELCOME] No valid image to send, sending text only.")
+        messages.append(TextMessage(text=welcome_text))
     
     # 發送訊息
     try:
@@ -2671,7 +3191,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 if any(keyword in user_input for keyword in ['都可以', '都行', '隨便', '不挑', '任意', '推薦']):
                     # 直接使用大地區作為目的地
                     state['info']['destination'] = state['info']['large_region']
-                    return f"好的, {state['info']['large_region']}! 請問預計去幾天? (例如: 3天2夜)\n\n不想規劃了可以說 (取消)."
+                    return f"好的, {state['info']['large_region']}! 請問預計去幾天? (例如: 3天2夜)\n\n不想規劃了可以說「取消」"
             
             # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
             # 例如用戶說 "我要去綠島" -> 提取 "綠島"
@@ -2735,7 +3255,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 user_trip_plans[user_id] = {'stage': 'idle'}
                 return "好的，已取消行程規劃。"
             state['info']['duration'] = user_input
-            return f"了解，{state['info']['destination']}，{user_input}。請問這次旅遊有什麼特殊需求嗎？\n（沒有的話可以回「都可以」）\n\n⚠️ 回答後將開始生成行程，約10秒，請勿發送訊息，以免造成錯誤！\n不想規劃了可以說「取消」。"
+            return f"了解，{state['info']['destination']}，{user_input}。請問這次旅遊有什麼特殊需求嗎？\n（沒有的話可以回「都可以」）\n\n⚠️ 回答後將開始生成行程，約15秒，期間請勿發送訊息！\n不想規劃了可以說「取消」。"
             
         # Check purpose
         if 'purpose' not in state['info']:
@@ -2824,22 +3344,59 @@ CRITICAL: Do NOT output as JSON. Output pure, clean text.
                     'info': state['info'],
                     'plan': validated_plan
                 }
-                return validated_plan + "\n\n如需調整行程，請直接說明您的需求。\n(例如：第一天想加入購物、想換掉某個景點等)\n\n如不需調整，請說「完成」或「ok」。"
+                return validated_plan + "\n\n如需調整行程，請直接說明您的需求。\n(例如：第一天想加入購物、想換掉某個景點等)\n\n如不需調整，請說「完成」或「ok」結束本服務！"
                 
             except Exception as e:
                 print(f"Planning error: {e}")
                 user_trip_plans[user_id] = {'stage': 'idle'}
                 return "抱歉，行程規劃出了點問題，請稍後再試。"
     
-    # 處理可討論狀態 - 允許用戶修改行程
+    # 處理可討論狀態 - 允許用戶修改行程或繼續討論
     elif state['stage'] == 'can_discuss':
-        # 檢查是否要結束討論
-        # Fix: Convert input to lowercase to catch "Ok", "OK", "ok"
+        # 檢查是否要結束討論（明確說完成）
         if any(keyword in user_input.lower() for keyword in ['完成', 'ok', '好了', '謝謝', '不用了']):
             user_trip_plans[user_id] = {'stage': 'idle'}
             return "好的！祝您旅途愉快！"
         
-        # 用戶想要修改行程
+        
+        # ===== AI智能判斷：修改行程 vs 跳話題 =====
+        try:
+            # 使用Gemini AI判斷用戶意圖
+            intent_prompt = f"""用戶正在與我討論行程規劃，目前的行程如下：
+{state.get('plan', '尚無行程內容')}
+
+用戶現在說：「{user_input}」
+
+請判斷用戶的意圖：
+1. 「修改行程」- 用戶想要調整、修改、討論已規劃的行程
+2. 「討論行程」- 用戶詢問行程相關問題（如景點資訊、交通、費用等）
+3. 「跳話題」- 用戶想要使用其他功能（如製作長輩圖、看新聞、生成圖片等完全無關的新話題）
+
+請只回傳以下JSON格式：
+{{"intent": "修改行程" 或 "討論行程" 或 "跳話題"}}"""
+
+            response = model_functional.generate_content(intent_prompt)
+            import json, re
+            match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            
+            if match:
+                intent_data = json.loads(match.group())
+                intent = intent_data.get('intent', '討論行程')
+                print(f"[TRIP] AI判斷意圖: {intent}, 用戶輸入: {user_input}")
+                
+                if intent == '跳話題':
+                    # 明確跳到無關話題 → 自動關閉行程規劃
+                    print(f"[TRIP] User switched topic, auto-closing trip planning.")
+                    user_trip_plans[user_id] = {'stage': 'idle'}
+                    # 讓主流程處理新話題（返回None表示繼續處理）
+                    return None
+            else:
+                # AI回傳格式錯誤，保守處理：視為行程相關
+                print(f"[TRIP] AI intent detection failed, treating as trip-related")
+        except Exception as e:
+            print(f"[TRIP] Intent detection error: {e}, treating as trip-related")
+        
+        # 否則視為行程相關（修改或討論）→ 繼續處理
         dest = state['info']['destination']
         dur = state['info']['duration']
         purp = state['info']['purpose']
@@ -2863,7 +3420,7 @@ CRITICAL: Do NOT output as JSON. Output pure, clean text.
             
             # 更新保存的行程
             user_trip_plans[user_id]['plan'] = updated_plan
-            return updated_plan + "\n\n還需要其他調整嗎？\n(如不需調整，請說「完成」或「ok」)"
+            return updated_plan + "\n\n還需要其他調整嗎？\n(如不需調整，請說「完成」或「ok」結束本服務！)"
             
         except Exception as e:
             print(f"[ERROR] 修改行程時發生錯誤: {e}")
@@ -2879,34 +3436,19 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
     global user_meme_state, user_images
     
     if is_new_session or user_id not in user_meme_state:
-        # Check if there is a recently uploaded image
-        if user_id in user_images:
-            user_meme_state[user_id] = {
-                'stage': 'waiting_text', 
-                'bg_image': user_images[user_id], 
-                'text': None
-            }
-            # Remove from pending user_images to avoid reuse confusion later? 
-            # (Optional, but keeping it allows reuse. Let's keep it.)
-            
-            return """已使用您剛剛上傳的圖片！📸
-
-請輸入要在圖片上顯示的文字內容：
-(例如：早安、平安喜樂、認同請分享)
-
-⚠️ 製作期間約15秒，請勿發送其他訊息！"""
-        
         # No image found, ask for one
         user_meme_state[user_id] = {'stage': 'waiting_bg', 'bg_image': None, 'text': None}
         return """好的！我們來製作長輩圖。
 
-請選擇背景方式：
-📷 上傳一張圖片作為背景
-🎨 告訴我想要什麼樣的背景（例如：蓮花、夕陽、風景）
+步驟1️⃣：選擇「背景」
+📷 方法1：上傳一張圖片作為背景
+🎨 方法2：描述背景樣子（例如：蓮花、夕陽、風景）
 
-請直接上傳圖片或輸入背景描述。
-⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！
-＊不想製作了隨時說「取消」"""
+⚠️ 製作期間約15秒，請勿發送訊息！
+＊隨時說「取消」可停止
+
+(接著會進行 步驟2️⃣：輸入文字)"""
+
 
     state = user_meme_state[user_id]
     
@@ -2931,11 +3473,40 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
             state['bg_image'] = bg_path
             state['stage'] = 'waiting_text'  # 直接進入文字輸入階段，不需確認
             # 不發送圖片給用戶
-            return "已收到背景圖片。\n\n請輸入要在圖片上顯示的文字內容。\n(例如：早安、平安喜樂、認同請分享)\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
+            return """步驟2️⃣：輸入要在圖片上顯示的「文字」內容
+(例如：早安、平安喜樂、認同請分享)
+⚠️ 暫不支援emoji表情符號，請使用純文字
+⚠️ 製作期間約15秒，請勿再次發送訊息！"""
 
             
         # Handle Text Description for Generation
         elif user_input:
+             # [Fix] Intent Detection: Check if user wants to switch topic
+             # Avoid capturing commands like "News", "Trip", "Weather" as image descriptions
+             try:
+                intent_check_prompt = f"""User is in Meme Creation Mode (Step 1: Describe Background).
+Current Input: "{user_input}"
+
+Analyze if this input is:
+1. "description": A description for image generation (e.g., "flower", "mountain", "morning greeting", "happier").
+2. "switch": A request to switch feature or chat about something else (e.g., "news", "planning trip", "weather", "help", "menu").
+
+Output JSON: {{ "intent": "description" or "switch" }}"""
+                
+                check_res = model_functional.generate_content(intent_check_prompt)
+                import json, re
+                match = re.search(r'\{.*\}', check_res.text, re.DOTALL)
+                if match:
+                    data = json.loads(match.group())
+                    if data.get('intent') == 'switch':
+                        print(f"[MEME] User switched topic: {user_input}")
+                        user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
+                         # [Fix] Clear cached image
+                        if user_id in user_images: del user_images[user_id]
+                        return None # Fall through to main loop
+             except Exception as e:
+                print(f"[MEME] Intent check failed: {e}")
+
              # Generate background
              
              # 使用 Gemini 將用戶的中文描述轉換成詳細的英文 prompt
@@ -2964,13 +3535,17 @@ Now generate English prompt for: "{user_input}" """
                  translation_response = model_functional.generate_content(translation_prompt)
                  bg_prompt = translation_response.text.strip()
                  
+                 # ===== 配額檢查已經移至 generate_image_with_imagen 內部 =====
+                 
                  # 生成圖片
                  success, result = generate_image_with_imagen(bg_prompt, user_id)
                  if success:
+                     hint = remain_img_hint(user_id)
+                     
                      state['bg_image'] = result  # result 是圖片路徑
                      state['stage'] = 'confirming_bg'
                      # 發送背景圖給用戶確認（使用 reply_token 免費）
-                     msg = "背景圖片已生成完成。\n\n請確認背景是否滿意？\n(請回答「好」或「ok」繼續，或說「重新選擇」換背景)"
+                     msg = f"背景圖片已生成完成！\n\n請回答「好」或「ok」繼續，或直接描述想要的背景(例如：換成海邊、換成森林)即可重新生成。\n⚠️ 製作期間約15秒，請勿發送訊息！{hint}"
                      if send_image_to_line(user_id, result, msg, reply_token):
                          return None # 已回覆
                  else:
@@ -2989,18 +3564,107 @@ Now generate English prompt for: "{user_input}" """
                 if user_id in user_images:
                     del user_images[user_id]
                 return "已取消長輩圖製作。"
-            # 檢查是否要重新選擇
-            elif '重新' in user_input or '換' in user_input:
-                state['stage'] = 'waiting_bg'
-                state['bg_image'] = None
-                return "好的，請重新上傳圖片或輸入背景描述。\n\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
-
             # 用戶確認，進入文字輸入階段
             elif is_confirmation(user_input):
                 state['stage'] = 'waiting_text'
                 return "好的！請輸入要在圖片上顯示的文字內容。\n(例如：早安、平安喜樂、認同請分享)\n⚠️ 製作期間約15秒，請勿再次發送訊息，以免錯誤！"
             else:
-                return "請回答「好」或「ok」繼續，或說「重新選擇」換背景。"
+                # [Fix] Intent Detection: Check for topic switch during modification
+                try:
+                    intent_check_prompt = f"""User is in Meme Creation Mode (Step 2: Review/Modify Background).
+Current Input: "{user_input}"
+
+Analyze if this input is:
+1. "modify": A request to modify the background (e.g., "happier", "make it blue", "remove cat", "change style").
+2. "switch": A request to switch feature or chat about something else (e.g., "news", "planning trip", "weather", "help").
+
+Output JSON: {{ "intent": "modify" or "switch" }}"""
+                    
+                    check_res = model_functional.generate_content(intent_check_prompt)
+                    import json, re
+                    match = re.search(r'\{.*\}', check_res.text, re.DOTALL)
+                    if match:
+                        data = json.loads(match.group())
+                        if data.get('intent') == 'switch':
+                            print(f"[MEME] User switched topic during confirm: {user_input}")
+                            user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
+                            if user_id in user_images: del user_images[user_id]
+                            return None # Fall through
+                except Exception as e:
+                    print(f"[MEME] Intent check failed: {e}")
+
+                # 用戶輸入了其他內容 → 當作對背景的修改/精煉，重新生成
+                try:
+                    # [Fix] Context Loss Issue:
+                    # User said "Happier" but we lost "Cartoon Parrot".
+                    # We need to combine previous context with new request.
+                    
+                    # 嘗試從 state 中獲取上一次的描述 (目前 state 沒存，暫時無法完美回朔，但我們可以試著存)
+                    # 由於 state 結構限制，我們這裡先假設 user_input 是新的完整描述，或者我們嘗試用 Vision 理解原圖 + 修改指令
+                    # 但 Vision 比較慢。
+                    # 更好的策略：
+                    # 1. 如果有上一次的 prompt (需新增存儲機制)，則 combine.
+                    # 2. 如果沒有，則將 current_bg 傳入 Vision 進行 "與 prompt 結合" 的修改 (Image-to-Image) -> 這是原本的邏輯
+                    # 
+                    # 原本邏輯：generate_image_with_imagen(bg_prompt, user_id, base_image_path=current_bg)
+                    # 問題：Imagen 3 對 "Happier" + Base Image (Parrot) 可能理解為 "Make the parrot happier" 
+                    # 但如果 Prompt 只有 "Happier"，Imagen 3 可能不知道要畫鸚鵡。
+                    
+                    print(f"[MEME] User wants to regenerate background with: {user_input}")
+                    
+                    current_bg = state.get('bg_image')
+                    
+                    # [Strategy] 使用 Gemini Vision 分析當前圖片 + 用戶指令 -> 產生全新的完整 Prompt
+                    # 這樣可以解決 "Happier" 這種缺乏主體的指令
+                    
+                    refine_prompt = f"""
+                    User wants to modify this background image.
+                    Current Image: (Provided)
+                    User's Modification Request: "{user_input}"
+                    
+                    Please generate a NEW, FULL English prompt for Imagen 3.
+                    Requirements:
+                    1. Keep the main subject of the current image (analyze it!).
+                    2. Apply the user's modification (e.g., "Happier" -> "Smiling, joyful expression", "Darker" -> "Night scene").
+                    3. Return ONLY the English prompt.
+                    """
+                    
+                    import PIL.Image
+                    current_bg_img = PIL.Image.open(current_bg)
+                    
+                    # 使用功能性模型進行圖文理解
+                    refined_response = model_functional.generate_content([refine_prompt, current_bg_img])
+                    new_full_prompt = refined_response.text.strip()
+                    
+                    print(f"[MEME] Refined Prompt: {new_full_prompt}")
+
+                    # 使用新 Prompt 生成
+                    # [Strategy Update] Re-enable base_image_path for reference.
+                    # Even if Imagen 3's edit_image is unstable, passing base_image_path allows 
+                    # the underlying generate_image_with_imagen function to choose the best strategy 
+                    # (e.g., trying edit_image first, or using it as a reference if supported).
+                    # Crucially, we MUST rely on the strong `new_full_prompt` to guide the generation 
+                    # effectively, acting as a "pseudo-edit" if true editing fails.
+                    
+                    print(f"[MEME] Regenerating with refined prompt and base image reference...")
+                    # 配額檢查已移入核心
+                    
+                    success, result = generate_image_with_imagen(new_full_prompt, user_id, base_image_path=current_bg) 
+                    
+                    if success:
+                        hint = remain_img_hint(user_id)
+                        state['bg_image'] = result
+                        state['stage'] = 'confirming_bg'
+                        msg = f"背景圖片已根據您的要求重新生成！\n\n請回答「好」或「ok」繼續，\n或直接描述想要的背景即可再次重新生成。\n\n⚠️ 送出後需等待約15秒，期間請勿再次發送訊息！{hint}"
+                        if send_image_to_line(user_id, result, msg, reply_token):
+                            return None  # 已回覆
+                    else:
+                        # 如果失敗，回傳錯誤但保留原圖
+                        return f"抱歉，重新生成失敗 ({result})。\n請換個說法試試看！"
+                        
+                except Exception as e:
+                    print(f"[MEME] Background regeneration error: {e}")
+                    return "抱歉，重新生成出了點問題...請再試一次！"
     
     elif state['stage'] == 'waiting_text':
         if user_input:
@@ -3011,6 +3675,30 @@ Now generate English prompt for: "{user_input}" """
                 if user_id in user_images:
                     del user_images[user_id]
                 return "已取消長輩圖製作。"
+
+            # [Fix] Intent Detection: Check for topic switch during text input
+            try:
+                intent_check_prompt = f"""User is in Meme Creation Mode (Step 3: Enter Text).
+Current Input: "{user_input}"
+
+Analyze if this input is:
+1. "text": Content to be displayed on the image (e.g., "Good Morning", "Hello", "Blessings", short phrases).
+2. "switch": A request to switch feature or chat about something else (e.g., "news", "planning trip", "weather", "help", "menu").
+
+Output JSON: {{ "intent": "text" or "switch" }}"""
+                
+                check_res = model_functional.generate_content(intent_check_prompt)
+                import json, re
+                match = re.search(r'\{.*\}', check_res.text, re.DOTALL)
+                if match:
+                    data = json.loads(match.group())
+                    if data.get('intent') == 'switch':
+                        print(f"[MEME] User switched topic during text input: {user_input}")
+                        user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
+                        if user_id in user_images: del user_images[user_id]
+                        return None # Fall through to main loop
+            except Exception as e:
+                print(f"[MEME] Intent check failed: {e}")
             
             state['text'] = user_input
             
@@ -3029,8 +3717,14 @@ Now generate English prompt for: "{user_input}" """
                 # 載入背景圖片
                 bg_image = Image.open(bg_path)
                 
-                # AI 視覺分析 - 強制分析主體位置
+                # [Fix] Inject randomness to force variety on re-generation
+                import random
+                random_vibes = ["Pop Art", "Elegant", "Bold", "Minimalist", "Retro", "Modern", "Handwritten Style", "Cute", "Serious"]
+                current_vibe = random.choice(random_vibes)
+                
                 vision_prompt = f"""Analyze this image and design text layout for: "{text}"
+
+**DESIGN GOAL: {current_vibe} Style**
 
 **STEP 1: FIND THE MAIN SUBJECT**
 Look at the image carefully. Identify the main subject (person, animal, object, flower).
@@ -3050,7 +3744,12 @@ Determine which AREA the subject occupies: "top", "bottom", "left", "right", "ce
 **NEVER put text over the main subject! It's okay to cover unimportant corners.**
 
 **Color choices:**
-Pick colors that contrast with the background. Use bright colors for dark areas, dark colors for light areas.
+**STRATEGY: EXTRACT FROM IMAGE**
+1. **Analyze the Image Palette:** Identify the dominant colors in the image.
+2. **Option A (Harmony):** Choose a color that **EXISTS in the image** or is a **similar shade (Analogous)**, provided it matches the vibe and is readable.
+3. **Option B (Contrast):** If harmony fails readability, use a **Complementary Color** (opposite on color wheel) derived from the image's palette.
+4. **Avoid:** Generic default colors (plain white/yellow) unless they are part of the image's specific aesthetic.
+5. **Format:** Output exact HEX CODES based on the image analysis.
 
 **Output JSON (MUST include subject_location):**
 {{
@@ -3070,7 +3769,7 @@ Text to display: "{text}"
                 response = model_functional.generate_content(
                     [vision_prompt, bg_image],
                     generation_config=genai.types.GenerationConfig(
-                        temperature=1.1, # 調高溫度，增加隨機性
+                        temperature=1.2, # 調高溫度，增加隨機性
                         top_p=0.95,
                         top_k=40
                     )
@@ -3086,7 +3785,8 @@ Text to display: "{text}"
                 # 預設值 - 應該要被AI覆蓋
                 position = 'top'
                 direction = 'horizontal'
-                color = '#FFFFFF' 
+                # color = '#FFFFFF'  <-- REMOVED DEFAULT
+                color = None # Let it be None to trigger fallback if AI fails
                 font = 'heiti'
                 angle = 0
                 stroke_width = 10  # 預設描邊寬度 (對閱讀很重要)
@@ -3102,7 +3802,13 @@ Text to display: "{text}"
                         subject_size = data.get('subject_size', 'small') # 新增：主體大小
                         position = data.get('position', 'top')
                         direction = data.get('direction', 'horizontal')
-                        color = data.get('color', '#FFFFFF')
+                        color = data.get('color')
+                        if not color or color == 'null':
+                             # [Fix] Fallback to random high-contrast color if AI misses it
+                             import random
+                             fallback_colors = ['#FFFFFF', '#FFD700', '#FF0000', '#0000FF', '#00FF00', '#FFA500', '#FF69B4']
+                             color = random.choice(fallback_colors)
+                             print(f"[AI COLOR MISS] AI didn't return color, used random fallback: {color}")
                         font = data.get('font', 'heiti')
                         angle = int(data.get('angle', 0))
                         stroke_width = int(data.get('stroke_width', 10))
@@ -3157,11 +3863,10 @@ Text to display: "{text}"
                     position = 'bottom'
                     pass
                 
-                # 確保 color 是 hex 或 rainbow
-                if color.lower() != 'rainbow' and not color.startswith('#'):
-                     # 簡單映射常見色
-                     color_map = {'gold': '#FFD700', 'red': '#FF0000', 'blue': '#0000FF'}
-                     color = color_map.get(color.lower(), '#FFFFFF')
+                # [Final Decision] Unlock AI Color Choice
+                # Allow AI to pick ANY hex code or color name.
+                # create_meme_image will handle the rendering.
+                pass
 
                 print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, stroke={stroke_width}")
                 
@@ -3284,17 +3989,18 @@ def classify_user_intent(text):
         Classify into exactly one intent category (Return ONLY the code, nothing else):
         1. video_generation (Make video, generate video)
         2. image_generation (Draw picture, generate image)
-        3. image_modification (Modify image, change color, change X to Y)
+        3. image_modification (Explicitly ASK to CHANGE/MODIFY image content. Questions about image content -> chat)
         4. meme_creation (Make meme, elderly greeting card)
         5. trip_planning (Plan trip, travel, suggest spots)
         6. set_reminder (Set reminder, remind me to...)
         7. show_reminders (Check reminders, what to do)
-        8. chat (General chat, greeting, others)
+        8. chat (General chat, greeting, others, AND Questions about image content e.g. "What color is this?")
         
         Examples:
         - "I want to go to Yilan" -> trip_planning
         - "Bring me to Green Island" -> trip_planning
         - "Change cat to dog" -> image_modification
+        - "What color is the person wearing?" -> chat
         - "Draw a cat" -> image_generation
         - "Remind me to eat medicine" -> set_reminder
         - "Good morning" -> chat
@@ -3399,6 +4105,239 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
             print(f"[CANCEL] Cleared all states for user {user_id}")
             return "好的，已取消當前操作！"
 
+        # ===== NEW: 功能選單直接跳轉邏輯 =====
+        # 定義功能關鍵詞（與功能選單一致）
+        function_keywords = {
+            'image_generation': ['生成圖片', '產生圖片', '畫一張', '製作圖片', '做圖', '畫圖', '給我一張圖'],
+            'meme_creation': ['製作長輩圖', '長輩圖', '做長輩圖', '梗圖', '早安圖'],
+            'trip_planning': ['行程規劃', '規劃行程', '旅遊規劃', '旅行規劃'],
+            'news': ['新聞快報', '看新聞', '今日新聞', '新聞'],
+            'reminder': ['提醒通知', '設定提醒', '我的提醒', '查看提醒'],
+        }
+        
+        # 檢查是否匹配功能關鍵詞
+        matched_function = None
+        for func_name, keywords in function_keywords.items():
+            if any(kw in user_input for kw in keywords):
+                matched_function = func_name
+                break
+        
+        # 如果匹配到功能關鍵詞，清除當前狀態並準備跳轉
+        # 例外：如果用戶說的是圖片生成關鍵字（如「畫一張」），但輸入裡含有
+        # 指向上傳照片的代詞（她、他、這個人、照片等），應視為對照片做風格修改，
+        # 而非生成全新圖片。此時不清除 user_uploaded_image_pending，讓修改邏輯優先。
+        image_reference_words = ['她', '他', '這個人', '這張', '照片中', '圖片中', '主角', '把她', '把他', '照片裡', '圖裡']
+        is_photo_style_request = (
+            matched_function == 'image_generation'
+            and user_id in user_uploaded_image_pending
+            and any(w in user_input for w in image_reference_words)
+        )
+        
+        if matched_function and not is_photo_style_request:
+            # 清除所有狀態
+            if user_id in user_image_generation_state:
+                user_image_generation_state[user_id] = 'idle'
+            if user_id in user_meme_state:
+                user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
+            if user_id in user_trip_plans:
+                user_trip_plans[user_id] = {'stage': 'idle'}
+            if user_id in user_link_pending:
+                del user_link_pending[user_id]
+            if user_id in user_uploaded_image_pending:
+                del user_uploaded_image_pending[user_id]
+            
+            print(f"[FUNCTION_JUMP] User {user_id} jumped to {matched_function}")
+            # 繼續執行，讓後續的intent detection處理新功能
+        elif is_photo_style_request:
+            print(f"[FUNCTION_JUMP] Skipped clear: photo style request detected ('{user_input[:30]}')")
+        # ===== END: 功能選單直接跳轉邏輯 =====
+
+
+        # ===== NEW: 圖片修改意圖檢測 =====
+        # 檢查用戶是否剛上傳圖片並想修改
+        if user_id in user_uploaded_image_pending:
+            # 如果用戶說「完成」或「ok」，清除pending狀態
+            if is_confirmation(user_input):
+                del user_uploaded_image_pending[user_id]
+                return "好的！圖片已完成。期待下次為您服務！"
+                
+            pending_data = user_uploaded_image_pending[user_id]
+            user_image_list = pending_data.get('images', [])
+            
+            # 定義修改關鍵詞
+            modify_keywords = {
+                'style': ['改成', '變成', '換成', '修改成', '轉成', '風格', '樣式'],
+                'add': ['加上', '新增', '增加', '放', '添加'],
+                'remove': ['去掉', '移除', '刪除', '去除', '拿掉', '刪掉'],
+                'merge': ['合併', '融合', '合在一起', '結合', '混合', '合體',
+                          '加入', '並排', '放進去', '放入', '拼在一起', '乆在一起',
+                          '两人一起', '放在同一張', '放到同一張']  # 擴充自然表达方式
+            }
+            
+            #檢查是否為任一類修改請求 (關鍵詞快速匹配)
+            is_modify = any(
+                any(kw in user_input for kw in keywords)
+                for keywords in modify_keywords.values()
+            )
+            # 關鍵詞判定的 is_merge
+            is_merge_by_kw = any(kw in user_input for kw in modify_keywords['merge'])
+            
+            # AI 判斷意圖（關鍵詞沒匹到才呼叫，節省資源）
+            ai_intent = None  # 'merge' / 'modify' / 'other'
+            if (not is_modify) and len(user_image_list) > 0:
+                try:
+                    num_images = len(user_image_list)
+                    
+                    # 取出歷史紀錄協助判斷
+                    history_summary = ""
+                    history = pending_data.get('history', [])
+                    if history:
+                        last_action = history[-1]['type']
+                        history_summary = f"（提示：用戶前一步是對圖片進行了「{'修改' if last_action == 'modify' else '融合'}」，此為連續修圖）"
+                    else:
+                        if num_images == 2:
+                            history_summary = f"（提示：這是在**沒有修改紀錄**的情況下，剛才一次上傳了 2 張不同的照片，所以極高機率是要進行「融合」將兩者畫面結合或替換。）"
+                        elif num_images == 1:
+                            history_summary = f"（提示：用戶只上傳了 1 張照片，因此只可能是「修改」，絕對不是融合。）"
+
+                    intent_check = model_functional.generate_content(
+                        f"用戶上傳或累積了 {num_images} 張照片，現在說：「{user_input}」。{history_summary}\n"
+                        f"請嚴格判斷他的意圖是：\n"
+                        f"1. 融合：明確要求把最新的兩張照片或其中元素合成一張（如某物加到另一張、兩張合體、把A換成B等）。如果在沒歷史紀錄下剛傳兩張圖，大概率是融合！\n"
+                        f"2. 修改：想修改「目前的最後一張圖片」（如加衣服、改顏色、加文字、換背景等）。如果用戶只是想針對上一張修改好的圖繼續追加修改，請絕對選修改！\n"
+                        f"3. 其他：聊天、問問題、或切換到其他功能不改圖。\n"
+                        f"只回答一個詞：融合 或 修改 或 其他"
+                    )
+                    result_text = intent_check.text.strip()
+                    if '融合' in result_text:
+                        ai_intent = 'merge'
+                        is_modify = True
+                    elif '修改' in result_text:
+                        ai_intent = 'modify'
+                        is_modify = True
+                    else:
+                        ai_intent = 'other'
+                    print(f"[IMAGE_INTENT] AI decided: {ai_intent} for '{user_input[:30]}'")
+                except Exception as e:
+                    print(f"[IMAGE_INTENT] AI intent check failed: {e}")
+
+            if is_modify and len(user_image_list) > 0:
+                # 判斷是融合還是單張修改（AI 優先，其次關鍵字）
+                is_merge = (ai_intent == 'merge') or (ai_intent is None and is_merge_by_kw)
+                
+                # 防呆：如果歷史只有1張圖且是原始圖，卻說要融合，降級為 modify
+                if is_merge and len(user_image_list) < 2:
+                    is_merge = False
+                    print("[IMAGE_INTENT] Overridden merge to modify (not enough images to merge)")
+
+                
+                if is_merge and len(user_image_list) >= 2:
+                    # 融合模式：使用最近兩張照片
+                    image1_path = user_image_list[-2]
+                    image2_path = user_image_list[-1]
+                    
+                    try:
+                        print(f"[IMAGE_MERGE] Calling Gemini edit, user_input: {user_input}")
+                        
+                        # ===== 配額檢查（融合/修改/生成三者共用每日 6 次）=====
+                        quota_ok, _, quota_msg = check_image_quota(user_id)
+                        if not quota_ok:
+                            return quota_msg
+                        
+                        # [Gemini Edit] 直接傳入兩張圖給 Gemini 進行融合
+                        success, result = edit_image_with_gemini(
+                            edit_prompt=user_input,
+                            user_id=user_id,
+                            image_path1=image1_path,
+                            image_path2=image2_path
+                        )
+                        
+                        if success:
+                            new_image_path = result
+                            # 更新圖片列表
+                            user_image_list.append(new_image_path)
+                            if len(user_image_list) > 5:
+                                old_img = user_image_list.pop(0)
+                                try:
+                                    os.remove(old_img)
+                                except:
+                                    pass
+                            
+                            # 記錄歷史，並儲存最新圖片路徑供後續修改使用
+                            pending_data['history'].append({
+                                'request': user_input,
+                                'result_path': new_image_path,
+                                'type': 'merge'
+                            })
+                            user_last_generated_image_path[user_id] = new_image_path
+                            
+                            # 發送圖片
+                            hint = remain_img_hint(user_id)
+                            msg = f"照片融合完成🎉\n\n已融合「最近兩張照片」！\n如需再次修改，請直接說明調整需求。\n如不需調整，請說「完成」或「ok」結束本服務！{hint}"
+                            if send_image_to_line(user_id, new_image_path, msg, reply_token):
+                                return None  # 已回覆
+                            else:
+                                return "融合完成，但發送失敗。"
+                        else:
+                            return f"融合失敗：{result}"
+                    except Exception as e:
+                        print(f"[IMAGE_MERGE_ERROR] {e}")
+                        return "照片融合時發生錯誤，請稍後再試。"
+                        
+                else:
+                    # 單張修改模式：使用最後一張照片
+                    original_image_path = user_image_list[-1]
+                    
+                    try:
+                        print(f"[IMAGE_MODIFY] Calling Gemini edit, user_input: {user_input}")
+                        
+                        # ===== 配額檢查（融合/修改/生成三者共用每日 6 次）=====
+                        quota_ok, _, quota_msg = check_image_quota(user_id)
+                        if not quota_ok:
+                            return quota_msg
+                        
+                        # [Gemini Edit] 直接傳入原圖給 Gemini 進行修改
+                        success, result = edit_image_with_gemini(
+                            edit_prompt=user_input,
+                            user_id=user_id,
+                            image_path1=original_image_path
+                        )
+                        
+                        if success:
+                            new_image_path = result
+                            user_last_generated_image_path[user_id] = new_image_path
+                            # 更新圖片列表
+                            user_image_list.append(new_image_path)
+                            if len(user_image_list) > 5:
+                                old_img = user_image_list.pop(0)
+                                try:
+                                    os.remove(old_img)
+                                except:
+                                    pass
+                            
+                            # 記錄歷史
+                            pending_data['history'].append({
+                                'request': user_input,
+                                'result_path': new_image_path,
+                                'type': 'modify'
+                            })
+                            
+                            # save prompt for further modification
+                            user_last_image_prompt[user_id] = {'prompt': user_input}
+
+                            # 發送圖片
+                            hint = remain_img_hint(user_id)
+                            msg = f"圖片修改完成🎉\n\n如需再次修改，請直接說明調整需求。\n如不需調整，請說「完成」或「ok」結束本服務！{hint}"
+                            if send_image_to_line(user_id, new_image_path, msg, reply_token):
+                                return None  # 已回覆
+                            else:
+                                return "修改完成，但發送失敗。"
+                        else:
+                            return f"修改失敗：{result}"
+                    except Exception as e:
+                        print(f"[IMAGE_MODIFY_ERROR] {e}")
+                        return "圖片修改時發生錯誤，請稍後再試。"
+        # ===== END: 圖片修改意圖檢測 =====
 
 
         if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
@@ -3416,10 +4355,16 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
         
         # 檢查 Agent 狀態 (若在對話流程中，直接交給 Agent)
         if user_id in user_meme_state and user_meme_state.get(user_id, {}).get('stage') != 'idle':
-             return handle_meme_agent(user_id, user_input, reply_token=reply_token)
+             response = handle_meme_agent(user_id, user_input, reply_token=reply_token)
+             if response:
+                 return response
              
         if user_id in user_trip_plans and user_trip_plans.get(user_id, {}).get('stage') != 'idle':
-             return handle_trip_agent(user_id, user_input, reply_token=reply_token)
+             response = handle_trip_agent(user_id, user_input, reply_token=reply_token)
+             if response:
+                 # If agent returns a response, return it. 
+                 # If it returns None (e.g. topic switch), fall through to main logic.
+                 return response
 
         # 檢查圖片生成狀態 (優先處理)
         if user_id in user_image_generation_state and user_image_generation_state[user_id] != 'idle':
@@ -3435,8 +4380,32 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 # 檢查是否只是說「修改」
                 if user_input.strip() in ['修改', '要修改', '我要修改']:
                     user_image_generation_state[user_id] = 'waiting_for_modification'
-                    return "好的，請說明您想要如何修改這張圖片？\n(例如：加上文字、改變顏色、調整內容等)\n\n如不需調整，請說「完成」或「ok」。" 
+                    return "好的，請說明您想要如何修改這張圖片？\n(例如：加上文字、改變顏色、調整內容等)\n\n如不需調整，請說「完成」或「ok」結束本服務！" 
                 else:
+                    # [Fix] Intent Detection: Check for topic switch before assuming modification
+                    # Because "can_modify" traps user if they say "weather" or "news"
+                    try:
+                        intent_check_prompt = f"""User is in Image Generation Mode (Reviewing Image).
+Current Input: "{user_input}"
+
+Analyze if this input is:
+1. "modify": A request to modify the image (e.g., "add a cat", "change to night", "make it blue", "text overlay").
+2. "switch": A request to switch feature or chat about something else (e.g., "news", "planning trip", "weather", "help", "cancel").
+
+Output JSON: {{ "intent": "modify" or "switch" }}"""
+                        check_res = model_functional.generate_content(intent_check_prompt)
+                        import json, re
+                        match = re.search(r'\{.*\}', check_res.text, re.DOTALL)
+                        if match:
+                            data = json.loads(match.group())
+                            if data.get('intent') == 'switch':
+                                print(f"[IMAGE_MOD] User switched topic: {user_input}")
+                                user_image_generation_state[user_id] = 'idle'
+                                # Recursive call to handle the input as a new intent
+                                return gemini_llm_sdk(user_input, user_id, reply_token)
+                    except Exception as e:
+                        print(f"[IMAGE_MOD] Intent check failed: {e}")
+
                     # 直接說修改內容，進入修改流程
                     user_image_generation_state[user_id] = 'generating'
                     
@@ -3453,6 +4422,14 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     2. 絕對不要講笑話。
                     3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
                     """
+                    
+                    # [Strategy Update] Retrieve last generated image path for reference
+                    current_bg = user_last_generated_image_path.get(user_id)
+                    # Verify file exists
+                    if current_bg and not os.path.exists(current_bg):
+                        current_bg = None
+                        
+                    print(f"[IMAGE_MOD] Using base image for reference: {current_bg}")
                     try:
                         # 使用功能性模型解析 Prompt
                         optimized = model_functional.generate_content(optimize_prompt)
@@ -3467,12 +4444,17 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                                 text_overlay = data.get('text_overlay')
                         except: pass
                         
-                        success, result = generate_image_with_imagen(image_prompt, user_id)
+                        # [Strategy Update] Pass base_image_path for reference-based generation
+                        success, result = generate_image_with_imagen(image_prompt, user_id, base_image_path=current_bg)
                         image_path = result if success else None
+                        
                         if success:
+                            hint = remain_img_hint(user_id)
                             if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
                             user_last_image_prompt[user_id] = {'prompt': image_prompt}
-                            msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                            user_last_generated_image_path[user_id] = image_path # Update last generated path
+                            
+                            msg = f"圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」或「ok」結束本服務。\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！{hint}"
                             if send_image_to_line(user_id, image_path, msg, reply_token):
                                 user_image_generation_state[user_id] = 'can_modify'
                                 return None # 已回覆
@@ -3481,6 +4463,9 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                                 return "圖片生成成功但發送失敗。請檢查後台 Log。"
                         else:
                             user_image_generation_state[user_id] = 'can_modify'
+                            # 如果 result 帶有額度不足的訊息，直接暴露給用戶
+                            if "額度已用完" in result:
+                                return result
                             return f"修改失敗：{result}"
                     except Exception as e:
                         print(f"Modification error: {e}")
@@ -3499,7 +4484,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     user_image_generation_state[user_id] = 'generating'
                     state = 'generating' 
                 else:
-                    return f"好的，您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                    return f"好的，您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息！"
             
             if state == 'waiting_for_prompt':
                 if '取消' in user_input:
@@ -3512,7 +4497,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 if user_id not in user_last_image_prompt or isinstance(user_last_image_prompt[user_id], str):
                     user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
                 user_last_image_prompt[user_id]['pending_description'] = user_input
-                return f"您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                return f"您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息！"
             
             if state == 'generating':
                 saved_data = user_last_image_prompt.get(user_id, {})
@@ -3553,8 +4538,13 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     if image_path:
                         if text_overlay:
                             image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
+                        
+                        # 儲存生成路徑供後續修改參考
+                        user_last_generated_image_path[user_id] = image_path
+
                         user_last_image_prompt[user_id] = {'prompt': image_prompt}
-                        msg = "圖片生成完成。\n\n如需修改，請直接說明您的調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 修改期間約15秒，請勿再次發送訊息，以免錯誤！"
+                        hint = remain_img_hint(user_id)
+                        msg = f"圖片生成完成。\n\n如需修改，請直接說明您的調整需求。\n如不需調整，請說「完成」或「ok」結束本服務！\n⚠️ 修改期間約15秒，請勿再次發送訊息，以免錯誤！{hint}"
                         if send_image_to_line(user_id, image_path, msg, reply_token):
                             user_image_generation_state[user_id] = 'can_modify'
                             return None 
@@ -3598,8 +4588,8 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  current_intent = 'image_generation'
              elif any(k in prefix for k in ["生成影片", "製作影片", "做影片"]):
                  current_intent = 'video_generation'
-             elif any(k in prefix for k in ["我的提醒", "查詢提醒", "查看提醒", "待辦事項", "提醒通知"]):
-                 current_intent = 'show_reminders'
+             elif any(k in prefix for k in ["提醒通知", "設定提醒", "我的提醒", "查詢提醒", "查看提醒", "待辦事項"]):
+                current_intent = 'show_reminders'
              
              # 如果關鍵字沒抓到，才用 AI (處理自然語言，如 "我想去宜蘭")
              if not current_intent:
@@ -3626,7 +4616,12 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                        # For simplicity, we can reuse the code block or jump to it.
                        # But since we are replacing the structure, we should copy the modification implementation here.
                        
-                       last_prompt = user_last_image_prompt.get(user_id, "")
+                       # 正確提取上一次的prompt內容
+                       last_prompt_data = user_last_image_prompt.get(user_id, {})
+                       if isinstance(last_prompt_data, dict):
+                           last_prompt = last_prompt_data.get('prompt', '')
+                       else:
+                           last_prompt = str(last_prompt_data) if last_prompt_data else ''
                        
                        optimize_prompt = f"""
                        System: User wants to modify the previous image.
@@ -3635,7 +4630,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                        
                        Please generate a new English Prompt. If user asks to add text, put it in text_overlay.
                        Return JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
-                       Requirements: 1. Keep the core of the old image. 2. NO JOKES.
+                       Requirements: 
+                       1. **Keep the core composition and main subject of the old image**, only make the adjustments requested by the user. 
+                       2. **If there are people, describe their features (hair, glasses, clothes, gender, age) from the old prompt to maintain identity as much as possible.**
+                       3. NO JOKES.
                        """
                        # ... (Generation Logic)
                        try:
@@ -3651,13 +4649,16 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                                     text_overlay = data.get('text_overlay')
                             except: pass
                             
-                            success, result = generate_image_with_imagen(image_prompt, user_id)
+                            # 嘗試獲取上一張生成的圖片路徑作為 Base Image
+                            base_img_path = user_last_generated_image_path.get(user_id)
+                            success, result = generate_image_with_imagen(image_prompt, user_id, base_image_path=base_img_path)
                             image_path = result if success else None
                             if success:
+                                user_last_generated_image_path[user_id] = image_path
                                 if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
                                 user_last_image_prompt[user_id] = {'prompt': image_prompt}
                                 # 使用 reply_token 免費發送
-                                msg = "圖片修改完成🎉\n\n如需再次修改，請直接說明調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                                msg = "圖片修改完成🎉\n\n如需再次修改，請直接說明調整需求。\n如不需調整，請說「完成」或「ok」結束本服務！\n\n(小提醒：AI是重新繪圖，人物長相可能會改變喔！)"
                                 if send_image_to_line(user_id, image_path, msg, reply_token):
                                     user_image_generation_state[user_id] = 'can_modify'
                                     return None # 已回覆
@@ -3670,7 +4671,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                             print(e)
                             return "Error processing..."
                   else:
-                       return "You haven't generated an image recently! Say 'Generate an image' to start."
+                        return "您還沒有生成過圖片喔！請說「畫一張...」來開始。"
 
              # 3. 圖片生成 - 引導式對話
              elif current_intent == 'image_generation':
@@ -3709,13 +4710,13 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      user_image_generation_state[user_id] = 'waiting_for_prompt'
                      return """好的，我們來生成圖片。
 
-請描述您想要的圖片內容：
-🌄 風景類：山、海、森林、城市等
-👨‍👩‍👧 人物類：什麼樣的人、在做什麼
-🎨 藝術類：水彩、油畫、卡通等
+請描述想要的圖片內容：
+舉例：
+🌄 山、海、森林、城市
+👨‍👩‍👧 什麼樣的人、在做什麼
+🎨 水彩、油畫、卡通風格
 
-請盡量描述詳細，或直接說「開始生成」使用預設設定。
-＊不想製作了隨時說「取消」。"""
+＊隨時說「取消」可停止"""
 
              # 4. 長輩圖製作
              elif current_intent == 'meme_creation':
@@ -3723,7 +4724,27 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
 
              # 5. 行程規劃
              elif current_intent == 'trip_planning':
-                 return handle_trip_agent(user_id, user_input, is_new_session=True, reply_token=reply_token)
+                 trip_response = handle_trip_agent(user_id, user_input, is_new_session=True, reply_token=reply_token)
+                 if trip_response:
+                     return trip_response
+                # [Fix] 若回傳 None (例如跳話題)，保留當前輸入並轉交給一般聊天邏輯處理
+                 # 複製下方的 Chat 邏輯，確保話題能順利接續
+                 print(f"[TRIP] Fallback to chat logic for user {user_id}")
+                 
+                 # 檢查是否有圖
+                 has_image = user_id in user_images
+                 
+                 if user_id not in chat_sessions: chat_sessions[user_id] = model.start_chat(history=[])
+                 chat = chat_sessions[user_id]
+                 
+                 if has_image:
+                     upload_image = PIL.Image.open(user_images[user_id])
+                     formatted_input = [f"{user_input}", upload_image]
+                     response = chat.send_message(formatted_input)
+                 else:
+                     response = chat.send_message(user_input)
+                     
+                 return response.text
 
              # 6. 查看提醒
              elif current_intent == 'show_reminders':
@@ -3743,12 +4764,14 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              elif current_intent == 'cancel_reminder':
                  if not ADVANCED_FEATURES_ENABLED or not db: return "提醒功能需要資料庫支援喔！"
                  try:
-                     # 簡單起見，目前支援刪除全部 (未來可擴充刪除指定 ID)
-                     count = db.delete_all_user_reminders(user_id)
+                     # 簡單起見，目前支援刪除全部未發送的提醒
+                     count = db.delete_pending_user_reminders(user_id)
                      if count > 0:
-                         return f"好的，已為您刪除共 {count} 則提醒！"
+                         # 退回配額
+                         decrement_reminder_quota(user_id, count)
+                         return f"好的，已為您刪除共 {count} 則尚未提醒的待辦事項！今日額度已釋出。"
                      else:
-                         return "您目前沒有設定任何提醒喔！"
+                         return "您目前沒有待辦的提醒喔！"
                  except Exception as e:
                      print(f"Delete reminder error: {e}")
                      return "取消提醒時發生錯誤，請稍後再試。"
@@ -3757,6 +4780,11 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
              elif current_intent == 'set_reminder':
                  if not ADVANCED_FEATURES_ENABLED or not db: return "提醒功能需要資料庫支援喔！"
                  try:
+                     # ===== 每日提醒配額檢查 =====
+                     quota_ok, remind_count, quota_msg = check_reminder_quota(user_id)
+                     if not quota_ok:
+                         return quota_msg
+                     
                      parse_prompt = f"""System: User says: "{user_input}". Parse reminder and rewrite warmly in Traditional Chinese (繁體中文).
                      Return JSON: {{ "reminder_text": "...", "reminder_time": "2026-01-17T08:00:00" }}
                      Requirement: Keep response short and smooth. Ensure reminder_text is in Traditional Chinese.
@@ -3769,7 +4797,11 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      t = datetime.fromisoformat(data['reminder_time'])
                      db.add_reminder(user_id, data['reminder_text'], t)
                      
-                     reply = f"OK! 已為您設定提醒：{t.strftime('%m/%d %H:%M')}，提醒內容：「{data['reminder_text']}」。"
+                     # 設定成功後累加計數
+                     remain_reminders = increment_reminder_quota(user_id)
+                     remain_hint = f"\n📊 今日剩餘提醒配額：{remain_reminders} 個" if user_id not in QUOTA_WHITELIST else ""
+                     
+                     reply = f"OK! 已為您設定提醒：{t.strftime('%m/%d %H:%M')}，提醒內容：「{data['reminder_text']}」。{remain_hint}"
                      
                      # 檢查系統額度狀態，若已滿則主動告知
                      if db.is_system_quota_full():
@@ -3791,7 +4823,10 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                  chat = chat_sessions[user_id]
                  
                  if has_image:
-                     upload_image = PIL.Image.open(user_images[user_id])
+                     # [Fix Bug 3] user_images stores a list; get the latest one
+                     img_list = user_images[user_id]
+                     last_img_path = img_list[-1] if isinstance(img_list, list) else img_list
+                     upload_image = PIL.Image.open(last_img_path)
                      # 圖片模式下，仍保留簡單提示以確保多模態效果，但簡化內容
                      formatted_input = [f"{user_input}", upload_image]
                      response = chat.send_message(formatted_input)
@@ -3820,23 +4855,31 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 # 檢查是否只是說「修改」
                 if user_input.strip() in ['修改', '要修改', '我要修改']:
                     user_image_generation_state[user_id] = 'waiting_for_modification'
-                    return "好的，請說明您想要如何修改這張圖片？\n(例如：加上文字、改變顏色、調整內容等)\n\n如不需調整，請說「完成」或「ok」。" 
+                    return "好的，請說明您想要如何修改這張圖片？\n(例如：加上文字、改變顏色、調整內容等)\n\n如不需調整，請說「完成」或「ok」結束本服務！" 
                 else:
                     # 直接說修改內容，進入修改流程
                     user_image_generation_state[user_id] = 'generating'
                     
-                    last_prompt = user_last_image_prompt.get(user_id, "")
+                    # 正確提取上一次的prompt內容
+                    last_prompt_data = user_last_image_prompt.get(user_id, {})
+                    if isinstance(last_prompt_data, dict):
+                        last_prompt = last_prompt_data.get('prompt', '')
+                    else:
+                        last_prompt = str(last_prompt_data) if last_prompt_data else ''
+                    
                     optimize_prompt = f"""
                     系統：用戶想要修改之前的圖片。
                     舊提示詞：{last_prompt}
                     用戶修改需求：{user_input}
-                    
-                    請產生新的英文 Prompt。如果用戶要求加字，請放入 text_overlay。
-                    回傳 JSON: {{ "image_prompt": "...", "text_overlay": "..." }}
+                    Please generate a new English Prompt. If user asks to add text, put it in text_overlay.
+                    Return JSON: {{ "image_prompt": "...", "text_overlay": "...", "text_position": "bottom" }}
                     要求：
-                    1. 保留舊圖核心。 
-                    2. 絕對不要講笑話。
-                    3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
+                    1. **保留舊圖的核心構圖和主體內容**，只做用戶要求的調整。
+                    2. **若原圖有人物，請根據舊提示詞詳細描述其特徵（髮型、眼鏡、衣著、性別、年齡），盡量保持人物外觀一致**。
+                    3. **If the user EXPLICITLY asks to add text (e.g., "Add text...", "Write..."), put it in text_overlay. OTHERWISE, DO NOT OUTPUT text_overlay. Ignore existing text in the image.**
+                    4. **若進行局部修改，請在Prompt中強調保持其他部分不變（Keep original composition and pose strict）**。
+                    5. 絕對不要講笑話。
+                    6. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
                     
                     """
                     try:
@@ -3845,21 +4888,36 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         import json, re
                         image_prompt = optimized.text.strip()
                         text_overlay = None
+                        text_position = 'bottom'
                         try:
                             match = re.search(r'\{.*\}', optimized.text, re.DOTALL)
                             if match:
                                 data = json.loads(match.group())
                                 image_prompt = data.get('image_prompt', image_prompt)
                                 text_overlay = data.get('text_overlay')
+                                text_position = data.get('text_position', 'bottom')
                         except: pass
                         
-                        success, result = generate_image_with_imagen(image_prompt, user_id)
+                        # 嘗試獲取上一張生成的圖片路徑作為 Base Image
+                        base_img_path = user_last_generated_image_path.get(user_id)
+                        
+                        success, result = generate_image_with_imagen(image_prompt, user_id, base_image_path=base_img_path)
                         image_path = result if success else None
                         if success:
-                            if text_overlay: image_path = create_meme_image(image_path, text_overlay, user_id, position='center')
+                            user_last_generated_image_path[user_id] = image_path
+                            # 自動合成文字 (如果 Gemini 有提取出來)
+                            if text_overlay:
+                                # 根據位置參數決定 (預設 bottom)
+                                pos = text_position if text_position in ['top', 'center', 'bottom'] else 'bottom'
+                                try:
+                                    image_path = create_meme_image(image_path, text_overlay, user_id, position=pos, font_size=60)
+                                    print(f"[IMAGE_GEN_MODIFY] Added text overlay: {text_overlay} at {pos}")
+                                except Exception as e:
+                                    print(f"[IMAGE_GEN_MODIFY] Failed to add text overlay: {e}")
+
                             user_last_image_prompt[user_id] = {'prompt': image_prompt}
                             # 使用 reply_token 免費發送
-                            msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                            msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」結束本服務！\n(小提醒：AI是重新繪圖，人物長相可能會改變喔！)"
                             if send_image_to_line(user_id, image_path, msg, reply_token):
                                 user_image_generation_state[user_id] = 'can_modify'
                                 return None # 已回覆
@@ -3889,7 +4947,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     # 不要 return，讓它繼續執行下面的 generating 邏輯
                 else:
                     # 用戶重新描述，用新描述再次確認
-                    return f"好的，您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                    return f"好的，您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息！"
             
             if state == 'waiting_for_prompt':
                 # 檢查是否要取消
@@ -3905,7 +4963,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 if user_id not in user_last_image_prompt or isinstance(user_last_image_prompt[user_id], str):
                     user_last_image_prompt[user_id] = {'prompt': user_last_image_prompt.get(user_id, '')}
                 user_last_image_prompt[user_id]['pending_description'] = user_input
-                return f"您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息，以免錯誤！"
+                return f"您想要生成的圖片內容是：\n\n「{user_input}」\n\n請確認是否開始生成？\n(請回答「確定」或重新描述，也可說「取消」)\n\n⚠️ 送出後需等待15秒期間，請勿再次發送訊息！"
             
             if state == 'generating':
                 # 用戶已確認，開始生成
@@ -3953,6 +5011,12 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                     
                     print(f"生成圖片，Prompt: {image_prompt}")
                     
+                    # ===== 配額檢查（融合/修改/生成三者共用每日 6 次）=====
+                    quota_ok, _, quota_msg = check_image_quota(user_id)
+                    if not quota_ok:
+                        user_image_generation_state[user_id] = 'idle'
+                        return quota_msg
+                    
                     # 生成圖片
                     success, result = generate_image_with_imagen(image_prompt, user_id)
                     image_path = result if success else None
@@ -3967,8 +5031,9 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         # 保存 Prompt 以便修改
                         user_last_image_prompt[user_id] = {'prompt': image_prompt}
                         
-                        # 傳送圖片給用戶 - 使用 reply_token 免費發送
-                        msg = "圖片生成完成。\n\n如需修改，請直接說明您的調整需求。\n如不需調整，請說「完成」或「ok」。\n⚠️ 修改期間約15秒，請勿再次發送訊息，以免錯誤！"
+                        # 傳送圖片給用戶
+                        hint = remain_img_hint(user_id)
+                        msg = f"圖片生成完成。\n\n如需修改，請直接說明您的調整需求。\n如不需調整，請說「完成」或「ok」結束本服務！\n⚠️ 修改期間約15秒，請勿再次發送訊息，以免錯誤！{hint}"
                         if send_image_to_line(user_id, image_path, msg, reply_token):
                             # 設定為可修改狀態，而不是 idle
                             user_image_generation_state[user_id] = 'can_modify'
@@ -4052,7 +5117,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         
                         print(f"[DEBUG] Before send: image_path type={type(image_path)}, value={image_path}")
                         # 使用 reply_token 免費發送
-                        msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 調整期間約15秒，請勿再次發送訊息，以免錯誤！"
+                        msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」結束本服務。\n⚠️ 調整期間約15秒，請勿再次發送訊息，以免錯誤！"
                         if send_image_to_line(user_id, image_path, msg, reply_token):
                             # 成功後保持 can_modify 狀態，允許繼續修改
                             user_image_generation_state[user_id] = 'can_modify'
@@ -4123,7 +5188,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                      user_last_image_prompt[user_id] = {'prompt': image_prompt}
                      
                      # 使用 reply_token 免費發送
-                     msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 生成期間約15秒，請勿發送訊息，以免造成錯誤！"
+                     msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」結束本服務。\n⚠️ 生成期間約15秒，請勿再次發送訊息！"
                      if send_image_to_line(user_id, image_path, msg, reply_token):
                          user_image_generation_state[user_id] = 'can_modify'
                          return None # 已回覆
@@ -4169,7 +5234,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 要求：
                 1. 保留舊圖核心。
                 2. 絕對不要講笑話。
-                3. text_overlay 必須是「純文字」，禁止包含括號、表情描述 (如 (red heart)) 或任何非顯示用的文字。
+                3. **If the user EXPLICITLY asks to add text, put it in text_overlay. OTHERWISE, DO NOT OUTPUT text_overlay. Ignore existing text in the image.**
                 """
                 
                 try:
@@ -4199,7 +5264,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                         user_last_image_prompt[user_id] = {'prompt': image_prompt}
                         
                         # 使用 reply_token 免費發送
-                        msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 生成期間約15秒，請勿發送訊息，以免造成錯誤！"
+                        msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」結束本服務。\n⚠️ 生成期間約15秒，請勿再次發送訊息！"
                         if send_image_to_line(user_id, image_path, msg, reply_token):
                             user_image_generation_state[user_id] = 'can_modify'
                             return None # 已回覆
@@ -4246,7 +5311,7 @@ def gemini_llm_sdk(user_input, user_id=None, reply_token=None):
                 
                 print(f"[DEBUG] Before send: image_path type={type(image_path)}, value={image_path}")
                 # 使用 reply_token 免費發送
-                msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」。\n⚠️ 生成期間約15秒，請勿發送訊息，以免造成錯誤！"
+                msg = "圖片修改完成！\n\n還可以繼續調整喔！如不需調整，請說「完成」結束本服務。\n⚠️ 生成期間約15秒，請勿再次發送訊息！"
                 if send_image_to_line(user_id, image_path, msg, reply_token):
                     user_image_generation_state[user_id] = 'can_modify'
                     return None # 已回覆
@@ -4277,14 +5342,5 @@ if ADVANCED_FEATURES_ENABLED:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    try:
-        print(f"🚀 Starting bot on port {port}...")
-        app.run(host="0.0.0.0", port=port)
-    finally:
-        # 關閉排程器
-        if reminder_scheduler:
-            try:
-                reminder_scheduler.stop()
-                print("✅ Reminder scheduler stopped")
-            except:
-                pass
+    print(f"🚀 Starting bot on port {port}...")
+    app.run(host="0.0.0.0", port=port)
