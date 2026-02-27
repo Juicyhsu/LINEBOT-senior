@@ -3730,18 +3730,23 @@ Output JSON: {{ "intent": "text" or "switch" }}"""
 Look at the image carefully. Identify the main subject (person, animal, object, flower).
 Determine which AREA the subject occupies: "top", "bottom", "left", "right", "center"
 
-**STEP 2: PLACE TEXT IN THE OPPOSITE AREA**
+**STEP 2: FIND SECONDARY OBJECTS**
+Also identify any secondary objects (flying balls, background characters, props, etc.) and note which corners/areas they occupy.
+List them as areas: "top-left", "top-right", "bottom-left", "bottom-right", "top", "bottom", "left", "right"
+
+**STEP 3: PLACE TEXT IN THE OPPOSITE AREA**
 - If subject is at TOP → text goes at BOTTOM
 - If subject is at BOTTOM → text goes at TOP  
 - If subject is at CENTER → text goes at edges (top-left, top-right, bottom-left, bottom-right)
 - If subject is at LEFT → text goes at RIGHT
 - If subject is at RIGHT → text goes at LEFT
+- AVOID any area listed in secondary_occupied
 
-**STEP 3: DETERMINE FONT SIZE**
+**STEP 4: DETERMINE FONT SIZE**
 - If subject covers > 50% of image (LARGE subject) → Use SMALLER font (50-80px) to fit in gaps
 - If subject is small/clean background → Use LARGER font (90-130px)
 
-**NEVER put text over the main subject! It's okay to cover unimportant corners.**
+**NEVER put text over the main subject OR any secondary object!**
 
 **Color choices:**
 **STRATEGY: EXTRACT FROM IMAGE**
@@ -3751,10 +3756,11 @@ Determine which AREA the subject occupies: "top", "bottom", "left", "right", "ce
 4. **Avoid:** Generic default colors (plain white/yellow) unless they are part of the image's specific aesthetic.
 5. **Format:** Output exact HEX CODES based on the image analysis.
 
-**Output JSON (MUST include subject_location):**
+**Output JSON (MUST include all fields):**
 {{
   "subject_location": "top/bottom/left/right/center",
   "subject_size": "large/small",
+  "secondary_occupied": ["top-left"],
   "position": "top/bottom/left/right/top-left/top-right/bottom-left/bottom-right",
   "color": "#HEXCODE",
   "stroke_color": "#HEXCODE",
@@ -3800,6 +3806,10 @@ Text to display: "{text}"
                         data = json.loads(json_match.group())
                         subject_location = data.get('subject_location', 'center')
                         subject_size = data.get('subject_size', 'small') # 新增：主體大小
+                        # [Layer 2] 次要物件佔用的位置（如飛球、背景人物）
+                        secondary_occupied = data.get('secondary_occupied', [])
+                        if not isinstance(secondary_occupied, list):
+                            secondary_occupied = []
                         position = data.get('position', 'top')
                         direction = data.get('direction', 'horizontal')
                         color = data.get('color')
@@ -3827,32 +3837,53 @@ Text to display: "{text}"
                             if size < 70:
                                 size = 70
                         
-                        # 🚨 位置安全檢查：確保文字不會蓋住主體
+                        # [Layer 1] 🚨 位置安全檢查（修正版）：使用集合比對，而非字串 in 比對
+                        # 原本的 subject_location in position 會因字串包含誤判
+                        # 例如 subject='top', position='top-left' → 'top' in 'top-left' = True (誤判)
+                        POSITION_AREAS = {
+                            'top':    {'top', 'top-left', 'top-right'},
+                            'bottom': {'bottom', 'bottom-left', 'bottom-right'},
+                            'left':   {'left', 'top-left', 'bottom-left'},
+                            'right':  {'right', 'top-right', 'bottom-right'},
+                            'center': {'center'},
+                        }
                         opposite_map = {
-                            'top': ['bottom', 'bottom-left', 'bottom-right'],
+                            'top':    ['bottom', 'bottom-left', 'bottom-right'],
                             'bottom': ['top', 'top-left', 'top-right'],
-                            'left': ['right', 'top-right', 'bottom-right'],
-                            'right': ['left', 'top-left', 'bottom-left'],
+                            'left':   ['right', 'top-right', 'bottom-right'],
+                            'right':  ['left', 'top-left', 'bottom-left'],
                             'center': ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                         }
                         safe_positions = opposite_map.get(subject_location, ['top', 'bottom'])
                         
-                        # 🚨 安全檢查：只在文字位置會蓋住主體時才修正
-                        # 注意：如果主體不在 center（如風景圖），center 位置是安全的
-                        is_unsafe = (
-                            subject_location in position or 
-                            position == subject_location or
-                            (position == 'center' and subject_location == 'center')  # 只有主體在中間時才禁止 center
-                        )
+                        # 正確的集合比對：判斷 position 是否落在主體所在的區域集合中
+                        subject_zones = POSITION_AREAS.get(subject_location, set())
+                        is_unsafe = position in subject_zones
                         
                         if is_unsafe:
                             import random
                             old_position = position
-                            position = random.choice(safe_positions)
-                            print(f"[MEME SAFETY] Position corrected: {old_position} → {position} (subject at {subject_location})")
+                            # 從安全位置中排除次要物件所在位置後再隨機選
+                            truly_safe = [p for p in safe_positions if p not in secondary_occupied]
+                            if not truly_safe:
+                                truly_safe = safe_positions  # 若排除後為空，退回原本安全清單
+                            position = random.choice(truly_safe)
+                            print(f"[MEME SAFETY L1] Position corrected: {old_position} → {position} (subject at {subject_location})")
+                        else:
+                            # [Layer 2] 即使主體安全，也要再檢查次要物件
+                            if secondary_occupied and position in secondary_occupied:
+                                import random
+                                old_position = position
+                                all_positions = ['top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
+                                subject_zones = POSITION_AREAS.get(subject_location, set())
+                                truly_safe = [p for p in all_positions if p not in secondary_occupied and p not in subject_zones]
+                                if not truly_safe:
+                                    truly_safe = safe_positions
+                                position = random.choice(truly_safe)
+                                print(f"[MEME SAFETY L2] Secondary object conflict: {old_position} → {position} (secondary at {secondary_occupied})")
                         
                         # DEBUG: 顯示AI選擇的風格
-                        print(f"[MEME AI] Subject={subject_location}, Position={position}, Color={color}, Stroke={stroke_width}px")
+                        print(f"[MEME AI] Subject={subject_location}, Position={position}, Color={color}, Stroke={stroke_width}px, SecondaryBlocked={secondary_occupied}")
                     else:
                         raise ValueError("No JSON found")
                         
