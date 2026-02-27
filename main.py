@@ -1158,6 +1158,76 @@ def get_font_path(font_type):
         print(f"[FONT] Download exception: {e}")
         return None
 
+# ======================
+# [Layer 3] Pixel Analysis: Find Best Text Region
+# ======================
+def find_best_text_region(img, candidate_positions, padding=40):
+    """
+    分析圖片各候選位置的留白面積，選出背景最乾淨（邊緣密度最低）的角落。
+    
+    回傳: (best_position: str, region: tuple(x, y, w, h))
+    - best_position: 候選位置中背景最乾淨的那個
+    - region: 該位置的可用矩形區域 (x, y, 寬, 高)
+    """
+    try:
+        from PIL import ImageFilter
+        import math
+        
+        w, h = img.size
+        # 每個位置對應的取樣矩形 (相對座標，以圖片比例定義)
+        # 取每個角落/邊的 40% 範圍作為取樣區
+        region_map = {
+            'top':          (0,         0,         w,         int(h*0.40)),
+            'bottom':       (0,         int(h*0.60), w,       h),
+            'left':         (0,         0,         int(w*0.40), h),
+            'right':        (int(w*0.60), 0,       w,         h),
+            'top-left':     (0,         0,         int(w*0.45), int(h*0.45)),
+            'top-right':    (int(w*0.55), 0,       w,         int(h*0.45)),
+            'bottom-left':  (0,         int(h*0.55), int(w*0.45), h),
+            'bottom-right': (int(w*0.55), int(h*0.55), w,    h),
+            'center':       (int(w*0.25), int(h*0.25), int(w*0.75), int(h*0.75)),
+        }
+        
+        # 轉灰階，套用 FIND_EDGES 濾鏡以計算邊緣密度
+        gray = img.convert('L')
+        edge_img = gray.filter(ImageFilter.FIND_EDGES)
+        
+        best_pos = candidate_positions[0]
+        best_score = float('inf')  # 越低越好（越空白）
+        
+        for pos in candidate_positions:
+            if pos not in region_map:
+                continue
+            rx1, ry1, rx2, ry2 = region_map[pos]
+            region_crop = edge_img.crop((rx1, ry1, rx2, ry2))
+            pixels = list(region_crop.getdata())
+            if not pixels:
+                continue
+            # 平均邊緣強度：越低代表越空白
+            avg_edge = sum(pixels) / len(pixels)
+            print(f"[PIXEL] Position '{pos}' edge density: {avg_edge:.2f}")
+            if avg_edge < best_score:
+                best_score = avg_edge
+                best_pos = pos
+        
+        # 計算最佳位置的可用區域 (加入 padding)
+        rx1, ry1, rx2, ry2 = region_map.get(best_pos, (0, 0, w, h))
+        region = (
+            rx1 + padding,
+            ry1 + padding,
+            max(1, rx2 - rx1 - padding * 2),  # 寬
+            max(1, ry2 - ry1 - padding * 2),  # 高
+        )
+        
+        print(f"[PIXEL] Best position: '{best_pos}' (edge density={best_score:.2f}), usable area={region[2]}x{region[3]}px")
+        return best_pos, region
+        
+    except Exception as e:
+        print(f"[PIXEL] find_best_text_region error: {e}, using first candidate")
+        # 發生任何錯誤，回傳第一個候選位置和整張圖的範圍（讓原有邏輯繼續）
+        w, h = img.size
+        return candidate_positions[0], (padding, padding, w - padding*2, h - padding*2)
+
 def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=12, stroke_color=None, decorations=None):
     """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果 + 裝飾元素）"""
     try:
@@ -3894,13 +3964,58 @@ Text to display: "{text}"
                     position = 'bottom'
                     pass
                 
-                # [Final Decision] Unlock AI Color Choice
-                # Allow AI to pick ANY hex code or color name.
-                # create_meme_image will handle the rendering.
-                pass
+                # [Layer 3] 🔬 像素分析最終定位 + 精確字體大小
+                # 用真實像素邊緣密度，從安全位置中選出最空曠的角落
+                # 並根據該區域的實際像素尺寸計算最合適的字體大小
+                try:
+                    # 收集所有安全候選位置（主體安全 + 次要物件安全）
+                    POSITION_AREAS_L3 = {
+                        'top':    {'top', 'top-left', 'top-right'},
+                        'bottom': {'bottom', 'bottom-left', 'bottom-right'},
+                        'left':   {'left', 'top-left', 'bottom-left'},
+                        'right':  {'right', 'top-right', 'bottom-right'},
+                        'center': {'center'},
+                    }
+                    subject_zones_l3 = POSITION_AREAS_L3.get(subject_location, set())
+                    all_candidate_positions = [
+                        p for p in ['top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
+                        if p not in subject_zones_l3 and p not in secondary_occupied
+                    ]
+                    if not all_candidate_positions:
+                        all_candidate_positions = safe_positions  # fallback
+
+                    # 執行像素分析，找出最空曠的位置與可用區域
+                    pixel_best_pos, pixel_region = find_best_text_region(bg_image, all_candidate_positions)
+
+                    # 用像素分析的結果覆蓋 AI 猜測的位置
+                    old_ai_pos = position
+                    position = pixel_best_pos
+                    print(f"[PIXEL] Overriding AI position '{old_ai_pos}' → '{position}'")
+
+                    # 根據可用區域面積計算精確字體大小
+                    avail_w = pixel_region[2]
+                    avail_h = pixel_region[3]
+                    char_count = max(len(text), 1)
+
+                    # 高度估算：字體高度 ≤ 可用高度的 38%（保留換行空間）
+                    size_by_height = int(avail_h * 0.38)
+                    # 寬度估算：假設文字單行排列，每字佔一格
+                    size_by_width = int(avail_w / char_count)
+                    # 取較小值，確保不超出可用區域，再 clamp 在合理範圍
+                    pixel_size = max(40, min(size_by_height, size_by_width, 130))
+
+                    # 只有在像素計算的大小合理時才採用（避免過度縮小）
+                    if pixel_size >= 40:
+                        old_size = size
+                        size = pixel_size
+                        print(f"[PIXEL] Font size: AI={old_size}px → Pixel-calculated={size}px (area={avail_w}x{avail_h})")
+
+                except Exception as pixel_e:
+                    print(f"[PIXEL] Integration error: {pixel_e}, keeping AI decisions")
+                    # 完全 fallback，不影響原有 AI 決策
 
                 print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, stroke={stroke_width}")
-                
+
                 # 傳遞 decorations 參數
                 final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations)
                 
