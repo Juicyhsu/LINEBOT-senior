@@ -1228,8 +1228,10 @@ def find_best_text_region(img, candidate_positions, padding=40):
         w, h = img.size
         return candidate_positions[0], (padding, padding, w - padding*2, h - padding*2)
 
-def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=12, stroke_color=None, decorations=None):
-    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果 + 裝飾元素）"""
+def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size=60, position='top', color='white', angle=0, stroke_width=12, stroke_color=None, decorations=None, text_style='gentle'):
+    """製作長輩圖（創意版 - 支援彩虹、波浪、大小變化、描邊等效果 + 裝飾元素）
+    text_style: 'wave'(波浪+小旋轉), 'gentle'(輕微波浪), 'straight'(完全水平)
+    """
     try:
         import random
         import math
@@ -1465,9 +1467,16 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
                 else:
                     char_color = fill_color
                 
-                # 🌊 波浪 + 📐 微旋轉
-                wave_offset = math.sin(current_x * 0.05) * 5
-                char_angle = random.uniform(-5, 5)
+                # 🌊 波浪 + 📐 微旋轉 (依 text_style 决定強度)
+                if text_style == 'wave':
+                    wave_offset = math.sin(current_x * 0.05) * 5   # 明顯波浪
+                    char_angle = random.uniform(-5, 5)               # 明顯小旋轉
+                elif text_style == 'gentle':
+                    wave_offset = math.sin(current_x * 0.05) * 2   # 輕微波浪
+                    char_angle = 0                                    # 不旋轉
+                else:  # straight
+                    wave_offset = 0                                   # 完全水平
+                    char_angle = 0                                    # 不旋轉
                 
                 char_real_y = current_y + wave_offset
                 
@@ -3812,9 +3821,15 @@ List them as areas: "top-left", "top-right", "bottom-left", "bottom-right", "top
 - If subject is at RIGHT → text goes at LEFT
 - AVOID any area listed in secondary_occupied
 
+**STEP 5: CHOOSE TEXT STYLE**
+Decide the animation style based on the mood of the image and the text:
+- "wave": wavy + slightly rotated characters (lively, fun, energetic images)
+- "gentle": slight wave only, no rotation (warm, scenic, peaceful images)
+- "straight": perfectly straight text (elegant, minimalist, formal images)
+
 **STEP 4: DETERMINE FONT SIZE**
 - If subject covers > 50% of image (LARGE subject) → Use SMALLER font (50-80px) to fit in gaps
-- If subject is small/clean background → Use LARGER font (90-130px)
+- If subject is small/clean background → Use LARGER font (80-90px)
 
 **NEVER put text over the main subject OR any secondary object!**
 
@@ -3834,8 +3849,9 @@ List them as areas: "top-left", "top-right", "bottom-left", "bottom-right", "top
   "position": "top/bottom/left/right/top-left/top-right/bottom-left/bottom-right",
   "color": "#HEXCODE",
   "stroke_color": "#HEXCODE",
-  "font_size": 60-130,
-  "stroke_width": 6-16
+  "font_size": 60-90,
+  "stroke_width": 6-16,
+  "text_style": "wave/gentle/straight"
 }}
 
 Text to display: "{text}"
@@ -3895,6 +3911,10 @@ Text to display: "{text}"
                         stroke_color = data.get('stroke_color', '#000000')
                         size = int(data.get('font_size', 80))
                         decorations = data.get('decorations', [])
+                        # [Style] AI 决定文字風格: 'wave'(活潑), 'gentle'(溫和), 'straight'(工整)
+                        text_style = data.get('text_style', 'gentle')
+                        if text_style not in ('wave', 'gentle', 'straight'):
+                            text_style = 'gentle'  # 預設安全値
                         
                         # 📏 根據主體大小自動調整字體 (Auto-Resize)
                         if subject_size == 'large':
@@ -4002,7 +4022,8 @@ Text to display: "{text}"
                     # 寬度估算：假設文字單行排列，每字佔一格
                     size_by_width = int(avail_w / char_count)
                     # 取較小值，確保不超出可用區域，再 clamp 在合理範圍
-                    pixel_size = max(40, min(size_by_height, size_by_width, 130))
+                    # 上限設為 85px，避免風景圖等大空白區域產生過大字體
+                    pixel_size = max(40, min(size_by_height, size_by_width, 85))
 
                     # 只有在像素計算的大小合理時才採用（避免過度縮小）
                     if pixel_size >= 40:
@@ -4016,8 +4037,8 @@ Text to display: "{text}"
 
                 print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, stroke={stroke_width}")
 
-                # 傳遞 decorations 參數
-                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations)
+                # 傳遞 decorations 及 text_style 參數
+                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations, text_style)
                 
                 # Send - 使用 reply_token 免費發送
                 if final_path:
