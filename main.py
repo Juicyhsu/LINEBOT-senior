@@ -1307,22 +1307,42 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
         if position in ('vertical-right', 'vertical-left'):
             padding_v = 40
             char_size = font_size if font_size else 70
-            try:
-                v_font = ImageFont.truetype(font_path, char_size) if font_path else ImageFont.load_default()
-            except:
-                v_font = ImageFont.load_default()
+            max_text_h = img.height - padding_v * 2  # 可用的最大文字總高度
 
-            dummy_draw = ImageDraw.Draw(img)
-            char_h_list = []
-            char_w_max = 0
-            for ch in text:
-                bb = dummy_draw.textbbox((0, 0), ch, font=v_font)
-                cw = bb[2] - bb[0]
-                char_h_list.append(bb[3] - bb[1] + 8)
-                if cw > char_w_max:
-                    char_w_max = cw
+            # 確保使用正確的中文字型（不依賴外部 font_path 是否已設定）
+            v_font_path = get_font_path(font_type)
+            def load_v_font(size):
+                try:
+                    if v_font_path:
+                        f = ImageFont.truetype(v_font_path, size)
+                        try:
+                            f.set_variation_by_name('Bold')
+                        except:
+                            pass
+                        return f
+                except:
+                    pass
+                return ImageFont.load_default()
 
-            total_text_h = sum(char_h_list)
+            # 自動縮小字型直到文字總高度能塞進圖片
+            while char_size >= 30:
+                v_font = load_v_font(char_size)
+                dummy_draw = ImageDraw.Draw(img)
+                char_h_list = []
+                char_w_max = 0
+                for ch in text:
+                    bb = dummy_draw.textbbox((0, 0), ch, font=v_font)
+                    cw = bb[2] - bb[0]
+                    char_h_list.append(bb[3] - bb[1] + 6)
+                    if cw > char_w_max:
+                        char_w_max = cw
+                total_text_h = sum(char_h_list)
+                if total_text_h <= max_text_h:
+                    break
+                char_size -= 5  # 縮小再重算
+
+            print(f"[VERTICAL] char_size={char_size}px, total_h={total_text_h}px, img_h={img.height}px")
+
             if position == 'vertical-right':
                 x_center = img.width - char_w_max // 2 - padding_v
             else:
@@ -1354,6 +1374,7 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             img.save(meme_path)
             return meme_path
         # ===================================================================
+
 
         # 創建文字圖層
         txt_layer = Image.new('RGBA', img.size, (255, 255, 255, 0))
@@ -3325,7 +3346,7 @@ def handle_trip_agent(user_id, user_input, is_new_session=False, reply_token=Non
                 if any(keyword in user_input for keyword in ['都可以', '都行', '隨便', '不挑', '任意', '推薦']):
                     # 直接使用大地區作為目的地
                     state['info']['destination'] = state['info']['large_region']
-                    return f"好的, {state['info']['large_region']}! 請問預計去幾天? (例如: 3天2夜)\n\n不想規劃了可以說「取消」"
+                    return f"好的, {state['info']['large_region']}! 請問預計去幾天? (例如: 3天2夜)"
             
             # 使用 AI 動態判斷地區是否需要細化 (同時提取地點名稱)
             # 例如用戶說 "我要去綠島" -> 提取 "綠島"
@@ -3609,9 +3630,7 @@ def handle_meme_agent(user_id, user_input=None, image_content=None, is_new_sessi
             # 不發送圖片給用戶
             return """步驟2️⃣：輸入要在圖片上顯示的「文字」內容
 (例如：早安、平安喜樂、認同請分享)
-⚠️ 暫不支援emoji表情符號，請使用純文字
-⚠️ 製作期間約15秒，請勿再次發送訊息！"""
-
+⚠️ 暫不支援emoji表情符號，請使用純文字"""
             
         # Handle Text Description for Generation
         elif user_input:
@@ -3839,18 +3858,11 @@ Output JSON: {{ "intent": "text" or "switch" }}"""
             
             return """文字要放在哪個位置？請選擇（預設橫排）：
 
-1️⃣ 上方
-2️⃣ 下方
-3️⃣ 左上
-4️⃣ 右上
-5️⃣ 左下
-6️⃣ 右下
-7️⃣ 中間
-8️⃣ 右側直排
-9️⃣ 左側直排
-0️⃣ 讓 AI 幫我選
+1️⃣ 上方 2️⃣ 下方 3️⃣ 左上 4️⃣ 右上 5️⃣ 左下 6️⃣ 右下 7️⃣ 中間 8️⃣ 右側直排 9️⃣ 左側直排 0️⃣ 讓 AI 幫我選
 
-請直接輸入數字（1~9或0）"""
+請直接輸入數字（1~9或0）
+
+⚠️ 製作期間約15秒，請勿再次發送訊息！"""
 
     elif state['stage'] == 'waiting_position':
         if user_input:
