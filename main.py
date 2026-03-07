@@ -4108,26 +4108,68 @@ Text to display: "{text}"
                     final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle)
 
             else:
-                # ===== 用戶手動選位置 =====
+                # ===== 用戶手動選位置：AI 判斷顏色 + 字體大小 =====
                 position = user_position
                 try:
                     bg_image = Image.open(bg_path)
-                    color_prompt = """Look at this image and suggest a good text color that is readable and matches the aesthetic.
-Return ONLY a hex color code like #FFFFFF. Nothing else."""
-                    color_response = model_functional.generate_content(
-                        [color_prompt, bg_image],
+
+                    # AI 同時判斷顏色與字體大小（根據用戶選定的位置）
+                    color_size_prompt = f"""Look at this image. The user wants to place text at the "{position}" area.
+
+Analyze:
+1. What is a good readable text color that matches the image aesthetic? (hex code like #FFFFFF)
+2. How much space is available at the "{position}" area? Based on that space, what font size (in px) would fit well without covering the main subject?
+   - If the area is tight or near the main subject: suggest 50-70px
+   - If the area has moderate space: suggest 70-85px
+   - If the area is very open/clear: suggest 85-95px
+
+Return ONLY this JSON (nothing else):
+{{"color": "#HEXCODE", "font_size": 70}}
+
+Text to place: "{text}"
+"""
+                    ai_response = model_functional.generate_content(
+                        [color_size_prompt, bg_image],
                         generation_config=genai.types.GenerationConfig(temperature=0.5)
                     )
-                    import re
-                    hex_match = re.search(r'#[0-9A-Fa-f]{6}', color_response.text)
-                    color = hex_match.group() if hex_match else '#FFFFFF'
-                    print(f"[MEME COLOR] AI suggested: {color} for user position: {position}")
+                    import re, json as _json
+                    json_m = re.search(r'\{[^}]+\}', ai_response.text)
+                    if json_m:
+                        ai_data = _json.loads(json_m.group())
+                        hex_c = re.search(r'#[0-9A-Fa-f]{6}', ai_data.get('color', ''))
+                        color = hex_c.group() if hex_c else '#FFFFFF'
+                        size = int(ai_data.get('font_size', 70))
+                        size = max(50, min(size, 95))  # clamp 50-95px
+                    else:
+                        hex_m = re.search(r'#[0-9A-Fa-f]{6}', ai_response.text)
+                        color = hex_m.group() if hex_m else '#FFFFFF'
+                        size = 70  # safe fallback
+                    print(f"[MEME COLOR+SIZE] AI → color={color}, size={size}px for position={position}")
+
+                    # [Layer 3] 像素分析：精確計算該位置可用空間，微調字體大小
+                    try:
+                        pixel_best_pos, pixel_region = find_best_text_region(bg_image, [position])
+                        avail_w = pixel_region[2]
+                        avail_h = pixel_region[3]
+                        char_count = max(len(text), 1)
+                        size_by_height = int(avail_h * 0.38)
+                        size_by_width = int(avail_w / char_count)
+                        pixel_size = max(40, min(size_by_height, size_by_width, 95))
+                        if pixel_size >= 40:
+                            old_size = size
+                            size = pixel_size
+                            print(f"[PIXEL] Manual mode size refined: AI={old_size}px → Pixel={size}px (area={avail_w}x{avail_h})")
+                    except Exception as pe:
+                        print(f"[PIXEL] Manual mode pixel analysis skipped: {pe}")
+
                 except Exception as ce:
-                    print(f"[MEME COLOR] Fallback to white: {ce}")
+                    print(f"[MEME COLOR+SIZE] Fallback: {ce}")
                     color = '#FFFFFF'
+                    size = 70
 
                 print(f"[MEME FINAL] {text[:10]}... → pos={position}, color={color}, font={font}, size={size}px")
                 final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations)
+
 
             # 發送結果
             if final_path:
