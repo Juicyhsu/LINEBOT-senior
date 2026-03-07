@@ -4125,18 +4125,22 @@ Text to display: "{text}"
                 try:
                     bg_image = Image.open(bg_path)
 
-                    # AI 同時判斷顏色與字體大小（根據用戶選定的位置）
+                    # AI 同時判斷顏色、描邊顏色與字體大小（根據用戶選定的位置）
                     color_size_prompt = f"""Look at this image. The user wants to place text at the "{position}" area.
 
 Analyze:
-1. What is a good readable text color that matches the image aesthetic? (hex code like #FFFFFF)
-2. How much space is available at the "{position}" area? Based on that space, what font size (in px) would fit well without covering the main subject?
-   - If the area is tight or near the main subject: suggest 50-70px
-   - If the area has moderate space: suggest 70-80px
-   - If the area is very open/clear: suggest 80-85px
+1. What is a good readable TEXT COLOR that matches the image aesthetic? (hex code)
+2. What STROKE COLOR would make the text stand out clearly? Choose a contrasting color to the text color AND the image background at that area. (hex code)
+   - If text color is light → stroke should be dark (e.g. dark version of a dominant image color)
+   - If text color is dark → stroke should be light (e.g. light version of a dominant image color)
+   - Do NOT just use black or white; pick a color from the image palette when possible.
+3. How much space is available at the "{position}" area? What font size (in px) fits well without covering the main subject?
+   - Tight / near subject: suggest 50-70px
+   - Moderate space: suggest 70-80px
+   - Very open / clear: suggest 80-85px
 
 Return ONLY this JSON (nothing else):
-{{"color": "#HEXCODE", "font_size": 70}}
+{{"color": "#HEXCODE", "stroke_color": "#HEXCODE", "font_size": 70}}
 
 Text to place: "{text}"
 """
@@ -4150,13 +4154,16 @@ Text to place: "{text}"
                         ai_data = _json.loads(json_m.group())
                         hex_c = re.search(r'#[0-9A-Fa-f]{6}', ai_data.get('color', ''))
                         color = hex_c.group() if hex_c else '#FFFFFF'
+                        hex_s = re.search(r'#[0-9A-Fa-f]{6}', ai_data.get('stroke_color', ''))
+                        stroke_color = hex_s.group() if hex_s else '#333333'
                         size = int(ai_data.get('font_size', 70))
                         size = max(50, min(size, 85))  # clamp 50-85px
                     else:
                         hex_m = re.search(r'#[0-9A-Fa-f]{6}', ai_response.text)
                         color = hex_m.group() if hex_m else '#FFFFFF'
+                        stroke_color = '#333333'
                         size = 70  # safe fallback
-                    print(f"[MEME COLOR+SIZE] AI → color={color}, size={size}px for position={position}")
+                    print(f"[MEME COLOR+SIZE] AI → color={color}, stroke={stroke_color}, size={size}px for position={position}")
 
                     # [Layer 3] 像素分析：精確計算該位置可用空間，微調字體大小
                     try:
