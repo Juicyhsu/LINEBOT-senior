@@ -1500,8 +1500,9 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             start_y = padding
         elif position == 'bottom-left' or position == 'bottom-right':
             start_y = img.height - total_block_height - padding
-        else:  # center
-            start_y = (img.height - total_block_height) / 2
+        else:  # center → 偏上約35%，視覺上對應天空/太陽位置，比幾何中心更和諧
+            start_y = img.height * 0.35 - total_block_height / 2
+
             
         # 開始繪製每一行
         current_y = start_y
