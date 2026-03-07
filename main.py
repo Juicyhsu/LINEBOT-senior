@@ -4003,9 +4003,9 @@ Text to display: "{text}"
 
                             # Auto-Resize
                             if subject_size == 'large':
-                                if size > 90:
-                                    print(f"[MEME RESIZE] Subject is large, shrinking font from {size} to 90px")
-                                    size = 90
+                                if size > 85:
+                                    print(f"[MEME RESIZE] Subject is large, shrinking font from {size} to 85px")
+                                    size = 85
                             else:
                                 if size < 70:
                                     size = 70
@@ -4120,8 +4120,8 @@ Analyze:
 1. What is a good readable text color that matches the image aesthetic? (hex code like #FFFFFF)
 2. How much space is available at the "{position}" area? Based on that space, what font size (in px) would fit well without covering the main subject?
    - If the area is tight or near the main subject: suggest 50-70px
-   - If the area has moderate space: suggest 70-85px
-   - If the area is very open/clear: suggest 85-95px
+   - If the area has moderate space: suggest 70-80px
+   - If the area is very open/clear: suggest 80-85px
 
 Return ONLY this JSON (nothing else):
 {{"color": "#HEXCODE", "font_size": 70}}
@@ -4139,7 +4139,7 @@ Text to place: "{text}"
                         hex_c = re.search(r'#[0-9A-Fa-f]{6}', ai_data.get('color', ''))
                         color = hex_c.group() if hex_c else '#FFFFFF'
                         size = int(ai_data.get('font_size', 70))
-                        size = max(50, min(size, 95))  # clamp 50-95px
+                        size = max(50, min(size, 85))  # clamp 50-85px
                     else:
                         hex_m = re.search(r'#[0-9A-Fa-f]{6}', ai_response.text)
                         color = hex_m.group() if hex_m else '#FFFFFF'
@@ -4154,7 +4154,7 @@ Text to place: "{text}"
                         char_count = max(len(text), 1)
                         size_by_height = int(avail_h * 0.38)
                         size_by_width = int(avail_w / char_count)
-                        pixel_size = max(40, min(size_by_height, size_by_width, 95))
+                        pixel_size = max(40, min(size_by_height, size_by_width, 85))
                         if pixel_size >= 40:
                             old_size = size
                             size = pixel_size
