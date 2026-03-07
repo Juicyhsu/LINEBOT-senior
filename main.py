@@ -1301,10 +1301,65 @@ def create_meme_image(bg_image_path, text, user_id, font_type='kaiti', font_size
             '#96CEB4', '#FF8C42', '#D4A5A5', '#9B59B6'
         ]
         
+        # ===================================================================
+        # 🔠 直排文字處理（vertical-right / vertical-left）
+        # ===================================================================
+        if position in ('vertical-right', 'vertical-left'):
+            padding_v = 40
+            char_size = font_size if font_size else 70
+            try:
+                v_font = ImageFont.truetype(font_path, char_size) if font_path else ImageFont.load_default()
+            except:
+                v_font = ImageFont.load_default()
+
+            dummy_draw = ImageDraw.Draw(img)
+            char_h_list = []
+            char_w_max = 0
+            for ch in text:
+                bb = dummy_draw.textbbox((0, 0), ch, font=v_font)
+                cw = bb[2] - bb[0]
+                char_h_list.append(bb[3] - bb[1] + 8)
+                if cw > char_w_max:
+                    char_w_max = cw
+
+            total_text_h = sum(char_h_list)
+            if position == 'vertical-right':
+                x_center = img.width - char_w_max // 2 - padding_v
+            else:
+                x_center = char_w_max // 2 + padding_v
+
+            start_y_v = max(padding_v, (img.height - total_text_h) // 2)
+            txt_layer_v = Image.new('RGBA', img.size, (255, 255, 255, 0))
+            v_draw = ImageDraw.Draw(txt_layer_v)
+            effective_stroke_color_v = stroke_color if stroke_color else '#000000'
+            current_y_v = start_y_v
+            for i, ch in enumerate(text):
+                ch_h = char_h_list[i]
+                bb = v_draw.textbbox((0, 0), ch, font=v_font)
+                cw = bb[2] - bb[0]
+                draw_x = x_center - cw // 2
+                draw_y = current_y_v
+                char_color_v = rainbow_colors[i % len(rainbow_colors)] if is_rainbow else fill_color
+                if stroke_width and stroke_width > 0:
+                    v_draw.text((draw_x, draw_y), ch, font=v_font, fill=char_color_v,
+                                stroke_width=stroke_width, stroke_fill=effective_stroke_color_v)
+                else:
+                    v_draw.text((draw_x + 2, draw_y + 2), ch, font=v_font, fill='#00000088')
+                    v_draw.text((draw_x, draw_y), ch, font=v_font, fill=char_color_v)
+                current_y_v += ch_h
+
+            img = Image.alpha_composite(img, txt_layer_v)
+            img = img.convert('RGB')
+            meme_path = os.path.join(UPLOAD_FOLDER, f"{user_id}_meme.png")
+            img.save(meme_path)
+            return meme_path
+        # ===================================================================
+
         # 創建文字圖層
         txt_layer = Image.new('RGBA', img.size, (255, 255, 255, 0))
         txt_draw = ImageDraw.Draw(txt_layer)
         
+
         # 計算起始位置
         padding = 40  # 用戶希望文字邊界加大 (30->40)
         
@@ -3780,28 +3835,80 @@ Output JSON: {{ "intent": "text" or "switch" }}"""
                 print(f"[MEME] Intent check failed: {e}")
             
             state['text'] = user_input
+            state['stage'] = 'waiting_position'
             
-            # Design Logic
-            text = user_input
+            return """文字要放在哪個位置？請選擇（預設橫排）：
+
+1️⃣ 上方
+2️⃣ 下方
+3️⃣ 左上
+4️⃣ 右上
+5️⃣ 左下
+6️⃣ 右下
+7️⃣ 中間
+8️⃣ 右側直排
+9️⃣ 左側直排
+0️⃣ 讓 AI 幫我選
+
+請直接輸入數字（1~9或0）"""
+
+    elif state['stage'] == 'waiting_position':
+        if user_input:
+            # 檢查是否要取消
+            if '取消' in user_input:
+                user_meme_state[user_id] = {'stage': 'idle', 'bg_image': None, 'text': None}
+                if user_id in user_images:
+                    del user_images[user_id]
+                return "已取消長輩圖製作。"
+
+            text = state.get('text', '')
             bg_path = state['bg_image']
-            
-            # 完全隨機創意排版（移除 AI 判斷，確保每次都有變化）
+
+            # 位置選項對應表
+            POSITION_MAP = {
+                '1': 'top',
+                '2': 'bottom',
+                '3': 'top-left',
+                '4': 'top-right',
+                '5': 'bottom-left',
+                '6': 'bottom-right',
+                '7': 'center',
+                '8': 'vertical-right',
+                '9': 'vertical-left',
+                '0': 'ai',
+            }
+
+            chosen_key = user_input.strip()
+            user_position = POSITION_MAP.get(chosen_key, None)
+
+            if user_position is None:
+                return "請輸入 1~9 或 0 來選擇位置喔！\n（輸入「取消」可結束）"
+
             import random
             from PIL import Image
-            
-            try:
-                from PIL import Image
-                import random
-                
-                # 載入背景圖片
-                bg_image = Image.open(bg_path)
-                
-                # [Fix] Inject randomness to force variety on re-generation
-                import random
-                random_vibes = ["Pop Art", "Elegant", "Bold", "Minimalist", "Retro", "Modern", "Handwritten Style", "Cute", "Serious"]
-                current_vibe = random.choice(random_vibes)
-                
-                vision_prompt = f"""Analyze this image and design text layout for: "{text}"
+
+            # 公用預設值
+            font = 'heiti'
+            size = 80
+            angle = 0
+            stroke_width = 10
+            stroke_color = '#000000'
+            decorations = []
+            color = None
+            text_style = 'gentle'
+            final_path = None
+
+            if user_position == 'ai':
+                # ===== AI 判斷模式（保留 b3b7e69 完整邏輯）=====
+                try:
+                    from PIL import Image
+                    import random
+
+                    bg_image = Image.open(bg_path)
+                    random_vibes = ["Pop Art", "Elegant", "Bold", "Minimalist", "Retro", "Modern", "Handwritten Style", "Cute", "Serious"]
+                    current_vibe = random.choice(random_vibes)
+
+                    vision_prompt = f"""Analyze this image and design text layout for: "{text}"
 
 **DESIGN GOAL: {current_vibe} Style**
 
@@ -3837,8 +3944,8 @@ Decide the animation style based on the mood of the image and the text:
 **STRATEGY: EXTRACT FROM IMAGE**
 1. **Analyze the Image Palette:** Identify the dominant colors in the image.
 2. **Option A (Harmony):** Choose a color that **EXISTS in the image** or is a **similar shade (Analogous)**, provided it matches the vibe and is readable.
-3. **Option B (Contrast):** If harmony fails readability, use a **Complementary Color** (opposite on color wheel) derived from the image's palette.
-4. **Avoid:** Generic default colors (plain white/yellow) unless they are part of the image's specific aesthetic.
+3. **Option B (Contrast):** If harmony fails readability, use a **Complementary Color** (opposite on color wheel) derived from the image palette.
+4. **Avoid:** Generic default colors (plain white/yellow) unless they are part of the image specific aesthetic.
 5. **Format:** Output exact HEX CODES based on the image analysis.
 
 **Output JSON (MUST include all fields):**
@@ -3856,225 +3963,177 @@ Decide the animation style based on the mood of the image and the text:
 
 Text to display: "{text}"
 """
-
-                # 使用功能性模型進行排版分析，但臨時調高溫度以增加創意
-                response = model_functional.generate_content(
-                    [vision_prompt, bg_image],
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=1.2, # 調高溫度，增加隨機性
-                        top_p=0.95,
-                        top_k=40
+                    response = model_functional.generate_content(
+                        [vision_prompt, bg_image],
+                        generation_config=genai.types.GenerationConfig(temperature=1.2, top_p=0.95, top_k=40)
                     )
-                )
-                result = response.text.strip()
-                
-                print(f"[AI CREATIVE] Raw: {result[:100]}...")
-                
-                # 解析 JSON 或 Regex
-                import re
-                import json
-                
-                # 預設值 - 應該要被AI覆蓋
-                position = 'top'
-                direction = 'horizontal'
-                # color = '#FFFFFF'  <-- REMOVED DEFAULT
-                color = None # Let it be None to trigger fallback if AI fails
-                font = 'heiti'
-                angle = 0
-                stroke_width = 10  # 預設描邊寬度 (對閱讀很重要)
-                stroke_color = '#000000'
-                size = 80  # 預設字體大小
-                
-                try:
-                    # 嘗試解析 JSON
-                    json_match = re.search(r'\{.*\}', result, re.DOTALL)
-                    if json_match:
-                        data = json.loads(json_match.group())
-                        subject_location = data.get('subject_location', 'center')
-                        subject_size = data.get('subject_size', 'small') # 新增：主體大小
-                        # [Layer 2] 次要物件佔用的位置（如飛球、背景人物）
-                        secondary_occupied = data.get('secondary_occupied', [])
-                        if not isinstance(secondary_occupied, list):
-                            secondary_occupied = []
-                        position = data.get('position', 'top')
-                        direction = data.get('direction', 'horizontal')
-                        color = data.get('color')
-                        if not color or color == 'null':
-                             # [Fix] Fallback to random high-contrast color if AI misses it
-                             import random
-                             fallback_colors = ['#FFFFFF', '#FFD700', '#FF0000', '#0000FF', '#00FF00', '#FFA500', '#FF69B4']
-                             color = random.choice(fallback_colors)
-                             print(f"[AI COLOR MISS] AI didn't return color, used random fallback: {color}")
-                        font = data.get('font', 'heiti')
-                        angle = int(data.get('angle', 0))
-                        stroke_width = int(data.get('stroke_width', 10))
-                        stroke_color = data.get('stroke_color', '#000000')
-                        size = int(data.get('font_size', 80))
-                        decorations = data.get('decorations', [])
-                        # [Style] AI 决定文字風格: 'wave'(活潑), 'gentle'(溫和), 'straight'(工整)
-                        text_style = data.get('text_style', 'gentle')
-                        if text_style not in ('wave', 'gentle', 'straight'):
-                            text_style = 'gentle'  # 預設安全値
-                        
-                        # 📏 根據主體大小自動調整字體 (Auto-Resize)
-                        if subject_size == 'large':
-                            # 主體很大時，強制縮小字體以塞入縫隙，但保持至少 60px
-                            if size > 90:
-                                print(f"[MEME RESIZE] Subject is large, shrinking font from {size} to 90px")
-                                size = 90
+                    result = response.text.strip()
+                    print(f"[AI CREATIVE] Raw: {result[:100]}...")
+
+                    import re, json
+                    position = 'top'
+                    direction = 'horizontal'
+                    color = None
+
+                    try:
+                        json_match = re.search(r'\{.*\}', result, re.DOTALL)
+                        if json_match:
+                            data = json.loads(json_match.group())
+                            subject_location = data.get('subject_location', 'center')
+                            subject_size = data.get('subject_size', 'small')
+                            secondary_occupied = data.get('secondary_occupied', [])
+                            if not isinstance(secondary_occupied, list):
+                                secondary_occupied = []
+                            position = data.get('position', 'top')
+                            direction = data.get('direction', 'horizontal')
+                            color = data.get('color')
+                            if not color or color == 'null':
+                                fallback_colors = ['#FFFFFF', '#FFD700', '#FF0000', '#0000FF', '#00FF00', '#FFA500', '#FF69B4']
+                                color = random.choice(fallback_colors)
+                                print(f"[AI COLOR MISS] used random fallback: {color}")
+                            font = data.get('font', 'heiti')
+                            angle = int(data.get('angle', 0))
+                            stroke_width = int(data.get('stroke_width', 10))
+                            stroke_color = data.get('stroke_color', '#000000')
+                            size = int(data.get('font_size', 80))
+                            decorations = data.get('decorations', [])
+                            text_style = data.get('text_style', 'gentle')
+                            if text_style not in ('wave', 'gentle', 'straight'):
+                                text_style = 'gentle'
+
+                            # Auto-Resize
+                            if subject_size == 'large':
+                                if size > 90:
+                                    print(f"[MEME RESIZE] Subject is large, shrinking font from {size} to 90px")
+                                    size = 90
+                            else:
+                                if size < 70:
+                                    size = 70
+
+                            # [Layer 1] 位置安全檢查（集合比對）
+                            POSITION_AREAS = {
+                                'top':    {'top', 'top-left', 'top-right'},
+                                'bottom': {'bottom', 'bottom-left', 'bottom-right'},
+                                'left':   {'left', 'top-left', 'bottom-left'},
+                                'right':  {'right', 'top-right', 'bottom-right'},
+                                'center': {'center'},
+                            }
+                            opposite_map = {
+                                'top':    ['bottom', 'bottom-left', 'bottom-right'],
+                                'bottom': ['top', 'top-left', 'top-right'],
+                                'left':   ['right', 'top-right', 'bottom-right'],
+                                'right':  ['left', 'top-left', 'bottom-left'],
+                                'center': ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                            }
+                            safe_positions = opposite_map.get(subject_location, ['top', 'bottom'])
+                            subject_zones = POSITION_AREAS.get(subject_location, set())
+                            is_unsafe = position in subject_zones
+
+                            if is_unsafe:
+                                old_position = position
+                                truly_safe = [p for p in safe_positions if p not in secondary_occupied]
+                                if not truly_safe:
+                                    truly_safe = safe_positions
+                                position = random.choice(truly_safe)
+                                print(f"[MEME SAFETY L1] Position corrected: {old_position} → {position} (subject at {subject_location})")
+                            else:
+                                # [Layer 2] 次要物件檢查
+                                if secondary_occupied and position in secondary_occupied:
+                                    old_position = position
+                                    all_positions_l2 = ['top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
+                                    truly_safe = [p for p in all_positions_l2 if p not in secondary_occupied and p not in subject_zones]
+                                    if not truly_safe:
+                                        truly_safe = safe_positions
+                                    position = random.choice(truly_safe)
+                                    print(f"[MEME SAFETY L2] Secondary object conflict: {old_position} → {position}")
+
+                            print(f"[MEME AI] Subject={subject_location}, Position={position}, Color={color}, Stroke={stroke_width}px, SecondaryBlocked={secondary_occupied}")
                         else:
-                            # 主體很小或背景乾淨，允許大字體，但確保不小於 70px
-                            if size < 70:
-                                size = 70
-                        
-                        # [Layer 1] 🚨 位置安全檢查（修正版）：使用集合比對，而非字串 in 比對
-                        # 原本的 subject_location in position 會因字串包含誤判
-                        # 例如 subject='top', position='top-left' → 'top' in 'top-left' = True (誤判)
-                        POSITION_AREAS = {
+                            raise ValueError("No JSON found")
+
+                    except Exception as parse_e:
+                        print(f"[AI PARSE ERROR] {parse_e}")
+                        decorations = []
+                        position = 'bottom'
+
+                    # [Layer 3] 像素分析最終定位
+                    try:
+                        POSITION_AREAS_L3 = {
                             'top':    {'top', 'top-left', 'top-right'},
                             'bottom': {'bottom', 'bottom-left', 'bottom-right'},
                             'left':   {'left', 'top-left', 'bottom-left'},
                             'right':  {'right', 'top-right', 'bottom-right'},
                             'center': {'center'},
                         }
-                        opposite_map = {
-                            'top':    ['bottom', 'bottom-left', 'bottom-right'],
-                            'bottom': ['top', 'top-left', 'top-right'],
-                            'left':   ['right', 'top-right', 'bottom-right'],
-                            'right':  ['left', 'top-left', 'bottom-left'],
-                            'center': ['top-left', 'top-right', 'bottom-left', 'bottom-right']
-                        }
-                        safe_positions = opposite_map.get(subject_location, ['top', 'bottom'])
-                        
-                        # 正確的集合比對：判斷 position 是否落在主體所在的區域集合中
-                        subject_zones = POSITION_AREAS.get(subject_location, set())
-                        is_unsafe = position in subject_zones
-                        
-                        if is_unsafe:
-                            import random
-                            old_position = position
-                            # 從安全位置中排除次要物件所在位置後再隨機選
-                            truly_safe = [p for p in safe_positions if p not in secondary_occupied]
-                            if not truly_safe:
-                                truly_safe = safe_positions  # 若排除後為空，退回原本安全清單
-                            position = random.choice(truly_safe)
-                            print(f"[MEME SAFETY L1] Position corrected: {old_position} → {position} (subject at {subject_location})")
-                        else:
-                            # [Layer 2] 即使主體安全，也要再檢查次要物件
-                            if secondary_occupied and position in secondary_occupied:
-                                import random
-                                old_position = position
-                                all_positions = ['top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
-                                subject_zones = POSITION_AREAS.get(subject_location, set())
-                                truly_safe = [p for p in all_positions if p not in secondary_occupied and p not in subject_zones]
-                                if not truly_safe:
-                                    truly_safe = safe_positions
-                                position = random.choice(truly_safe)
-                                print(f"[MEME SAFETY L2] Secondary object conflict: {old_position} → {position} (secondary at {secondary_occupied})")
-                        
-                        # DEBUG: 顯示AI選擇的風格
-                        print(f"[MEME AI] Subject={subject_location}, Position={position}, Color={color}, Stroke={stroke_width}px, SecondaryBlocked={secondary_occupied}")
-                    else:
-                        raise ValueError("No JSON found")
-                        
-                except Exception as parse_e:
-                    print(f"[AI PARSE ERROR] {parse_e}, trying fallback regex")
-                    decorations = []  # 如果解析失敗，裝飾為空
-                    # 安全預設：文字放底部
-                    position = 'bottom'
-                    pass
-                
-                # [Layer 3] 🔬 像素分析最終定位 + 精確字體大小
-                # 用真實像素邊緣密度，從安全位置中選出最空曠的角落
-                # 並根據該區域的實際像素尺寸計算最合適的字體大小
+                        subject_zones_l3 = POSITION_AREAS_L3.get(subject_location, set())
+                        all_candidate_positions = [
+                            p for p in ['top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
+                            if p not in subject_zones_l3 and p not in secondary_occupied
+                        ]
+                        if not all_candidate_positions:
+                            all_candidate_positions = safe_positions
+
+                        pixel_best_pos, pixel_region = find_best_text_region(bg_image, all_candidate_positions)
+                        old_ai_pos = position
+                        position = pixel_best_pos
+                        print(f"[PIXEL] Overriding AI position '{old_ai_pos}' → '{position}'")
+
+                        avail_w = pixel_region[2]
+                        avail_h = pixel_region[3]
+                        char_count = max(len(text), 1)
+                        size_by_height = int(avail_h * 0.38)
+                        size_by_width = int(avail_w / char_count)
+                        pixel_size = max(40, min(size_by_height, size_by_width, 85))
+                        if pixel_size >= 40:
+                            old_size = size
+                            size = pixel_size
+                            print(f"[PIXEL] Font size: AI={old_size}px → Pixel-calculated={size}px (area={avail_w}x{avail_h})")
+
+                    except Exception as pixel_e:
+                        print(f"[PIXEL] Integration error: {pixel_e}, keeping AI decisions")
+
+                    print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, stroke={stroke_width}")
+                    final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations, text_style)
+
+                except Exception as e:
+                    print(f"[VISION ERROR] {e}，使用隨機創意 fallback")
+                    all_pos_fb = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom']
+                    all_col_fb = ['rainbow', '#FFD700', '#FF8C00', '#FF1493', '#00CED1', '#32CD32', '#DC143C']
+                    position = random.choice(all_pos_fb)
+                    color = random.choice(all_col_fb)
+                    font = random.choice(['kaiti', 'heiti'])
+                    angle = random.choice([0, 5, 8, -5, -8])
+                    size = 65
+                    print(f"[FALLBACK CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}號")
+                    final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle)
+
+            else:
+                # ===== 用戶手動選位置 =====
+                position = user_position
                 try:
-                    # 收集所有安全候選位置（主體安全 + 次要物件安全）
-                    POSITION_AREAS_L3 = {
-                        'top':    {'top', 'top-left', 'top-right'},
-                        'bottom': {'bottom', 'bottom-left', 'bottom-right'},
-                        'left':   {'left', 'top-left', 'bottom-left'},
-                        'right':  {'right', 'top-right', 'bottom-right'},
-                        'center': {'center'},
-                    }
-                    subject_zones_l3 = POSITION_AREAS_L3.get(subject_location, set())
-                    all_candidate_positions = [
-                        p for p in ['top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']
-                        if p not in subject_zones_l3 and p not in secondary_occupied
-                    ]
-                    if not all_candidate_positions:
-                        all_candidate_positions = safe_positions  # fallback
+                    bg_image = Image.open(bg_path)
+                    color_prompt = """Look at this image and suggest a good text color that is readable and matches the aesthetic.
+Return ONLY a hex color code like #FFFFFF. Nothing else."""
+                    color_response = model_functional.generate_content(
+                        [color_prompt, bg_image],
+                        generation_config=genai.types.GenerationConfig(temperature=0.5)
+                    )
+                    import re
+                    hex_match = re.search(r'#[0-9A-Fa-f]{6}', color_response.text)
+                    color = hex_match.group() if hex_match else '#FFFFFF'
+                    print(f"[MEME COLOR] AI suggested: {color} for user position: {position}")
+                except Exception as ce:
+                    print(f"[MEME COLOR] Fallback to white: {ce}")
+                    color = '#FFFFFF'
 
-                    # 執行像素分析，找出最空曠的位置與可用區域
-                    pixel_best_pos, pixel_region = find_best_text_region(bg_image, all_candidate_positions)
+                print(f"[MEME FINAL] {text[:10]}... → pos={position}, color={color}, font={font}, size={size}px")
+                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations)
 
-                    # 用像素分析的結果覆蓋 AI 猜測的位置
-                    old_ai_pos = position
-                    position = pixel_best_pos
-                    print(f"[PIXEL] Overriding AI position '{old_ai_pos}' → '{position}'")
-
-                    # 根據可用區域面積計算精確字體大小
-                    avail_w = pixel_region[2]
-                    avail_h = pixel_region[3]
-                    char_count = max(len(text), 1)
-
-                    # 高度估算：字體高度 ≤ 可用高度的 38%（保留換行空間）
-                    size_by_height = int(avail_h * 0.38)
-                    # 寬度估算：假設文字單行排列，每字佔一格
-                    size_by_width = int(avail_w / char_count)
-                    # 取較小值，確保不超出可用區域，再 clamp 在合理範圍
-                    # 上限設為 85px，避免風景圖等大空白區域產生過大字體
-                    pixel_size = max(40, min(size_by_height, size_by_width, 85))
-
-                    # 只有在像素計算的大小合理時才採用（避免過度縮小）
-                    if pixel_size >= 40:
-                        old_size = size
-                        size = pixel_size
-                        print(f"[PIXEL] Font size: AI={old_size}px → Pixel-calculated={size}px (area={avail_w}x{avail_h})")
-
-                except Exception as pixel_e:
-                    print(f"[PIXEL] Integration error: {pixel_e}, keeping AI decisions")
-                    # 完全 fallback，不影響原有 AI 決策
-
-                print(f"[AI CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}px, stroke={stroke_width}")
-
-                # 傳遞 decorations 及 text_style 參數
-                final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle, stroke_width, stroke_color, decorations, text_style)
-                
-                # Send - 使用 reply_token 免費發送
-                if final_path:
-                    if send_image_to_line(user_id, final_path, "長輩圖製作完成，讚喔！", reply_token):
-                        state['stage'] = 'idle'
-                        return None # 已回覆
-                    else:
-                        state['stage'] = 'idle'
-                        return "長輩圖已製作但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)未設定。\n請檢查 .env 文件中的 IMGBB_API_KEY。"
-                else:
-                    return "製作失敗了... (Layout Error)"
-                    
-            except Exception as e:
-                print(f"[VISION ERROR] {e}，使用隨機創意 fallback")
-                # Fallback: 隨機創意而非固定值 (包含 rainbow 選項)
-                all_positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom']
-                all_colors = ['rainbow', '#FFD700', '#FF8C00', '#FF1493', '#00CED1', '#32CD32', '#DC143C']
-                all_fonts = ['kaiti', 'heiti']
-                all_angles = [0, 5, 8, -5, -8]
-                
-                position = random.choice(all_positions)
-                color = random.choice(all_colors)
-                font = random.choice(all_fonts)
-                angle = random.choice(all_angles)
-                size = 65
-                
-                print(f"[FALLBACK CREATIVE] {text[:10]}... → {position}, {color}, {font}, {size}號, {angle}度")
-
-            
-            final_path = create_meme_image(bg_path, text, user_id, font, size, position, color, angle)
-            
-            # Send - 使用 reply_token 免費發送
+            # 發送結果
             if final_path:
                 if send_image_to_line(user_id, final_path, "長輩圖製作完成，讚喔！", reply_token):
                     state['stage'] = 'idle'
-                    return None # 已回覆
+                    return None
                 else:
                     state['stage'] = 'idle'
                     return "長輩圖已製作但發送失敗。\n\n可能原因：圖片上傳服務(ImgBB/GCS)未設定。\n請檢查 .env 文件中的 IMGBB_API_KEY。"
@@ -4082,6 +4141,7 @@ Text to display: "{text}"
                 return "製作失敗了...\n\n輸入「取消」可取消，或再試一次！"
 
     return "發生了一些問題...\n\n輸入「取消」可重新開始。"
+
 
 
 
